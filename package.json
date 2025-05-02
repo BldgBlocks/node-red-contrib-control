@@ -10,5 +10,13 @@
     }
   },
   "author": "BuildingBlocks",
-  "license": "MIT"
+  "license": "MIT",  
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git"
+  },
+  "homepage": "https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control#readme",
+  "bugs": {
+    "url": "https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control/issues"
+  },
 }
