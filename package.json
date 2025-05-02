@@ -1,0 +1,14 @@
+{
+  "name": "node-red-contrib-buildingblocks-control",
+  "version": "0.0.1",
+  "description": "Sedona-inspired control nodes for Node-RED",
+  "main": "index.js",
+  "keywords": [ "sedona", "control", "hvac" ],
+  "node-red": {
+    "nodes": {
+      "sinewave-block": "nodes/sinewave-block.js"
+    }
+  },
+  "author": "BuildingBlocks",
+  "license": "MIT"
+}
