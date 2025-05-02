@@ -1,0 +1,63 @@
+<script type="text/html" data-template-name="and-block">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-slots"><i class="fa fa-list"></i> Slots</label>
+        <input type="number" id="node-input-slots" placeholder="2" title="Number of boolean inputs (integer ≥ 2)">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("and-block", {
+        category: "logic",
+        color: "#a6bbcf",
+        defaults: {
+            name: { value: "" },
+            slots: { value: 2, required: true, validate: function(v) { return Number.isInteger(Number(v)) && Number(v) >= 2; } }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "logic.png",
+        label: function() {
+            return this.name || "and";
+        },
+        oneditprepare: function() {
+            // Initialize jQuery UI tooltips (optional, as title attribute is used)
+            $("#node-input-slots").tooltip();
+        },
+        oneditsave: function() {
+            // Ensure slots is an integer
+            let slots = parseInt($("#node-input-slots").val());
+            $("#node-input-slots").val(slots);
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="and-block">
+Evaluates a configurable number of boolean inputs asynchronously, outputting true if all are true.
+
+### Inputs
+- **context** (string): Sets input values ("inX" for input X, e.g., "in1").
+- **payload** (any): Input value (boolean-convertible for "inX").
+
+### Outputs
+- **payload** (boolean): True if all inputs are true, false otherwise.
+
+### Details
+The AND Block is a Sedona-inspired node for control systems, processing inputs (`in1`, `in2`, ..., `inN`) stored in context. It computes a logical AND, outputting `true` only when all inputs are `true`.
+
+Inputs update asynchronously via `msg.context = "inX"` (e.g., `msg.context = "in1", msg.payload = true`) or non-config messages (updates last input, `in${slots}`). The number of inputs (slots) is configurable in the editor (integer ≥2, default: 2).
+
+`msg.payload` for inputs is converted to boolean (e.g., `1`, `"true"` → `true`; `0`, `null` → `false`). Outputs are new messages (`{ payload: boolean }`), sent for every valid update, discarding input properties like `msg.context`.
+
+Use with a Contextual In node to set `msg.context`. Ideal for interlocking logic or asynchronous conditions in automation workflows.
+
+### Error Handling
+- Missing `msg.payload`: Shows "missing payload" (red), no output.
+- Invalid `inX` (e.g., `in5` for 4 slots): Shows "invalid input index X" (red), no output.
+- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+
+Status shows green for config (e.g., `in1 set to true`), blue for output (e.g., `out: true, in: [true, true]`), red/yellow for errors.
+</script>
