@@ -2,14 +2,13 @@
   "name": "node-red-contrib-buildingblocks-control",
   "version": "0.0.1",
   "description": "Sedona-inspired control nodes for Node-RED",
-  "main": "index.js",
   "keywords": [ "sedona", "control", "hvac" ],
   "node-red": {
     "nodes": {
       "and-block": "nodes/and-block.js"
     }
   },
-  "author": "BuildingBlocks",
+  "author": "buildingblocks",
   "license": "MIT",  
   "repository": {
     "type": "git",
