@@ -1,3 +1,4 @@
+<!-- UI Template Section: Defines the edit dialog for the AND Block node -->
 <script type="text/html" data-template-name="and-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -5,17 +6,18 @@
     </div>
     <div class="form-row">
         <label for="node-input-slots" title="Number of boolean inputs (integer ≥ 2)"><i class="fa fa-list"></i> Slots</label>
-        <input type="number" id="node-input-slots" placeholder="2">
+        <input type="number" id="node-input-slots" placeholder="2" min="2" step="1">
     </div>
 </script>
 
+<!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
     RED.nodes.registerType("and-block", {
         category: "control",
         color: "#301934",
         defaults: {
             name: { value: "and" },
-            slots: { value: 2, required: true, validate: function(v) { return Number.isInteger(Number(v)) && Number(v) >= 2; } }
+            slots: { value: 2, required: true, validate: function (v) { return Number.isInteger(+v) && +v >= 2; } }
         },
         inputs: 1,
         outputs: 1,
@@ -23,26 +25,61 @@
         outputLabels: ["output"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "and",
-        label: function() {
-            return `and (${this.slots})`;
+        label: function () {
+            return this.name ? `${this.name} (${this.slots})` : `and (${this.slots})`;
         },
-        oneditprepare: function() {
-            $("#node-input-slots").tooltip();
+        oneditprepare: function () {
+            const id = this.id;
+            const node = RED.nodes.getNode(id);
+            if (node) {
+                const context = node.context();
+                const slots = context.get("slots");
+                const name = context.get("name");
+                $("#node-input-slots").val(typeof slots === "number" && slots >= 2 ? slots : 2);
+                $("#node-input-name").val(typeof name === "string" && name.trim() ? name : "and");
+            } else {
+                // Fallback if node not found
+                $.getJSON(`/and-block/${id}?t=${Date.now()}`, function (data) {
+                    if (data && typeof data.slots === "number" && data.slots >= 2) {
+                        $("#node-input-slots").val(data.slots);
+                    } else {
+                        $("#node-input-slots").val(2);
+                    }
+                    if (data && typeof data.name === "string" && data.name.trim()) {
+                        $("#node-input-name").val(data.name);
+                    } else {
+                        $("#node-input-name").val("and");
+                    }
+                }).fail(function () {
+                    $("#node-input-slots").val(2);
+                    $("#node-input-name").val("and");
+                });
+            }
         },
-        oneditsave: function() {
-            // Ensure slots is an integer
+        oneditsave: function () {
             let slots = parseInt($("#node-input-slots").val());
             $("#node-input-slots").val(slots);
+            let name = $("#node-input-name").val().trim() || "and";
+            const context = RED.nodes.getNode(this.id).context();
+            context.set("slots", slots);
+            context.set("name", name);
+            // Update node properties for canvas
+            const node = RED.nodes.getNode(this.id);
+            if (node) {
+                node.slots = slots;
+                node.name = name;
+            }
         }
     });
 </script>
 
+<!-- Help Section: Provides documentation for the AND Block node -->
 <script type="text/markdown" data-help-name="and-block">
 Evaluates a configurable number of boolean inputs asynchronously, outputting true if all are true.
 
 ### Inputs
-- **context** (string): Sets input values ("inX" for input X, e.g., "in1").
-- **payload** (any): Input value (boolean-convertible for "inX").
+- **context** (string): Sets input values ("inX" for input X, e.g., "in1"), "slots" for input count, or "name" for node name.
+- **payload** (any): Input value (boolean-convertible for "inX", number for "slots", string for "name").
 
 ### Outputs
 - **payload** (boolean): True if all inputs are true, false otherwise.
@@ -53,7 +90,8 @@ stored in context. It computes a logical AND, outputting `true` only when all in
 
 Inputs update asynchronously via `msg.context = "inX"` (e.g., `msg.context = "in1", msg.payload = true`) or 
 non-config messages (updates last input, `in${slots}`). The number of inputs (slots) is configurable in the 
-editor (integer ≥2, default: 2).
+editor or via `msg.context = "slots"` (integer ≥2, default: 2). The node name is configurable via 
+`msg.context = "name"` or the editor.
 
 `msg.payload` for inputs is converted to boolean (e.g., `1`, `"true"` → `true`; `0`, `null` → `false`). 
 Outputs are new messages (`{ payload: boolean }`), sent for every valid update, discarding input properties 
@@ -63,8 +101,9 @@ Use with a Contextual In node to set `msg.context`. Ideal for interlocking logic
 
 ### Error Handling
 - Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid `inX` (e.g., `in5` for 4 slots): Shows "invalid input index X" (red), no output.
+- Invalid `slots` (non-integer, < 2): Shows "invalid slots" (red), no output.
+- Invalid `inX` (e.g., `in5` for 4 slots): Shows "invalid input index" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for config (e.g., `in1 set to true`), blue for output (e.g., `out: true, in: [true, true]`), red/yellow for errors.
+Status shows green for config (e.g., `in1 set to true`, `slots set to 4`), blue for output (e.g., `out: true, in: [true, true]`), red/yellow for errors.
 </script>
