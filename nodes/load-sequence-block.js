@@ -103,7 +103,6 @@ module.exports = function(RED) {
                         else if (msg.context === "threshold3") node.threshold3 = threshValue;
                         else node.threshold4 = threshValue;
                         if (node.threshold1 >= node.threshold2 || node.threshold2 >= node.threshold3 || node.threshold3 >= node.threshold4) {
-                            // Revert to previous thresholds
                             node.threshold1 = prevThresholds[0];
                             node.threshold2 = prevThresholds[1];
                             node.threshold3 = prevThresholds[2];
@@ -181,7 +180,7 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Process logic (reverted to source)
+            // Process logic (source conditions with reversed prioritization)
             let newMsg = [null, null, null, null];
             let numStagesOn = 0;
 
@@ -242,19 +241,19 @@ module.exports = function(RED) {
                     newOut4 = true;
                 }
 
-                // Prioritize highest stage change (source order)
-                if (newOut4 !== out4) {
-                    out4 = newOut4;
-                    newMsg = [null, null, null, { payload: out4 }];
-                } else if (newOut3 !== out3) {
-                    out3 = newOut3;
-                    newMsg = [null, null, { payload: out3 }, null];
+                // Prioritize lowest stage change
+                if (newOut1 !== out1) {
+                    out1 = newOut1;
+                    newMsg = [{ payload: out1 }, null, null, null];
                 } else if (newOut2 !== out2) {
                     out2 = newOut2;
                     newMsg = [null, { payload: out2 }, null, null];
-                } else if (newOut1 !== out1) {
-                    out1 = newOut1;
-                    newMsg = [{ payload: out1 }, null, null, null];
+                } else if (newOut3 !== out3) {
+                    out3 = newOut3;
+                    newMsg = [null, null, { payload: out3 }, null];
+                } else if (newOut4 !== out4) {
+                    out4 = newOut4;
+                    newMsg = [null, null, null, { payload: out4 }];
                 }
 
                 numStagesOn = (out1 ? 1 : 0) + (out2 ? 1 : 0) + (out3 ? 1 : 0) + (out4 ? 1 : 0);

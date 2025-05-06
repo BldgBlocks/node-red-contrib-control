@@ -52,7 +52,7 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "load sequence" },
+            name: { value: "load-sequence" },
             enable: { value: true },
             hysteresis: { value: 0.5, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
             threshold1: { value: 10.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)); } },
@@ -69,9 +69,9 @@
         inputLabels: ["input"],
         outputLabels: ["load1", "load2", "load3", "load4"],
         icon: "font-awesome/fa-wrench",
-        paletteLabel: "load sequence",
+        paletteLabel: "loadsequence",
         label: function() {
-            return this.name || "load sequence";
+            return this.name || "load-sequence";
         },
         oneditprepare: function() {
             const id = this.id;
@@ -123,11 +123,11 @@ Sequences four boolean outputs based on input thresholds with feedback and hyste
 
 ### Details
 The Load Sequence Block is a Sedona-inspired node for control systems, sequencing four boolean outputs (`load1` to `load4`) based on a numeric input (`msg.payload`) crossing thresholds (`threshold1` to `threshold4`) with hysteresis and feedback (`feedback1` to `feedback4`). 
-Outputs turn on when the input exceeds a threshold and required feedback is present (e.g., `load2` requires `feedback1`). 
+Outputs turn on sequentially when the input exceeds a threshold and required feedback is present (e.g., `load2` requires `feedback1`). 
 Outputs turn off when the input falls below `thresholdX - hysteresis` and higher-stage feedback allows. 
 Configure via the editor or `msg.context = "enable"` (boolean), `hysteresis` (non-negative number), `threshold1-4` (numbers, increasing order), `feedback1-4` (booleans). 
 `msg.payload = "kill"` shuts down all outputs. 
-`enable = false` disables outputs sequentially. 
+`enable = false` disables outputs sequentially from highest to lowest. 
 Tracks active stages (`dOn`).
 
 The node name, `enable`, `hysteresis`, `threshold1-4`, and `feedback1-4` are configurable in the editor; all except `dOn` are configurable via `msg.context`. 
