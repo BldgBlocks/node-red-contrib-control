@@ -1,0 +1,80 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="comment-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-comment" title="Comment shown in status (max 60 characters)"><i class="fa fa-comment"></i> Comment</label>
+        <input type="text" id="node-input-comment" placeholder="Enter comment (max 60 chars)" maxlength="60">
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("comment-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "comment" },
+            comment: { value: "No comment" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-wrench",
+        paletteLabel: "comment",
+        label: function () {
+            return this.name || this.comment || "comment";
+        },
+        oneditprepare: function () {
+            const id = this.id;
+            $.getJSON(`/comment-block/${id}?t=${Date.now()}`, function (data) {
+                if (data && typeof data.comment === "string") {
+                    $("#node-input-comment").val(data.comment);
+                } else {
+                    $("#node-input-comment").val("");
+                }
+            }).fail(function () {
+                $("#node-input-comment").val("");
+            });
+        },
+        oneditsave: function () {
+            let comment = $("#node-input-comment").val().trim().substring(0, 60);
+            const context = RED.nodes.getNode(this.id).context();
+            context.set("comment", comment);
+            console.log(`Saved comment-block node ${this.id}: comment=${comment}`);
+            // Update status immediately
+            const node = RED.nodes.getNode(this.id);
+            if (node) {
+                node.status({ fill: "blue", shape: "dot", text: comment || "No comment set" });
+            }
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="comment-block">
+# Comment Block Node
+
+Displays a short, configurable comment in the node’s status persistently and on input.
+
+## Inputs
+- **payload** (any): Any input message triggers the status display (optional).
+
+## Outputs
+- **payload** (any): The input message, passed unchanged.
+
+## Details
+The Comment Block node shows a user-defined comment (max 60 characters) in its status (blue dot) immediately upon node creation, after editor saves, and when receiving an input message. The comment is configurable in the editor and stored in the node’s context for persistence.
+
+Use this node to add visible annotations or debugging notes to your flows without requiring a flow to trigger the status. For example, set a comment like "Sensor check" to label a flow section.
+
+## Error Handling
+- No specific error conditions; all messages are passed through.
+- If no comment is set, the status shows "No comment set".
+- Comments longer than 60 characters are truncated.
+
+Status shows blue with the configured comment (e.g., `Sensor check`) or "No comment set" if empty.
+</script>

@@ -37,7 +37,11 @@
       "analog-switch-block": "nodes/analog-switch-block.js",
       "scale-range-block": "nodes/scale-range-block.js",
       "load-sequence-block": "nodes/load-sequence-block.js",
-      "contextual-label-block": "nodes/contextual-label-block.js"
+      "contextual-label-block": "nodes/contextual-label-block.js",
+      "comment-block": "nodes/comment-block.js",
+      "oneshot-block": "nodes/oneshot-block.js",
+      "boolean-switch-block": "nodes/boolean-switch-block.js",
+      "ratelimitthreshold-block": "nodes/ratelimitthreshold-block.js"
     }
   },
   "author": "buildingblocks",

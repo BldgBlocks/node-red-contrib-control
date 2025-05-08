@@ -1,0 +1,81 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="boolean-switch-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-toggle-on"></i> Toggle</label>
+        <button id="node-toggle-button" class="red-ui-button">Toggle</button>
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("boolean-switch-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "boolean switch" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["control"],
+        outputLabels: ["slot value"],
+        icon: "font-awesome/fa-wrench",
+        paletteLabel: "boolean switch",
+        label: function () {
+            return this.name || "boolean switch";
+        },
+        oneditprepare: function () {
+            const id = this.id;
+            $("#node-toggle-button").click(function () {
+                $.ajax({
+                    url: `/boolean-switch-block/${id}/toggle`,
+                    type: "POST",
+                    success: function () {
+                        console.log(`Toggled boolean-switch-block node ${id} via editor`);
+                    },
+                    error: function () {
+                        console.error(`Failed to toggle boolean-switch-block node ${id}`);
+                    }
+                });
+            });
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="boolean-switch-block">
+# Boolean Switch Block Node
+
+Toggles a boolean state and outputs values from context slots (`inTrue` or `inFalse`) based on the state.
+
+## Inputs
+- **context** (string): Sets slot values:
+  - `"inTrue"`: Updates the `inTrue` slot with `msg.payload`.
+  - `"inFalse"`: Updates the `inFalse` slot with `msg.payload`.
+- **payload** (any): Controls the switch:
+  - `"toggle"`: Toggles the state.
+  - `true` or `"true"`: Sets state to `true`.
+  - `false` or `"false"`: Sets state to `false`.
+
+## Outputs
+- **payload** (any): Outputs `inTrue` when state is `true`, `inFalse` when state is `false`.
+
+## Details
+The Boolean Switch Block node maintains a boolean state (`true` or `false`) and two context slots (`inTrue` and `inFalse`) that can hold any value (number, string, etc.). The output is the value of `inTrue` when the state is `true`, or `inFalse` when the state is `false`. The flow only passes when the state matches the slot.
+
+The state can be toggled via input messages (`msg.payload = "toggle"`, `true`, `false`) or a manual toggle button in the editor. Slot values are updated via `msg.context = "inTrue"` or `"inFalse"`. The node tracks toggle count in context for persistence.
+
+Use this node to route different values based on a boolean condition, such as selecting between two data sources or modes.
+
+## Error Handling
+- Invalid inputs (e.g., not `toggle`, `true`, or `false`) show a yellow "Invalid input" status and no output.
+- Missing `msg.payload` for `inTrue` or `inFalse` shows a yellow "Missing payload" status.
+
+Status shows:
+- Green for `true` (`State: true, Toggles: X.00, inTrue: Y, inFalse: Z`).
+- Red for `false` (`State: false, Toggles: X.00, inTrue: Y, inFalse: Z`).
+- Yellow for errors (`Invalid input` or `Missing payload`).
+</script>

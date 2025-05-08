@@ -1,0 +1,66 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="oneshot-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-duration" title="Duration of true pulse (ms)"><i class="fa fa-clock-o"></i> Duration (ms)</label>
+        <input type="number" id="node-input-duration" placeholder="1000" min="1" step="1">
+    </div>
+    <div class="form-row">
+        <label for="node-input-triggerOnTrue"><i class="fa fa-check"></i> Trigger on true</label>
+        <input type="checkbox" id="node-input-triggerOnTrue">
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("oneshot-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "oneshot" },
+            duration: { value: 1000, required: true, validate: function (v) { return Number.isInteger(+v) && +v >= 1; } },
+            triggerOnTrue: { value: false }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["trigger/reset"],
+        outputLabels: ["pulse"],
+        icon: "font-awesome/fa-wrench",
+        paletteLabel: "oneshot",
+        label: function () {
+            return this.name || `oneshot (${this.duration}ms)`;
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="oneshot-block">
+# Oneshot Block Node
+
+Outputs a `true` pulse for a configurable duration when triggered, then `false`, and locks until reset.
+
+## Inputs
+- **context** (string): Set to `"reset"` to unlock the node.
+- **payload** (any): Triggers the pulse if not locked. If "Trigger on true" is checked, requires `msg.payload = true`.
+
+## Outputs
+- **payload** (boolean): `true` for the configured duration on trigger, then `false`. `false` on reset or if locked.
+
+## Details
+The Oneshot Block node generates a single `true` pulse for a specified duration (milliseconds) when triggered, then outputs `false` and locks until a reset command (`msg.context = "reset"`) is received. The trigger can be any message or restricted to `msg.payload = true` via the "Trigger on true" option.
+
+The node wreszcie tracks the number of triggers in its context and displays it in the status. Use this node for one-time actions that require a controlled pulse duration, such as starting a timer or signaling an event.
+
+## Error Handling
+- If locked, outputs `false` with a red "Locked" status.
+- If "Trigger on true" is enabled and `msg.payload != true`, outputs `false` with a yellow "Ignored" status.
+
+Status shows:
+- Green for trigger (`Triggers: X.00, Out: true`).
+- Red for locked (`Triggers: X.00, Locked: true`).
+- Blue for unlocked/reset (`Triggers: X.00, Locked: false`).
+- Yellow for ignored inputs (`Ignored: X.00`).
+</script>
