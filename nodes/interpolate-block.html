@@ -5,7 +5,7 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-points" title="Default points table for interpolation (array of {x, y} objects, ≥2 points)"><i class="fa fa-table"></i> Points</label>
+        <label for="node-input-points" title="Default points table for interpolation (array of {x, y} objects, ≥2 points, x in ascending order)"><i class="fa fa-table"></i> Points</label>
         <textarea id="node-input-points" placeholder='[{"x": 0, "y": 0}, {"x": 100, "y": 100}]' style="height: 100px;"></textarea>
     </div>
 </script>
@@ -25,7 +25,8 @@
                         const points = JSON.parse(v);
                         return Array.isArray(points) && points.length >= 2 &&
                                points.every(p => typeof p.x === "number" && !isNaN(p.x) &&
-                                                 typeof p.y === "number" && !isNaN(p.y));
+                                                 typeof p.y === "number" && !isNaN(p.y)) &&
+                               points.slice(1).every((p, i) => p.x > points[i].x);
                     } catch (e) {
                         return false;
                     }
@@ -38,20 +39,27 @@
         outputLabels: ["output"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "interpolate",
-        label: function () {
+        label: function() {
             return this.name || "interpolate";
         },
-        oneditprepare: function () {
+        oneditprepare: function() {
             const id = this.id;
-            $.getJSON(`/interpolate-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "interpolate");
-                $("#node-input-points").val(JSON.stringify(data.points || [{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2));
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "interpolate");
-                $("#node-input-points").val(this.points || JSON.stringify([{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2));
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "interpolate");
+            $("#node-input-points").val(this.points || JSON.stringify([{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2));
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/interpolate-block/${id}?t=${Date.now()}`, function(data) {
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || JSON.stringify(data.points) !== this.points)) {
+                    $("#node-input-name").val(data.name || this.name || "interpolate");
+                    $("#node-input-points").val(JSON.stringify(data.points || this.points || [{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2));
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
@@ -62,27 +70,37 @@
 Linearly interpolates a number input using a configurable points table.
 
 ### Inputs
-- **context** (string): Sets configuration ("points" to update {x, y} table).
-- **payload** (number): Input number to interpolate, or points array for config.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("points" to update {x, y} table).
+- **payload** <span class="property-type">number | array</span>
+  Number to interpolate, or points array for config.
 
 ### Outputs
-- **payload** (number): Interpolated output value.
+- **payload** <span class="property-type">number</span>
+  Interpolated output value.
 
 ### Details
-The Interpolate Block is a Sedona-inspired node for control systems, interpolating `msg.payload` (a number) using a table of `{x, y}` points (default: `[{x: 0, y: 0}, {x: 100, y: 100}]`).
+The Interpolate Block linearly interpolates `msg.payload` (a number) using a table of `{x, y}` points (default: `[{x: 0, y: 0}, {x: 100, y: 100}]`). Points must be sorted by `x` in ascending order and contain at least two entries. The node supports both positive and negative slopes.
 
-The node name and default points are configurable in the editor. The points table can be updated via `msg.context = "points"` with `msg.payload` as an array of `{x, y}` objects (≥2 points). Editor changes require redeployment to take effect and reset the points to the editor value; message updates apply immediately and are reflected in the editor.
+The node name and points are configurable in the editor. The points table can be updated via `msg.context = "points"` with `msg.payload` as an array of `{x, y}` objects. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
 
-Outputs are new messages (`{ payload: number }`), sent only when the interpolated value changes.
+The node outputs a new message for every valid input within the points' x-range.
 
-Use in automation workflows to map input values to outputs, such as scaling sensor data or control signals.
+### Examples
+- **Interpolate**: Input `{ payload: 50 }` with points `[{x: 0, y: 0}, {x: 100, y: 100}]`, output: `{ payload: 50 }`.
+- **Update Points**: Input `{ context: "points", payload: [{x: 0, y: 10}, {x: 100, y: 20}] }`, no output, sets points.
+- **Out of Range**: Input `{ payload: 150 }`, no output, shows "input out of range".
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid input (non-number, NaN): Shows "invalid input" (red), no output.
-- Invalid points (non-array, <2 points, invalid {x, y}): Shows "invalid points" (red), no output.
+- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
+- Invalid input (non-numeric): Shows "invalid input" (red), no output.
+- Invalid points (non-array, <2 points, unsorted x, invalid {x, y}): Shows "invalid points" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 - Input out of range: Shows "input out of range" (red), no output.
 
-Status shows green for points updates (e.g., `points: 2`), blue dot for output when value changes (e.g., `in: 50.00, out: 50.00`), blue ring for unchanged inputs (same format), red/yellow for errors.
+Status shows green for configuration (e.g., `points: 2`), blue for output (e.g., `in: 50.00, out: 50.00`), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

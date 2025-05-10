@@ -35,14 +35,21 @@
         },
         oneditprepare: function() {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "hysteresis");
+            $("#node-input-upperLimit").val(this.upperLimit || 50);
+            $("#node-input-lowerLimit").val(this.lowerLimit || 30);
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/hysteresis-block/${id}?t=${Date.now()}`, function(data) {
-                $("#node-input-name").val(data.name || "hysteresis");
-                $("#node-input-upperLimit").val(data.upperLimit !== undefined ? data.upperLimit : 50);
-                $("#node-input-lowerLimit").val(data.lowerLimit !== undefined ? data.lowerLimit : 30);
-            }).fail(function() {
-                $("#node-input-name").val(this.name || "hysteresis");
-                $("#node-input-upperLimit").val(this.upperLimit !== undefined ? this.upperLimit : 50);
-                $("#node-input-lowerLimit").val(this.lowerLimit !== undefined ? this.lowerLimit : 30);
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.upperLimit !== this.upperLimit || data.lowerLimit !== this.lowerLimit)) {
+                    $("#node-input-name").val(data.name || this.name || "hysteresis");
+                    $("#node-input-upperLimit").val(data.upperLimit || this.upperLimit || 50);
+                    $("#node-input-lowerLimit").val(data.lowerLimit || this.lowerLimit || 30);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
         oneditsave: function() {
@@ -56,30 +63,41 @@
 Evaluates numeric input against limits with hysteresis.
 
 ### Inputs
-- **context** (string): Sets configuration ("upperLimit" or "lowerLimit").
-- **payload** (number): Number for evaluation or configuration value.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("upperLimit" or "lowerLimit").
+- **payload** <span class="property-type">number</span>
+  Number for evaluation or configuration value.
 
 ### Outputs
-1. **above** (boolean): True when above upper limit.
-2. **within** (boolean): True when within limits.
-3. **below** (boolean): True when below lower limit.
+1. **above** <span class="property-type">boolean</span>
+   True when above upper limit, else false.
+2. **within** <span class="property-type">boolean</span>
+   True when within limits, else false.
+3. **below** <span class="property-type">boolean</span>
+   True when below lower limit, else false.
 
 ### Details
-The Hysteresis Block is a Sedona-inspired node for control systems, evaluating `msg.payload` (number) against `upperLimit` and `lowerLimit` with hysteresis, outputting `true` to one output on state change: `above` (output 1), `within` (output 2), `below` (output 3). 
-Configure limits via editor or `msg.context = "upperLimit"` or `msg.context = "lowerLimit"` with `msg.payload` as a number. 
-The node name, `upperLimit`, and `lowerLimit` are configurable in the editor; `upperLimit` and `lowerLimit` are also configurable via `msg.context`. 
-Editor changes require redeployment; message-based changes apply immediately, resetting to editor values on redeployment.
+The Hysteresis Block evaluates `msg.payload` (number) against `upperLimit` and `lowerLimit` with hysteresis, outputting `true` to one port (above, within, or below) and `false` to others. Configure limits via the editor or `msg.context = "upperLimit"` or `"lowerLimit"` with a numeric `msg.payload`.
 
-Outputs are new messages (`{ payload: true }` on one port, `{ payload: false }` on others), sent only on state change.
+Editor changes require redeployment; message-based changes apply immediately and are reflected in the editor.
 
-Use in automation for threshold-based control with hysteresis to prevent rapid switching.
+The node outputs new messages for every valid input.
+
+### Examples
+- **Input Above**: Input `{ payload: 55 }` with `upperLimit=50`, `lowerLimit=30`, output: `[ { payload: true }, { payload: false }, { payload: false } ]`.
+- **Set Limit**: Input `{ context: "upperLimit", payload: 60 }`, no output, sets `upperLimit` to 60.
+- **Input Within**: Input `{ payload: 40 }` with `upperLimit=50`, `lowerLimit=30`, output: `[ { payload: false }, { payload: true }, { payload: false } ]`.
 
 ### Error Handling
-- Missing `msg.payload` for `msg.context`: Shows "missing payload" (red), no output.
-- Invalid input (undefined, non-numeric): Shows "invalid input" (red), no output.
-- Invalid upperLimit (non-numeric, ≤ lowerLimit): Shows "invalid upperLimit" (red), no output.
-- Invalid lowerLimit (non-numeric, ≥ upperLimit): Shows "invalid lowerLimit" (red), no output.
+- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
+- Invalid input or limit (non-numeric): Shows "invalid input" or "invalid X" (red), no output.
+- Invalid upperLimit (≤ lowerLimit): Shows "invalid upperLimit" (red), no output.
+- Invalid lowerLimit (≥ upperLimit): Shows "invalid lowerLimit" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for configuration (e.g., `upperLimit set: 50.00`), blue dot for output on state change (e.g., `out: within, in: 40.00`), blue ring for unchanged state (same format), red for errors, yellow for unknown context.
+Status shows green for configuration (e.g., `upperLimit: 50`), blue for output (e.g., `out: within, in: 40.00`), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

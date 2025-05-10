@@ -7,7 +7,7 @@ module.exports = function(RED) {
         // Initialize properties from config
         node.name = config.name || "max";
         node.max = parseFloat(config.max) || 50;
-        if (typeof node.max !== "number" || isNaN(node.max)) {
+        if (isNaN(node.max)) {
             node.max = 50;
             node.status({ fill: "red", shape: "ring", text: "invalid max" });
         }
@@ -18,7 +18,7 @@ module.exports = function(RED) {
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
@@ -27,12 +27,12 @@ module.exports = function(RED) {
                 
                 if (msg.context === "max" || msg.context === "setpoint") {
                     const maxValue = parseFloat(msg.payload);
-                    if (typeof maxValue === "number" && !isNaN(maxValue)) {
+                    if (!isNaN(maxValue)) {
                         node.max = maxValue;
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `max: ${maxValue.toFixed(2)}`
+                            text: `max: ${maxValue}`
                         });
                     } else {
                         node.status({ fill: "red", shape: "ring", text: "invalid max" });
@@ -52,8 +52,8 @@ module.exports = function(RED) {
                 return;
             }
 
-            const inputValue = msg.payload;
-            if (typeof inputValue !== "number" || isNaN(inputValue)) {
+            const inputValue = parseFloat(msg.payload);
+            if (isNaN(inputValue)) {
                 node.status({ fill: "red", shape: "ring", text: "invalid input" });
                 if (done) done();
                 return;
@@ -65,13 +65,13 @@ module.exports = function(RED) {
             // Check if output value has changed
             if (lastOutput !== outputValue) {
                 lastOutput = outputValue;
-                send({ payload: outputValue });
-
+                msg.payload = outputValue;
                 node.status({
                     fill: "blue",
                     shape: "dot",
                     text: `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`
                 });
+                send(msg);
             } else {
                 node.status({
                     fill: "blue",
@@ -81,16 +81,14 @@ module.exports = function(RED) {
             }
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
             // Reset max to config value on redeployment
             node.max = parseFloat(config.max) || 50;
-            if (typeof node.max !== "number" || isNaN(node.max)) {
+            if (isNaN(node.max)) {
                 node.max = 50;
             }
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });
@@ -104,7 +102,7 @@ module.exports = function(RED) {
         if (node && node.type === "max-block") {
             res.json({
                 name: node.name || "max",
-                max: typeof node.max === "number" && !isNaN(node.max) ? node.max : 50
+                max: !isNaN(node.max) ? node.max : 50
             });
         } else {
             res.status(404).json({ error: "Node not found" });

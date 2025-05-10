@@ -5,7 +5,7 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-sampleSize" title="Rolling window size (positive integer, e.g., 10)"><i class="fa fa-list-ol"></i> Sample Size</label>
+        <label for="node-input-sampleSize" title="Rolling window size (positive integer, e.g., 10)"><i class="fa fa-list-ol"></i> Window Size</label>
         <input type="number" id="node-input-sampleSize" placeholder="10" min="1" step="1">
     </div>
 </script>
@@ -29,20 +29,27 @@
         outputLabels: ["average"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "average",
-        label: function () {
-            return this.name || "average";
+        label: function() {
+            return this.name ? `${this.name} (${this.sampleSize})` : `average (${this.sampleSize})`;
         },
-        oneditprepare: function () {
+        oneditprepare: function() {
             const id = this.id;
-            $.getJSON(`/average-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "average");
-                $("#node-input-sampleSize").val(data.sampleSize || 10);
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "average");
-                $("#node-input-sampleSize").val(this.sampleSize || 10);
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "average");
+            $("#node-input-sampleSize").val(this.sampleSize || 10);
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/average-block/${id}?t=${Date.now()}`, function(data) {
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.sampleSize !== this.sampleSize)) {
+                    $("#node-input-name").val(data.name || this.name || "average");
+                    $("#node-input-sampleSize").val(data.sampleSize || this.sampleSize || 10);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
@@ -53,27 +60,38 @@
 Computes a rolling average of numeric inputs.
 
 ### Inputs
-- **context** (string): Sets configuration ("reset" to clear state, "sampleSize" to set rolling window size).
-- **payload** (number | boolean): Number (1 to 150) for averaging, boolean for reset, or number for window size.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("reset" to clear state, "sampleSize" to set rolling window size).
+- **payload** <span class="property-type">number | boolean</span>
+  Number (1 to 150) for averaging, boolean for reset, or number for window size.
 
 ### Outputs
-- **payload** (number | null): Current rolling average, or null if no valid inputs.
+- **payload** <span class="property-type">number | null</span>
+  Current rolling average, or null if no valid inputs.
 
 ### Details
-The Average Block is a Sedona-inspired node for control systems, computing a rolling average of numeric `msg.payload` values within a valid range (1 to 150). It accumulates valid values in a configurable window (default 10 values) and outputs the average as `msg.payload`, or null if no valid inputs.
+The Average Block computes a rolling average of numeric `msg.payload` values within a valid range (1 to 150). It accumulates valid values in a configurable window (default: 10) and outputs the average as `msg.payload`, or null if no valid inputs.
 
-The node name and sample size are configurable in the editor. Reset the state via `msg.context = "reset"` with `msg.payload = true`, clearing sum and count. Set the rolling window size via `msg.context = "sampleSize"` with a positive integer (e.g., 5). Editor changes require redeployment; message updates apply immediately and are reflected in the editor (for sampleSize).
+The window size is configurable in the editor or via `msg.context = "sampleSize"` with a positive integer payload. Reset the state via `msg.context = "reset"` with `msg.payload = true`, clearing sum and count. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
 
-Outputs are new messages (`{ payload: number | null }`), sent only when the average changes.
+The node outputs a new message with `msg.payload` set to the average for every valid input update.
 
-Use in automation to monitor averaged sensor data, such as temperature or flow rates.
+### Examples
+- **Add Input**: Input `{ payload: 100 }`, output `{ payload: 100 }` (if first input).
+- **Set Window Size**: Input `{ context: "sampleSize", payload: 5 }`, no output, sets window to 5.
+- **Reset**: Input `{ context: "reset", payload: true }`, no output, clears state.
 
 ### Error Handling
 - Missing `msg.payload` for config: Shows "missing payload" (red), no output.
+- Missing `msg.payload` for input: Shows "missing input" (red), no output.
 - Invalid input (non-numeric, <1, or >150): Shows "invalid input" (red), no output.
 - Invalid reset value (non-boolean): Shows "invalid reset" (red), no output.
 - Invalid window size (non-integer, <1): Shows "invalid window size" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (red), no output.
 
-Status shows green for config (e.g., `state reset`, `window: 5`), blue dot for output when average changes (e.g., `out: 12.345` or `out: null`), blue ring for unchanged inputs (same format), red for errors.
+Status shows green for config (e.g., `state reset`, `window: 5`), blue for output (e.g., `window: 10, out: 12.345`), red for errors.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

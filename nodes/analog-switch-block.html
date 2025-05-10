@@ -26,16 +26,23 @@
         icon: "font-awesome/fa-wrench",
         paletteLabel: "analog switch",
         label: function() {
-            return this.name || "analog switch";
+            return this.name ? `${this.name} (${this.slots})` : `analog switch (${this.slots})`;
         },
         oneditprepare: function() {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "analog switch");
+            $("#node-input-slots").val(this.slots || 2);
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/analog-switch-block/${id}?t=${Date.now()}`, function(data) {
-                $("#node-input-name").val(data.name || "analog-switch");
-                $("#node-input-slots").val(data.slots !== undefined ? data.slots : 2);
-            }).fail(function() {
-                $("#node-input-name").val(this.name || "analog-switch");
-                $("#node-input-slots").val(this.slots !== undefined ? this.slots : 2);
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.slots !== this.slots)) {
+                    $("#node-input-name").val(data.name || this.name || "analog switch");
+                    $("#node-input-slots").val(data.slots || this.slots || 2);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
         oneditsave: function() {
@@ -46,34 +53,39 @@
 
 <!-- Help Section: Provides documentation for the Analog Switch Block node -->
 <script type="text/markdown" data-help-name="analog-switch-block">
-Selects one numeric input from multiple slots based on an integer switch.
+Selects one numeric input from multiple slots based on a switch value.
 
 ### Inputs
-- **context** (string): Identifies configuration ("slots" for number of inputs, "switch" for selection, "in1", "in2", ... for values).
-- **payload** (number | integer): Number for inX, integer for slots/switch.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("slots" for number of inputs, "switch" for selection) or identifies input slot (e.g., "in1", "in2").
+- **payload** <span class="property-type">number | integer</span>
+  Number for input slot, integer for slots or switch configuration.
 
 ### Outputs
-1. **output** (number): Selected input (in(switch), e.g., in1 if switch=1).
+- **payload** <span class="property-type">number</span>
+  Selected input value based on the switch setting.
 
 ### Details
-The Analog Switch Block is a Sedona-inspired node for control systems, selecting one numeric input from a dynamic number of slots (default: 2) based on a switch (`s1`, 1 to slots). 
-Set the number of slots via the editor or `msg.context = "slots"` with `msg.payload` (integer >= 1). 
-Set the switch via `msg.context = "switch"` with `msg.payload` (integer in [1, slots]). 
-Update inputs via `msg.context = "inX"` (e.g., "in1") with `msg.payload` (number). 
-Outputs the selected input (`in(s1)`) to `msg.payload` only when the switch changes, the selected input is updated, or slots change affects the output.
+The Analog Switch Block selects one numeric input from multiple slots, identified by `msg.context` (e.g., `in1`, `in2`), based on a switch value set via `msg.context = "switch"` with an integer `msg.payload` (1 to slots). The number of slots is configurable in the editor or via `msg.context = "slots"` with an integer `msg.payload` (>= 1). Inputs default to 0 and are updated via `msg.context = "inX"` with a numeric `msg.payload`.
 
-The node name and `slots` are configurable in the editor; `slots`, `switch`, and inputs are also configurable via `msg.context`. 
-Editor changes require redeployment; message-based changes apply immediately, resetting to editor values on redeployment.
+The node outputs a new message with `msg.payload` set to the selected input value when the active slot (set by switch) is updated, the switch changes to a new valid slot, or a slots change affects the selected output. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
 
-Use in automation to switch between multiple analog signals.
+### Examples
+- **Update Active Input**: With switch = 1, input `{ context: "in1", payload: 5.5 }`, output `{ payload: 5.5 }`.
+- **Switch Change**: Input `{ context: "switch", payload: 2 }`, output `{ payload: 0 }` (if `in2 = 0`).
+- **Set Slots**: Input `{ context: "slots", payload: 3 }`, no output unless switch resets to 1 and affects output.
 
 ### Error Handling
 - Missing `msg.context`: Shows "missing context" (red), no output.
 - Missing `msg.payload`: Shows "missing payload" (red), no output.
 - Invalid slots (non-integer, < 1): Shows "invalid slots" (red), no output.
 - Invalid switch (non-integer, out of [1, slots]): Shows "invalid switch" (red), no output.
-- Invalid inX (invalid index, non-numeric): Shows "invalid inX" or "invalid input index X" (red), no output.
+- Invalid input (non-numeric or invalid index): Shows "invalid inX" or "invalid input index X" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for configuration (e.g., `slots set to 3`, `in1 set to 5.00`), blue dot for output (e.g., `out: 5.00, in: [5.0, 0.0]`), red for errors, yellow for unknown context.
+Status shows green for config (e.g., `slots: 3`, `switch: 1`, `in1: 5.00`), blue for output (e.g., `slots: 2, switch: 1, out: 5`), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

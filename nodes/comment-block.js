@@ -4,22 +4,38 @@ module.exports = function (RED) {
         const node = this;
         const context = this.context();
 
-        // Initialize comment
+        // Initialize properties
+        node.name = config.name || "comment";
         node.comment = context.get("comment") || config.comment || "";
-        // Ensure comment is within 60 characters
-        if (node.comment.length > 60) {
-            node.comment = node.comment.substring(0, 60);
+        node.statusDisplay = context.get("statusDisplay") || config.statusDisplay || "default";
+
+        // Ensure comment is within 100 characters
+        if (node.comment.length > 100) {
+            node.comment = node.comment.substring(0, 100);
         }
         context.set("comment", node.comment);
+        context.set("statusDisplay", node.statusDisplay);
 
         // Set initial status
-        node.status({ fill: "blue", shape: "dot", text: node.comment || "No comment set" });
+        let status = {};
+        if (node.statusDisplay === "default") {
+            status = { fill: "blue", shape: "dot", text: node.comment || "No comment set" };
+        } else if (node.statusDisplay === "name") {
+            status = { fill: "blue", shape: "dot", text: node.name || "comment" };
+        } // "none" leaves status empty
+        node.status(status);
 
         node.on("input", function (msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            // Update status with comment
-            node.status({ fill: "blue", shape: "dot", text: node.comment || "No comment set" });
+            // Update status
+            let status = {};
+            if (node.statusDisplay === "default") {
+                status = { fill: "blue", shape: "dot", text: node.comment || "No comment set" };
+            } else if (node.statusDisplay === "name") {
+                status = { fill: "blue", shape: "dot", text: node.name || "comment" };
+            } // "none" leaves status empty
+            node.status(status);
 
             // Pass message unchanged
             send(msg);
@@ -34,13 +50,14 @@ module.exports = function (RED) {
 
     RED.nodes.registerType("comment-block", CommentBlockNode);
 
-    // Serve comment for editor
+    // Serve comment and statusDisplay for editor
     RED.httpAdmin.get("/comment-block/:id", RED.auth.needsPermission("comment-block.read"), function (req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "comment-block") {
             const context = node.context();
             const comment = context.get("comment") || "";
-            res.json({ comment });
+            const statusDisplay = context.get("statusDisplay") || "default";
+            res.json({ comment, statusDisplay });
         } else {
             res.status(404).json({ error: "Node not found" });
         }

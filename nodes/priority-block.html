@@ -25,10 +25,17 @@
         },
         oneditprepare: function() {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "priority");
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/priority-block/${id}?t=${Date.now()}`, function(data) {
-                $("#node-input-name").val(data.name || "priority");
-            }).fail(function() {
-                $("#node-input-name").val(this.name || "priority");
+                // Only update if data differs from pending values
+                if (data && data.name !== this.name) {
+                    $("#node-input-name").val(data.name || this.name || "priority");
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
         oneditsave: function() {
@@ -42,29 +49,41 @@
 Implements a priority array with 16 levels, default, and fallback.
 
 ### Inputs
-- **context** (string): Identifies input ("priority1" to "priority16", "default", "fallback").
-- **payload** (number | null): Value for priority/default/fallback, or null to relinquish.
+- **context** <span class="property-type">string</span>
+  Identifies input slot ("priority1" to "priority16", "default", "fallback"). Ignored if `msg.payload` is an object with `clear` key.
+- **payload** <span class="property-type">any | object | string</span>
+  - Non-object, non-"clear" (number, boolean, null): Value for the slot specified by `msg.context` (number parsed as float, null to relinquish, booleans as-is).
+  - String "clear": Relinquish the slot specified by `msg.context` (e.g., `{ context: "priority8", payload: "clear" }`).
+  - Object with `clear` key:
+    - `{ clear: "priority8" }`: Relinquish `priority8`.
+    - `{ clear: ["priority1", "priority8"] }`: Relinquish multiple slots.
+    - `{ clear: "all" }`: Relinquish all slots.
 
 ### Outputs
-- **payload** (number | null): Highest non-null priority value.
-- **diagnostics.activePriority** (string): Indicates active priority level ("priority1" to "priority16", "default", "fallback", or null).
+- Original message from the highest non-null priority slot (`priority1` to `fallback`), with `diagnostics.activePriority` (string) added ("priority1" to "priority16", "default", "fallback", or null).
+- If no slots are set, outputs `{ payload: null, diagnostics: { activePriority: null } }`.
 
 ### Details
-The Priority Block is a Sedona-inspired node for control systems, managing a priority array with 16 slots (`priority1` to `priority16`), `default`, and `fallback`. 
-It outputs the highest non-null value, prioritizing `priority1` (highest) to `priority16` (lowest), then `default` (normal flow logic), then `fallback` (when default is null).
+The Priority Block manages a priority array with 16 slots (`priority1` to `priority16`), `default`, and `fallback`. It forwards the original message from the highest non-null slot, prioritizing `priority1` (highest) to `fallback` (lowest). If no slots are set, it outputs a new message with `payload: null`.
 
-Inputs are set via `msg.context` (e.g., `msg.context = "priority1", msg.payload = 75.5` or `msg.payload = null` to relinquish). 
-The node name is configurable only in the editor. Editor changes require redeployment; message-based changes apply immediately.
+Inputs set slots via `msg.context` (e.g., `{ context: "priority1", payload: true }`) or clear slots via `msg.payload` (e.g., `{ payload: { clear: "priority8" } }` or `{ context: "priority8", payload: "clear" }`). The node name is editor-only. Editor changes require redeployment; message-based changes apply immediately.
 
-Outputs are new messages (`{ payload: value, diagnostics: { activePriority } }`), sent on every valid `msg.context` update.
-
-Use in automation for prioritized control signals, e.g., user overrides or emergency setpoints.
+### Examples
+- **Set Priority**: `{ context: "priority1", payload: true }`, outputs original message with `diagnostics: { activePriority: "priority1" }`.
+- **Clear Slot**: `{ context: "priority1", payload: "clear" }`, may output message from next highest slot (e.g., `priority2`) or `{ payload: null, diagnostics: { activePriority: null } }`.
+- **Clear Multiple**: `{ payload: { clear: ["priority1", "priority2"] } }`, outputs message from next highest slot.
+- **Clear All**: `{ payload: { clear: "all" } }`, outputs `{ payload: null, diagnostics: { activePriority: null } }`.
 
 ### Error Handling
-- Missing `msg.context`: Shows "missing context" (red), no output.
+- Missing `msg.context` (for non-object, non-"clear" payload): Shows "missing context" (red), no output.
 - Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid priority/default/fallback (non-numeric, not null): Shows "invalid priority1" (red), no output.
+- Invalid slot value (non-numeric, not null, not boolean): Shows "invalid [slot]" (red), no output.
+- Invalid `clear` payload (e.g., `{ clear: "invalid" }` or `"clear"` with invalid `context`): Shows "invalid clear" or "invalid clear context" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for configuration updates (e.g., `priority1: 75.50`, `default relinquished`), blue dot for output (e.g., `out: 75.50, priority1` or `out: null, no priority`), red/yellow for errors.
+Status shows green for updates (e.g., `priority1: true`, `priority8 cleared`), blue for output (e.g., `in: true, out: true, slot: priority1`), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

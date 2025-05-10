@@ -20,18 +20,25 @@
         outputLabels: ["stats"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "frequency",
-        label: function () {
+        label: function() {
             return this.name || "frequency";
         },
-        oneditprepare: function () {
+        oneditprepare: function() {
             const id = this.id;
-            $.getJSON(`/frequency-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "frequency");
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "frequency");
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "frequency");
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/frequency-block/${id}?t=${Date.now()}`, function(data) {
+                // Only update if node is deployed and data differs
+                if (data && data.name !== this.name) {
+                    $("#node-input-name").val(data.name || this.name || "frequency");
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
@@ -42,27 +49,36 @@
 Measures pulse frequency from boolean rising edges.
 
 ### Inputs
-- **context** (string): Sets configuration ("reset" to clear state).
-- **payload** (boolean): Input boolean to detect rising edges.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("reset" to clear state).
+- **payload** <span class="property-type">boolean</span>
+  Input boolean to detect rising edges.
 
 ### Outputs
-- **payload** (object): Pulse rates `{ ppm, pph, ppd }` (pulses per minute, hour, day).
+- **payload** <span class="property-type">object</span>
+  Pulse rates `{ ppm, pph, ppd }` (pulses per minute, hour, day).
 
 ### Details
-The Frequency Block is a Sedona-inspired node for control systems, measuring pulse frequency from rising edges in `msg.payload` (boolean, e.g., `true` for pulse).
+The Frequency Block measures pulse frequency from rising edges in `msg.payload` (boolean, `true` for pulse). It outputs an object with pulse rates: `ppm` (pulses per minute), `pph` (per hour), and `ppd` (per day).
 
-It outputs an object with pulse rates: `ppm` (pulses per minute), `pph` (per hour), and `ppd` (per day).
+The node name is configurable in the editor. Reset state via `msg.context = "reset"` with `msg.payload = true`. Editor changes require redeployment; reset messages apply immediately.
 
-The node name is configurable in the editor. Reset state via `msg.context = "reset"`. Editor changes require redeployment to take effect; reset messages apply immediately.
+The node outputs a new message for every valid rising edge after the first complete cycle.
 
-Outputs are new messages (`{ payload: { ppm, pph, ppd } }`), sent only when pulse rates change.
-
-Use in automation workflows to monitor pulse frequencies, such as from sensors or switches.
+### Examples
+- **Rising Edge**: Input `{ payload: true }` after `{ payload: false }`, 1 minute apart, output: `{ payload: { ppm: 1, pph: 60, ppd: 1440 } }`.
+- **Reset**: Input `{ context: "reset", payload: true }`, no output, clears state.
+- **Non-Rising Edge**: Input `{ payload: false }`, no output, updates state.
 
 ### Error Handling
 - Missing `msg.payload`: Shows "missing input" (red), no output.
 - Invalid input (non-boolean): Shows "invalid input" (red), no output.
+- Invalid reset value (non-boolean): Shows "invalid reset" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for reset (e.g., `state reset`), blue dot for output when rates change (e.g., `ppm: 1.00, pph: 60.00, ppd: 1440.00`), blue ring for unchanged inputs (same format), red/yellow for errors.
+Status shows green for configuration (e.g., `reset`), blue for output (e.g., `ppm: 1.00, pph: 60.00, ppd: 1440.00`) or input (e.g., `input: false, ppm: 1.00`), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

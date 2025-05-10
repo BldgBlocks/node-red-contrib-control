@@ -1,4 +1,3 @@
-<!-- UI Template Section: Defines the edit dialog for the Negate Block node -->
 <script type="text/html" data-template-name="negate-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -6,7 +5,6 @@
     </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
     RED.nodes.registerType("negate-block", {
         category: "control",
@@ -20,44 +18,53 @@
         outputLabels: ["output"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "negate",
-        label: function () {
+        label: function() {
             return this.name || "negate";
         },
-        oneditprepare: function () {
+        oneditprepare: function() {
             $("#node-input-name").val(this.name || "negate");
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Negate Block node -->
 <script type="text/markdown" data-help-name="negate-block">
 Negates a number or boolean input value.
 
 ### Inputs
-- **payload** (number | boolean): Value to negate (number or boolean).
+- **payload** <span class="property-type">number | boolean</span>
+  Value to negate (number or boolean).
 
 ### Outputs
-- **payload** (number | boolean): Negated value (-number or !boolean).
+- **payload** <span class="property-type">number | boolean</span>
+  Negated value (-number or !boolean).
+- Other properties from the input message (e.g., `msg.topic`, `msg.context`) are preserved.
 
 ### Details
-The Negate Block is a Sedona-inspired node for control systems, negating `msg.payload`. 
-For numbers, it outputs the negative (e.g., `5` → `-5`). 
-For booleans, it outputs the inverse (e.g., `true` → `false`). 
-Invalid inputs (e.g., strings, arrays, null, NaN) are rejected.
+The Negate Block negates `msg.payload`. For numbers, it outputs the negative (e.g., `5` → `-5`). For booleans, it outputs the inverse (e.g., `true` → `false`). The node passes the original input message with `msg.payload` updated to the negated value.
 
-The node name is configurable only in the editor. Changes require redeployment to take effect.
+The node name is configurable only in the editor. Changes require redeployment. Unlike other control nodes, it does not support `msg.context` for runtime configuration.
 
-Outputs are new messages (`{ payload: value }`), sent only when the negated value changes.
+The node outputs the message for every valid input.
+
+### Examples
+- **Negate Number**: Input `{ payload: 5 }`, output: `{ payload: -5, ...original }`.
+- **Negate Boolean**: Input `{ payload: true }`, output: `{ payload: false, ...original }`.
+- **Invalid Input**: Input `{ payload: "text" }`, no output, shows "invalid input: string".
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid input (null): Shows "null input" (red), no output.
-- Invalid input (array): Shows "array input" (red), no output.
-- Invalid input (string): Shows "string input" (red), no output.
-- Invalid input (NaN or other types): Shows "invalid input type" (red), no output.
+- Missing `msg.payload`: Shows "missing input" (red), no output.
+- Invalid input (null): Shows "invalid input: null" (red), no output.
+- Invalid input (array): Shows "invalid input: array" (red), no output.
+- Invalid input (string): Shows "invalid input: string" (red), no output.
+- Invalid input (NaN): Shows "invalid input: NaN" (red), no output.
+- Invalid input (other types): Shows "invalid input type" (red), no output.
 
-Status shows blue dot for output when value changes (e.g., `in: 5, out: -5`), blue ring for unchanged inputs (same format), red for errors.
+Status shows blue for output (e.g., `in: 5.00, out: -5.00` or `in: true, out: false`), red for errors.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

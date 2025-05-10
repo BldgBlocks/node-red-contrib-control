@@ -10,7 +10,8 @@ module.exports = function(RED) {
             node.points = config.points ? JSON.parse(config.points) : [{ x: 0, y: 0 }, { x: 100, y: 100 }];
             if (!Array.isArray(node.points) || node.points.length < 2 ||
                 !node.points.every(p => typeof p.x === "number" && !isNaN(p.x) &&
-                                        typeof p.y === "number" && !isNaN(p.y))) {
+                                        typeof p.y === "number" && !isNaN(p.y)) ||
+                !node.points.slice(1).every((p, i) => p.x > node.points[i].x)) {
                 node.points = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
                 node.status({ fill: "red", shape: "ring", text: "invalid points" });
             }
@@ -19,13 +20,10 @@ module.exports = function(RED) {
             node.status({ fill: "red", shape: "ring", text: "invalid points" });
         }
 
-        // Store last output value to check for changes
-        let lastOutput = null;
-
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
@@ -37,7 +35,8 @@ module.exports = function(RED) {
                         const newPoints = Array.isArray(msg.payload) ? msg.payload : JSON.parse(msg.payload);
                         if (Array.isArray(newPoints) && newPoints.length >= 2 &&
                             newPoints.every(p => typeof p.x === "number" && !isNaN(p.x) &&
-                                                typeof p.y === "number" && !isNaN(p.y))) {
+                                                typeof p.y === "number" && !isNaN(p.y)) &&
+                            newPoints.slice(1).every((p, i) => p.x > newPoints[i].x)) {
                             node.points = newPoints;
                             node.status({
                                 fill: "green",
@@ -65,8 +64,8 @@ module.exports = function(RED) {
                 return;
             }
 
-            const inputValue = msg.payload;
-            if (typeof inputValue !== "number" || isNaN(inputValue)) {
+            const inputValue = parseFloat(msg.payload);
+            if (isNaN(inputValue)) {
                 node.status({ fill: "red", shape: "ring", text: "invalid input" });
                 if (done) done();
                 return;
@@ -74,13 +73,11 @@ module.exports = function(RED) {
 
             // Linear interpolation
             let outputValue = NaN;
-            const isPositiveSlope = node.points.length >= 2 && node.points[1].x > node.points[0].x;
-
             if (node.points.length >= 2) {
                 for (let i = 0; i < node.points.length - 1; i++) {
                     let x1 = node.points[i].x, y1 = node.points[i].y;
                     let x2 = node.points[i + 1].x, y2 = node.points[i + 1].y;
-                    if (isPositiveSlope ? (inputValue >= x1 && inputValue <= x2) : (inputValue <= x1 && inputValue >= x2)) {
+                    if (inputValue >= x1 && inputValue <= x2) {
                         let m = (y2 - y1) / (x2 - x1);
                         let b = y1 - (m * x1);
                         outputValue = (m * inputValue) + b;
@@ -95,26 +92,14 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Check if output value has changed
-            if (lastOutput !== outputValue) {
-                lastOutput = outputValue;
-                send({ payload: outputValue });
-
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`
-                });
-            } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`
-                });
-            }
+            node.status({
+                fill: "blue",
+                shape: "dot",
+                text: `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`
+            });
+            send({ payload: outputValue });
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
@@ -123,13 +108,13 @@ module.exports = function(RED) {
                 node.points = config.points ? JSON.parse(config.points) : [{ x: 0, y: 0 }, { x: 100, y: 100 }];
                 if (!Array.isArray(node.points) || node.points.length < 2 ||
                     !node.points.every(p => typeof p.x === "number" && !isNaN(p.x) &&
-                                            typeof p.y === "number" && !isNaN(p.y))) {
+                                            typeof p.y === "number" && !isNaN(p.y)) ||
+                    !node.points.slice(1).every((p, i) => p.x > node.points[i].x)) {
                     node.points = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
                 }
             } catch (e) {
                 node.points = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
             }
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });

@@ -42,7 +42,7 @@ module.exports = function(RED) {
                 if (msg.payload === true) {
                     inputs = Array(node.slots).fill(1);
                     lastResult = null;
-                    node.status({ fill: "green", shape: "dot", text: "state reset" });
+                    node.status({ fill: "green", shape: "dot", text: "reset" });
                 }
                 if (done) done();
                 return;
@@ -74,7 +74,7 @@ module.exports = function(RED) {
                 }
                 inputs[slotIndex] = newValue;
             } else {
-                node.status({ fill: "red", shape: "ring", text: "unknown context" });
+                node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
                 if (done) done();
                 return;
             }
@@ -88,19 +88,18 @@ module.exports = function(RED) {
                 node.status({
                     fill: "blue",
                     shape: "dot",
-                    text: `out: ${product.toFixed(2)}, in: ${msg.context}=${parseFloat(msg.payload).toFixed(2)}`
+                    text: `in: ${msg.context}=${parseFloat(msg.payload).toFixed(2)}, out: ${product.toFixed(2)}`
                 });
                 send({ payload: product });
             } else {
                 node.status({
                     fill: "blue",
                     shape: "ring",
-                    text: `out: ${product.toFixed(2)}, in: ${msg.context}=${parseFloat(msg.payload).toFixed(2)}`
+                    text: `in: ${msg.context}=${parseFloat(msg.payload).toFixed(2)}, out: ${product.toFixed(2)}`
                 });
             }
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {

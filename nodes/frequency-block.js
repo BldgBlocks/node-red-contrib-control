@@ -14,21 +14,31 @@ module.exports = function(RED) {
         let ppm = 0;
         let pph = 0;
         let ppd = 0;
-        let lastOutput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
+                if (!msg.hasOwnProperty("payload")) {
+                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    if (done) done();
+                    return;
+                }
                 if (msg.context === "reset") {
-                    lastIn = false;
-                    lastEdge = 0;
-                    completeCycle = false;
-                    ppm = 0;
-                    pph = 0;
-                    ppd = 0;
-                    lastOutput = null;
-                    node.status({ fill: "green", shape: "dot", text: "state reset" });
+                    if (typeof msg.payload !== "boolean") {
+                        node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                        if (done) done();
+                        return;
+                    }
+                    if (msg.payload === true) {
+                        lastIn = false;
+                        lastEdge = 0;
+                        completeCycle = false;
+                        ppm = 0;
+                        pph = 0;
+                        ppd = 0;
+                        node.status({ fill: "green", shape: "dot", text: "reset" });
+                    }
                     if (done) done();
                     return;
                 } else {
@@ -74,34 +84,25 @@ module.exports = function(RED) {
                 }
                 lastEdge = now;
                 completeCycle = true;
-            }
-
-            // Update lastIn
-            lastIn = inputValue;
-
-            // Check if output has changed
-            const outputChanged = !lastOutput || lastOutput.ppm !== output.ppm ||
-                                 lastOutput.pph !== output.pph || lastOutput.ppd !== output.ppd;
-
-            if (outputChanged) {
-                lastOutput = { ppm: output.ppm, pph: output.pph, ppd: output.ppd };
-                send({ payload: output });
 
                 node.status({
                     fill: "blue",
                     shape: "dot",
                     text: `ppm: ${output.ppm.toFixed(2)}, pph: ${output.pph.toFixed(2)}, ppd: ${output.ppd.toFixed(2)}`
                 });
+                send({ payload: output });
             } else {
                 node.status({
                     fill: "blue",
                     shape: "ring",
-                    text: `ppm: ${output.ppm.toFixed(2)}, pph: ${output.pph.toFixed(2)}, ppd: ${output.ppd.toFixed(2)}`
+                    text: `input: ${inputValue}, ppm: ${ppm.toFixed(2)}`
                 });
             }
 
+            // Update lastIn
+            lastIn = inputValue;
+
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
@@ -112,8 +113,6 @@ module.exports = function(RED) {
             ppm = 0;
             pph = 0;
             ppd = 0;
-            lastOutput = null;
-            // Clear status
             node.status({});
             done();
         });

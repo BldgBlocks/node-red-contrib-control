@@ -4,41 +4,40 @@ module.exports = function(RED) {
         
         const node = this;
         
-        // Initialize properties from config
         node.name = config.name || "negate";
-        
-        // Store last input value to check for changes
-        let lastInput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                node.status({ fill: "red", shape: "ring", text: "missing input" });
                 if (done) done();
                 return;
             }
 
             const inputValue = msg.payload;
             let outputValue;
+            let statusText;
 
-            // Handle number input
-            if (typeof inputValue === 'number' && !isNaN(inputValue)) {
+            if (typeof inputValue === 'number') {
+                if (isNaN(inputValue)) {
+                    node.status({ fill: "red", shape: "ring", text: "invalid input: NaN" });
+                    if (done) done();
+                    return;
+                }
                 outputValue = -inputValue;
-            }
-            // Handle boolean input
-            else if (typeof inputValue === 'boolean') {
+                statusText = `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`;
+            } else if (typeof inputValue === 'boolean') {
                 outputValue = !inputValue;
-            }
-            // Handle invalid inputs
-            else {
+                statusText = `in: ${inputValue}, out: ${outputValue}`;
+            } else {
                 let errorText;
                 if (inputValue === null) {
-                    errorText = "null input";
+                    errorText = "invalid input: null";
                 } else if (Array.isArray(inputValue)) {
-                    errorText = "array input";
+                    errorText = "invalid input: array";
                 } else if (typeof inputValue === 'string') {
-                    errorText = "string input";
+                    errorText = "invalid input: string";
                 } else {
                     errorText = "invalid input type";
                 }
@@ -47,30 +46,18 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Check if output value has changed
-            if (lastInput !== outputValue) {
-                lastInput = outputValue;
-                send({ payload: outputValue });
-
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `in: ${inputValue}, out: ${outputValue}`
-                });
-            } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `in: ${inputValue}, out: ${outputValue}`
-                });
-            }
+            msg.payload = outputValue;
+            node.status({
+                fill: "blue",
+                shape: "dot",
+                text: statusText
+            });
+            send(msg);
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });

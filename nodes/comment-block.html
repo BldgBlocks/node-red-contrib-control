@@ -5,8 +5,16 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-comment" title="Comment shown in status (max 60 characters)"><i class="fa fa-comment"></i> Comment</label>
-        <input type="text" id="node-input-comment" placeholder="Enter comment (max 60 chars)" maxlength="60">
+        <label for="node-input-comment" title="Comment shown in status when Default is selected (max 100 characters)"><i class="fa fa-comment"></i> Comment</label>
+        <input type="text" id="node-input-comment" placeholder="Enter comment (max 100 chars)" maxlength="100">
+    </div>
+    <div class="form-row">
+        <label for="node-input-statusDisplay" title="Select what to display in the node status"><i class="fa fa-eye"></i> Status Display</label>
+        <select id="node-input-statusDisplay">
+            <option value="default">Comment to status (Default))</option>
+            <option value="name">Name to status</option>
+            <option value="none">No status</option>
+        </select>
     </div>
 </script>
 
@@ -17,38 +25,52 @@
         color: "#301934",
         defaults: {
             name: { value: "comment" },
-            comment: { value: "No comment" }
+            comment: { value: "No comment" },
+            statusDisplay: { value: "default" }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-comment",
         paletteLabel: "comment",
         label: function () {
             return this.name || this.comment || "comment";
         },
         oneditprepare: function () {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "comment");
+            $("#node-input-comment").val(this.comment || "No comment");
+            $("#node-input-statusDisplay").val(this.statusDisplay || "default");
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/comment-block/${id}?t=${Date.now()}`, function (data) {
-                if (data && typeof data.comment === "string") {
-                    $("#node-input-comment").val(data.comment);
-                } else {
-                    $("#node-input-comment").val("");
+                // Only update if data differs from pending values
+                if (data && (data.comment !== this.comment || data.statusDisplay !== this.statusDisplay)) {
+                    $("#node-input-comment").val(data.comment || this.comment || "No comment");
+                    $("#node-input-statusDisplay").val(data.statusDisplay || this.statusDisplay || "default");
                 }
-            }).fail(function () {
-                $("#node-input-comment").val("");
+            }.bind(this)).fail(function () {
+                // No server data; rely on this properties (already set)
             });
         },
         oneditsave: function () {
-            let comment = $("#node-input-comment").val().trim().substring(0, 60);
+            let comment = $("#node-input-comment").val().trim().substring(0, 100);
+            let statusDisplay = $("#node-input-statusDisplay").val();
             const context = RED.nodes.getNode(this.id).context();
             context.set("comment", comment);
-            console.log(`Saved comment-block node ${this.id}: comment=${comment}`);
+            context.set("statusDisplay", statusDisplay);
             // Update status immediately
             const node = RED.nodes.getNode(this.id);
             if (node) {
-                node.status({ fill: "blue", shape: "dot", text: comment || "No comment set" });
+                let status = {};
+                if (statusDisplay === "default") {
+                    status = { fill: "blue", shape: "dot", text: comment || "No comment set" };
+                } else if (statusDisplay === "name") {
+                    status = { fill: "blue", shape: "dot", text: node.name || "comment" };
+                } // "none" leaves status empty
+                node.status(status);
             }
         }
     });
@@ -58,7 +80,7 @@
 <script type="text/markdown" data-help-name="comment-block">
 # Comment Block Node
 
-Displays a short, configurable comment in the node’s status persistently and on input.
+Displays a configurable comment, node name, or no status persistently and on input.
 
 ## Inputs
 - **payload** (any): Any input message triggers the status display (optional).
@@ -67,14 +89,22 @@ Displays a short, configurable comment in the node’s status persistently and o
 - **payload** (any): The input message, passed unchanged.
 
 ## Details
-The Comment Block node shows a user-defined comment (max 60 characters) in its status (blue dot) immediately upon node creation, after editor saves, and when receiving an input message. The comment is configurable in the editor and stored in the node’s context for persistence.
+The Comment Block node displays a user-defined comment (max 100 characters), the node name, or no status in its status field immediately upon node creation, after editor saves, and when receiving an input message. The comment and status display option are configurable in the editor and stored in the node’s context for persistence.
 
-Use this node to add visible annotations or debugging notes to your flows without requiring a flow to trigger the status. For example, set a comment like "Sensor check" to label a flow section.
+- **Name**: Sets the display name shown on the canvas and in status if **Name to status** is selected.
+- **Comment**: Defines the status text (max 100 characters) when **Default (comment to status)** is selected.
+- **Status Display**:
+  - **Default (comment to status)**: Shows the comment in status (e.g., "Sensor check") or "No comment set" if empty.
+  - **Name to status**: Shows the node name (e.g., "Fan Note") or "comment" if empty.
+  - **No status**: Shows no status (empty).
+
+Use this node to add visible annotations or debugging notes to your flows without requiring a flow to trigger the status. For example, set **Default** with comment "Sensor check" for debugging, **Name to status** with name "Fan Note" for flow labeling, or **No status** to suppress status display.
 
 ## Error Handling
 - No specific error conditions; all messages are passed through.
-- If no comment is set, the status shows "No comment set".
-- Comments longer than 60 characters are truncated.
+- If **Default** is selected and no comment is set, status shows "No comment set".
+- If **Name to status** is selected and no name is set, status shows "comment".
+- Comments longer than 100 characters are truncated.
 
-Status shows blue with the configured comment (e.g., `Sensor check`) or "No comment set" if empty.
+Status shows blue with the configured comment (e.g., `Sensor check`), node name (e.g., `Fan Note`), or nothing if **No status** is selected.
 </script>

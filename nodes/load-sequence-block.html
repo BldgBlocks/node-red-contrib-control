@@ -75,30 +75,49 @@
         },
         oneditprepare: function() {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "load sequence");
+            $("#node-input-enable").prop("checked", this.enable !== false);
+            $("#node-input-hysteresis").val(this.hysteresis || 0.5);
+            $("#node-input-threshold1").val(this.threshold1 || 10.0);
+            $("#node-input-threshold2").val(this.threshold2 || 20.0);
+            $("#node-input-threshold3").val(this.threshold3 || 30.0);
+            $("#node-input-threshold4").val(this.threshold4 || 40.0);
+            $("#node-input-feedback1").prop("checked", this.feedback1 !== false);
+            $("#node-input-feedback2").prop("checked", this.feedback2 !== false);
+            $("#node-input-feedback3").prop("checked", this.feedback3 !== false);
+            $("#node-input-feedback4").prop("checked", this.feedback4 !== false);
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/load-sequence-block/${id}?t=${Date.now()}`, function(data) {
-                $("#node-input-name").val(data.name || "load sequence");
-                $("#node-input-enable").prop("checked", data.enable !== false);
-                $("#node-input-hysteresis").val(data.hysteresis !== undefined ? data.hysteresis : 0.5);
-                $("#node-input-threshold1").val(data.threshold1 !== undefined ? data.threshold1 : 10.0);
-                $("#node-input-threshold2").val(data.threshold2 !== undefined ? data.threshold2 : 20.0);
-                $("#node-input-threshold3").val(data.threshold3 !== undefined ? data.threshold3 : 30.0);
-                $("#node-input-threshold4").val(data.threshold4 !== undefined ? data.threshold4 : 40.0);
-                $("#node-input-feedback1").prop("checked", data.feedback1 !== false);
-                $("#node-input-feedback2").prop("checked", data.feedback2 !== false);
-                $("#node-input-feedback3").prop("checked", data.feedback3 !== false);
-                $("#node-input-feedback4").prop("checked", data.feedback4 !== false);
-            }).fail(function() {
-                $("#node-input-name").val(this.name || "load sequence");
-                $("#node-input-enable").prop("checked", this.enable !== false);
-                $("#node-input-hysteresis").val(this.hysteresis !== undefined ? this.hysteresis : 0.5);
-                $("#node-input-threshold1").val(this.threshold1 !== undefined ? this.threshold1 : 10.0);
-                $("#node-input-threshold2").val(this.threshold2 !== undefined ? this.threshold2 : 20.0);
-                $("#node-input-threshold3").val(this.threshold3 !== undefined ? this.threshold3 : 30.0);
-                $("#node-input-threshold4").val(this.threshold4 !== undefined ? this.threshold4 : 40.0);
-                $("#node-input-feedback1").prop("checked", this.feedback1 !== false);
-                $("#node-input-feedback2").prop("checked", this.feedback2 !== false);
-                $("#node-input-feedback3").prop("checked", this.feedback3 !== false);
-                $("#node-input-feedback4").prop("checked", this.feedback4 !== false);
+                // Only update if node is deployed and data differs
+                if (data && (
+                    data.name !== this.name ||
+                    data.enable !== this.enable ||
+                    data.hysteresis !== this.hysteresis ||
+                    data.threshold1 !== this.threshold1 ||
+                    data.threshold2 !== this.threshold2 ||
+                    data.threshold3 !== this.threshold3 ||
+                    data.threshold4 !== this.threshold4 ||
+                    data.feedback1 !== this.feedback1 ||
+                    data.feedback2 !== this.feedback2 ||
+                    data.feedback3 !== this.feedback3 ||
+                    data.feedback4 !== this.feedback4
+                )) {
+                    $("#node-input-name").val(data.name || this.name || "load sequence");
+                    $("#node-input-enable").prop("checked", data.enable !== false);
+                    $("#node-input-hysteresis").val(data.hysteresis || this.hysteresis || 0.5);
+                    $("#node-input-threshold1").val(data.threshold1 || this.threshold1 || 10.0);
+                    $("#node-input-threshold2").val(data.threshold2 || this.threshold2 || 20.0);
+                    $("#node-input-threshold3").val(data.threshold3 || this.threshold3 || 30.0);
+                    $("#node-input-threshold4").val(data.threshold4 || this.threshold4 || 40.0);
+                    $("#node-input-feedback1").prop("checked", data.feedback1 !== false);
+                    $("#node-input-feedback2").prop("checked", data.feedback2 !== false);
+                    $("#node-input-feedback3").prop("checked", data.feedback3 !== false);
+                    $("#node-input-feedback4").prop("checked", data.feedback4 !== false);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
         oneditsave: function() {
@@ -112,40 +131,46 @@
 Sequences four boolean outputs based on input thresholds with feedback and hysteresis.
 
 ### Inputs
-- **context** (string): Identifies configuration ("enable", "hysteresis", "threshold1-4", "feedback1-4").
-- **payload** (number | string | boolean): Number for input, "kill" to shut down, boolean for enable/feedback1-4, number for hysteresis/threshold1-4.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("enable", "hysteresis", "threshold1-4", "feedback1-4").
+- **payload** <span class="property-type">number | string | boolean</span>
+  Number for input, "kill" to shut down, boolean for enable/feedback1-4, number for hysteresis/threshold1-4.
 
 ### Outputs
-1. **load1** (boolean): Output state for load 1, true when active.
-2. **load2** (boolean): Output state for load 2, true when active.
-3. **load3** (boolean): Output state for load 3, true when active.
-4. **load4** (boolean): Output state for load 4, true when active.
+1. **load1** <span class="property-type">boolean</span>
+   True when active, else false or null.
+2. **load2** <span class="property-type">boolean</span>
+   True when active, else false or null.
+3. **load3** <span class="property-type">boolean</span>
+   True when active, else false or null.
+4. **load4** <span class="property-type">boolean</span>
+   True when active, else false or null.
 
 ### Details
-The Load Sequence Block is a Sedona-inspired node for control systems, sequencing four boolean outputs (`load1` to `load4`) based on a numeric input (`msg.payload`) crossing thresholds (`threshold1` to `threshold4`) with hysteresis and feedback (`feedback1` to `feedback4`). 
-Outputs turn on sequentially when the input exceeds a threshold and required feedback is present (e.g., `load2` requires `feedback1`). 
-Outputs turn off when the input falls below `thresholdX - hysteresis` and higher-stage feedback allows. 
-Configure via the editor or `msg.context = "enable"` (boolean), `hysteresis` (non-negative number), `threshold1-4` (numbers, increasing order), `feedback1-4` (booleans). 
-`msg.payload = "kill"` shuts down all outputs. 
-`enable = false` disables outputs sequentially from highest to lowest. 
-Tracks active stages (`dOn`).
+The Load Sequence Block sequences four boolean outputs (`load1` to `load4`) based on a numeric input (`msg.payload`) crossing thresholds (`threshold1` to `threshold4`) with hysteresis and feedback (`feedback1` to `feedback4`). Outputs turn on sequentially when the input exceeds a threshold and required feedback is present (e.g., `load2` requires `feedback1`). Outputs turn off when the input falls below `thresholdX - hysteresis` and higher-stage feedback allows. Configure via the editor or `msg.context` for `enable` (boolean), `hysteresis` (non-negative number), `threshold1-4` (numbers, increasing order), `feedback1-4` (booleans). `msg.payload = "kill"` shuts down all outputs. `enable = false` disables outputs sequentially from highest to lowest. Tracks active stages (`dOn`).
 
-The node name, `enable`, `hysteresis`, `threshold1-4`, and `feedback1-4` are configurable in the editor; all except `dOn` are configurable via `msg.context`. 
-Editor changes require redeployment; message-based changes apply immediately, resetting to editor values on redeployment.
+Editor changes require redeployment; message-based changes apply immediately and are reflected in the editor.
 
-Outputs are sent only when an output state changes.
+The node outputs new messages only when an output state changes, sending a single non-null message for the lowest stage that changed (e.g., `[null, { payload: true }, null, null]`).
 
-Use in automation for staged load control, such as HVAC or pump systems.
+### Examples
+- **Input**: Input `{ payload: 25 }` with `threshold1=10`, `threshold2=20`, `feedback1=true`, may output: `[null, { payload: true }, null, null]` if `load2` turns on.
+- **Kill**: Input `{ payload: "kill" }`, outputs: `[{ payload: false }, { payload: false }, { payload: false }, { payload: false }]`.
+- **Config**: Input `{ context: "threshold1", payload: 15 }`, no output, sets `threshold1` to 15.
 
 ### Error Handling
 - Missing `msg.context` or `msg.payload`: Shows "missing context or payload" (red), no output.
-- Missing `msg.payload` for config or input: Shows "missing payload" (red), no output.
-- Invalid enable/feedback1-4 (non-boolean): Shows "invalid enable" (red), no output.
+- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
+- Invalid enable/feedback1-4 (non-boolean): Shows "invalid X" (red), no output.
 - Invalid hysteresis (non-numeric, negative): Shows "invalid hysteresis" (red), no output.
 - Invalid threshold1-4 (non-numeric): Shows "invalid thresholdX" (red), no output.
-- Invalid threshold order (threshold1 >= threshold2, etc.): Shows "invalid threshold order" (red), no output.
+- Invalid threshold order: Shows "invalid threshold order" (red), no output.
 - Invalid input (non-numeric, not "kill"): Shows "invalid input" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for configuration (e.g., `threshold1 set to 10.00`), blue dot for output changes (e.g., `out: [true, false, false, false], in: 15.00`), blue ring for unchanged outputs (same format), red for kill or errors, yellow for unknown context.
+Status shows green for configuration (e.g., `threshold1: 10`), blue for output (e.g., `out: [true, false, false, false], in: 15.00`) or unchanged (same), red for kill or errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

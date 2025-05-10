@@ -16,7 +16,6 @@ module.exports = function(RED) {
 
         // Initialize state
         let inputs = Array(node.slots).fill(0);
-        let lastResult = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
@@ -41,7 +40,6 @@ module.exports = function(RED) {
                 }
                 if (msg.payload === true) {
                     inputs = Array(node.slots).fill(0);
-                    lastResult = null;
                     node.status({ fill: "green", shape: "dot", text: "state reset" });
                 }
                 if (done) done();
@@ -55,7 +53,6 @@ module.exports = function(RED) {
                 }
                 node.slots = newSlots;
                 inputs = Array(node.slots).fill(0);
-                lastResult = null;
                 node.status({ fill: "green", shape: "dot", text: `slots: ${node.slots}` });
                 if (done) done();
                 return;
@@ -73,34 +70,23 @@ module.exports = function(RED) {
                     return;
                 }
                 inputs[slotIndex] = newValue;
+                node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${newValue.toFixed(2)}` });
             } else {
                 node.status({ fill: "red", shape: "ring", text: "unknown context" });
                 if (done) done();
                 return;
             }
 
-            // Calculate sum
+            // Calculate sum and send new message
             const sum = inputs.reduce((acc, val) => acc + val, 0);
-
-            // Output only if result changed
-            if (lastResult !== sum) {
-                lastResult = sum;
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `out: ${sum.toFixed(2)}, in: ${msg.context}=${parseFloat(msg.payload).toFixed(2)}`
-                });
-                send({ payload: sum });
-            } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `out: ${sum.toFixed(2)}, in: ${msg.context}=${parseFloat(msg.payload).toFixed(2)}`
-                });
-            }
+            node.status({
+                fill: "blue",
+                shape: "dot",
+                text: `slots: ${node.slots}, sum: ${sum}`
+            });
+            send({ payload: sum });
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
@@ -110,7 +96,6 @@ module.exports = function(RED) {
                 node.slots = 2;
             }
             inputs = Array(node.slots).fill(0);
-            lastResult = null;
             node.status({});
             done();
         });

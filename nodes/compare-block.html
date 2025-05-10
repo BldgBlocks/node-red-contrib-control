@@ -25,20 +25,27 @@
         inputLabels: ["input"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "compare",
-        label: function () {
+        label: function() {
             return this.name || "compare";
         },
-        oneditprepare: function () {
+        oneditprepare: function() {
             const id = this.id;
-            $.getJSON(`/compare-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "compare");
-                $("#node-input-setpoint").val(data.setpoint || 50);
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "compare");
-                $("#node-input-setpoint").val(this.setpoint || 50);
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "compare");
+            $("#node-input-setpoint").val(this.setpoint || 50);
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/compare-block/${id}?t=${Date.now()}`, function(data) {
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.setpoint !== this.setpoint)) {
+                    $("#node-input-name").val(data.name || this.name || "compare");
+                    $("#node-input-setpoint").val(data.setpoint || this.setpoint || 50);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
@@ -49,29 +56,39 @@
 Compares a number input to a setpoint, outputting three boolean signals.
 
 ### Inputs
-- **context** (string): Sets configuration ("setpoint" to update setpoint).
-- **payload** (number): Input number to compare, or setpoint value for config.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("setpoint" to update setpoint).
+- **payload** <span class="property-type">number</span>
+  Input number to compare, or setpoint value for config.
 
 ### Outputs
-1. **Greater than** (payload: boolean): True if input > setpoint, else false.
-2. **Equal to** (payload: boolean): True if input = setpoint, else false.
-3. **Less than** (payload: boolean): True if input < setpoint, else false.
+1. **greater than** <span class="property-type">boolean</span>
+   True if input > setpoint, else false.
+2. **equal to** <span class="property-type">boolean</span>
+   True if input = setpoint, else false.
+3. **less than** <span class="property-type">boolean</span>
+   True if input < setpoint, else false.
 
 ### Details
-The Compare Block is a Sedona-inspired node for control systems, comparing `msg.payload` (a number) to a setpoint (default: 50). 
-It outputs three messages indicating if the input is greater than, equal to, or less than the setpoint.
+The Compare Block compares `msg.payload` (a number) to a setpoint (default: 50). It outputs three messages to separate ports indicating if the input is greater than, equal to, or less than the setpoint.
 
-The node name and default setpoint are configurable in the editor. The setpoint can be updated via `msg.context = "setpoint"` with `msg.payload` as a number. Editor changes require redeployment to take effect and reset the setpoint to the editor value; message updates apply immediately and are reflected in the editor.
+The node name and default setpoint are configurable in the editor. The setpoint can be updated via `msg.context = "setpoint"` with `msg.payload` as a number. Editor changes require redeployment; message-based changes apply immediately and are reflected in the editor.
 
-Outputs are new messages (`{ payload: boolean }`), sent to three ports (greater, equal, less) only when the input value changes.
+The node outputs new messages for every valid input.
 
-Use in automation workflows for condition monitoring or control logic.
+### Examples
+- **Compare Input**: Input `{ payload: 55 }` with setpoint 50, output: `[ { payload: true }, { payload: false }, { payload: false } ]`.
+- **Setpoint Update**: Input `{ context: "setpoint", payload: 60 }`, no output, updates setpoint to 60.
+- **Equal Input**: Input `{ payload: 60 }` with setpoint 60, output: `[ { payload: false }, { payload: true }, { payload: false } ]`.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid input (non-number, NaN): Shows "invalid input" (red), no output.
-- Invalid setpoint (non-number, NaN): Shows "invalid setpoint" (red), no output.
+- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
+- Invalid input or setpoint (non-numeric, NaN): Shows "invalid input" or "invalid setpoint" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for setpoint updates (e.g., `setpoint: 60.00`), blue dot for output when input changes (e.g., `in: 65.00, sp: 60.00, out: [true, false, false]`), blue ring for unchanged inputs (same format), red/yellow for errors.
+Status shows green for configuration (e.g., `setpoint: 60`), blue for output (e.g., `in: 55.00, sp: 50, out: [true, false, false]`), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

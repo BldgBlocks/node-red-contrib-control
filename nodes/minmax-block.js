@@ -27,7 +27,7 @@ module.exports = function(RED) {
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
@@ -48,13 +48,13 @@ module.exports = function(RED) {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `min: ${node.min.toFixed(2)}, max adjusted to ${node.max.toFixed(2)}`
+                            text: `min: ${node.min}, max adjusted to ${node.max}`
                         });
                     } else {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `min: ${node.min.toFixed(2)}`
+                            text: `min: ${node.min}`
                         });
                     }
                 } else if (msg.context === "max") {
@@ -64,13 +64,13 @@ module.exports = function(RED) {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `max: ${node.max.toFixed(2)}, min adjusted to ${node.min.toFixed(2)}`
+                            text: `max: ${node.max}, min adjusted to ${node.min}`
                         });
                     } else {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `max: ${node.max.toFixed(2)}`
+                            text: `max: ${node.max}`
                         });
                     }
                 } else {
@@ -113,23 +113,22 @@ module.exports = function(RED) {
             // Check if input or output has changed
             if (lastInput !== input || output !== Math.min(Math.max(lastInput, node.min), node.max)) {
                 lastInput = input;
-                send({ payload: output });
-
+                msg.payload = output;
                 node.status({
                     fill: "blue",
                     shape: "dot",
-                    text: `out: ${output.toFixed(2)}, in: ${input.toFixed(2)}`
+                    text: `in: ${input.toFixed(2)}, out: ${output.toFixed(2)}`
                 });
+                send(msg);
             } else {
                 node.status({
                     fill: "blue",
                     shape: "ring",
-                    text: `out: ${output.toFixed(2)}, in: ${input.toFixed(2)}`
+                    text: `in: ${input.toFixed(2)}, out: ${output.toFixed(2)}`
                 });
             }
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
@@ -145,7 +144,6 @@ module.exports = function(RED) {
             if (node.min > node.max) {
                 node.max = node.min;
             }
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });

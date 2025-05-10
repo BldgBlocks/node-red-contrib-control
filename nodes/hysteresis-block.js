@@ -22,7 +22,7 @@ module.exports = function(RED) {
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
@@ -47,7 +47,7 @@ module.exports = function(RED) {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `upperLimit set: ${value.toFixed(2)}`
+                            text: `upperLimit: ${value}`
                         });
                         if (done) done();
                         return;
@@ -61,7 +61,7 @@ module.exports = function(RED) {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `lowerLimit set: ${value.toFixed(2)}`
+                            text: `lowerLimit: ${value}`
                         });
                         if (done) done();
                         return;
@@ -72,7 +72,7 @@ module.exports = function(RED) {
                 }
             }
 
-            if (msg.payload === undefined || isNaN(parseFloat(msg.payload))) {
+            if (!msg.hasOwnProperty("payload") || isNaN(parseFloat(msg.payload))) {
                 node.status({ fill: "red", shape: "ring", text: "invalid input" });
                 if (done) done();
                 return;
@@ -90,41 +90,26 @@ module.exports = function(RED) {
                 newState = "within";
             }
 
-            // Handle state change
-            if (newState !== prevState) {
-                prevState = newState;
-                const output = [
-                    { payload: false },
-                    { payload: false },
-                    { payload: false }
-                ];
-                if (newState === "above") {
-                    output[0] = { payload: true };
-                } else if (newState === "below") {
-                    output[2] = { payload: true };
-                } else {
-                    output[1] = { payload: true };
-                }
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `out: ${newState}, in: ${value.toFixed(2)}`
-                });
-                send(output);
-            } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `out: ${newState}, in: ${value.toFixed(2)}`
-                });
-            }
+            // Generate output for every valid input
+            const output = [
+                { payload: newState === "above" },
+                { payload: newState === "within" },
+                { payload: newState === "below" }
+            ];
+            node.status({
+                fill: "blue",
+                shape: "dot",
+                text: `out: ${newState}, in: ${value.toFixed(2)}`
+            });
+            send(output);
+
+            prevState = newState;
 
             if (done) done();
         });
 
         node.on("close", function(done) {
-            // Reset state and properties on redeployment
-            prevState = "within";
+            // Reset properties on redeployment
             node.upperLimit = parseFloat(config.upperLimit) || 50;
             node.lowerLimit = parseFloat(config.lowerLimit) || 30;
 
@@ -133,7 +118,6 @@ module.exports = function(RED) {
                 node.lowerLimit = 30;
             }
 
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });
@@ -148,8 +132,7 @@ module.exports = function(RED) {
             res.json({
                 name: node.name || "hysteresis",
                 upperLimit: !isNaN(node.upperLimit) ? node.upperLimit : 50,
-                lowerLimit: !isNaN(node.lowerLimit) ? node.lowerLimit : 30,
-                prevState: node.prevState || "within"
+                lowerLimit: !isNaN(node.lowerLimit) ? node.lowerLimit : 30
             });
         } else {
             res.status(404).json({ error: "Node not found" });

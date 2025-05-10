@@ -5,7 +5,7 @@ module.exports = function(RED) {
         const node = this;
         
         // Initialize properties from config
-        node.name = config.name || "analog-switch";
+        node.name = config.name || "analog switch";
         node.slots = parseInt(config.slots, 10) || 2;
 
         // Validate initial config
@@ -21,7 +21,7 @@ module.exports = function(RED) {
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (!msg.context) {
+            if (!msg.hasOwnProperty("context")) {
                 node.status({ fill: "red", shape: "ring", text: "missing context" });
                 if (done) done();
                 return;
@@ -35,7 +35,6 @@ module.exports = function(RED) {
 
             let shouldOutput = false;
             const prevS1 = s1;
-            const prevInput = inputs[s1 - 1];
 
             switch (msg.context) {
                 case "slots":
@@ -58,7 +57,7 @@ module.exports = function(RED) {
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: `slots set to ${node.slots}`
+                        text: `slots: ${node.slots}`
                     });
                     break;
                 case "switch":
@@ -73,7 +72,7 @@ module.exports = function(RED) {
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: `switch set to ${s1}`
+                        text: `switch: ${s1}`
                     });
                     break;
                 default:
@@ -91,11 +90,11 @@ module.exports = function(RED) {
                             return;
                         }
                         inputs[index - 1] = value;
-                        shouldOutput = index === s1 && prevInput !== value;
+                        shouldOutput = index === s1;
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `in${index} set to ${value.toFixed(2)}`
+                            text: `in${index}: ${value.toFixed(2)}`
                         });
                     } else {
                         node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
@@ -105,13 +104,13 @@ module.exports = function(RED) {
                     break;
             }
 
-            // Set output if necessary
+            // Output new message if the active slot is updated or switch/slots change affects output
             if (shouldOutput) {
                 const out = inputs[s1 - 1] ?? inputs[0];
                 node.status({
                     fill: "blue",
                     shape: "dot",
-                    text: `out: ${out.toFixed(2)}, in: [${inputs.map(v => v.toFixed(1)).join(", ")}]`
+                    text: `slots: ${node.slots}, switch: ${s1}, out: ${out}`
                 });
                 send({ payload: out });
             }
@@ -127,8 +126,6 @@ module.exports = function(RED) {
             }
             inputs = Array(node.slots).fill(0);
             s1 = 1;
-
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });
@@ -141,10 +138,8 @@ module.exports = function(RED) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "analog-switch-block") {
             res.json({
-                name: node.name || "analog-switch",
-                slots: !isNaN(node.slots) && node.slots >= 1 ? node.slots : 2,
-                s1: node.s1 || 1,
-                inputs: node.inputs || Array(node.slots || 2).fill(0)
+                name: node.name || "analog switch",
+                slots: !isNaN(node.slots) && node.slots >= 1 ? node.slots : 2
             });
         } else {
             res.status(404).json({ error: "Node not found" });

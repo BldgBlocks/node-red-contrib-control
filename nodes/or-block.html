@@ -17,7 +17,11 @@
         color: "#301934",
         defaults: {
             name: { value: "or" },
-            slots: { value: 2, required: true, validate: function (v) { return Number.isInteger(+v) && +v >= 2; } }
+            slots: { 
+                value: 2, 
+                required: true, 
+                validate: function(v) { return Number.isInteger(+v) && +v >= 2; } 
+            }
         },
         inputs: 1,
         outputs: 1,
@@ -25,14 +29,27 @@
         outputLabels: ["output"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "or",
-        label: function () {
+        label: function() {
             return this.name ? `${this.name} (${this.slots})` : `or (${this.slots})`;
         },
-        oneditprepare: function () {
-            $("#node-input-slots").val(this.slots || 2);
+        oneditprepare: function() {
+            const id = this.id;
+            // Initialize with pending client-side values
             $("#node-input-name").val(this.name || "or");
+            $("#node-input-slots").val(this.slots || 2);
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/or-block/${id}?t=${Date.now()}`, function(data) {
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.slots !== this.slots)) {
+                    $("#node-input-name").val(data.name || this.name || "or");
+                    $("#node-input-slots").val(data.slots || this.slots || 2);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
+            });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
@@ -43,28 +60,35 @@
 Evaluates a configurable number of boolean inputs asynchronously, outputting true if any are true.
 
 ### Inputs
-- **context** (string): Sets input values ("inX" for input X, e.g., "in1").
-- **payload** (any): Input value (boolean-convertible for "inX").
+- **context** <span class="property-type">string</span>
+  Sets input values ("inX" for input X, e.g., "in1").
+- **payload** <span class="property-type">any</span>
+  Input value (boolean-convertible for "inX").
 
 ### Outputs
-- **payload** (boolean): True if any input is true, false otherwise.
+- **payload** <span class="property-type">boolean</span>
+  True if any input is true, false otherwise.
 
 ### Details
-The OR Block is a Sedona-inspired node for control systems, processing inputs (`in1`, `in2`, ..., `inN`). 
-It computes a logical OR, outputting `true` if any input is `true`.
+The OR Block computes a logical OR of boolean inputs from multiple slots (`in1`, `in2`, ..., `inN`), outputting `true` if any input is `true`. Inputs are updated asynchronously via `msg.context = "inX"` (e.g., `msg.context = "in1", msg.payload = true`). The number of slots (default: 2) and node name are configurable in the editor, with the label showing the slot count (e.g., `or (2)`). Editor changes require redeployment.
 
-Inputs update asynchronously via `msg.context = "inX"` (e.g., `msg.context = "in1", msg.payload = true`). 
-The number of inputs (slots, default: 2) and node name are configurable only in the editor. Changes require redeployment to take effect.
+`msg.payload` is converted to boolean (e.g., `1`, `"true"` → `true`; `0`, `null` → `false`). The node outputs a new message only when the logical OR result changes.
 
-`msg.payload` for inputs is converted to boolean (e.g., `1`, `"true"` → `true`; `0`, `null` → `false`). 
-Outputs are new messages (`{ payload: boolean }`), sent only when an input value changes, discarding input properties like `msg.context`.
-
-Use with a Contextual In node to set `msg.context`. Ideal for condition aggregation or asynchronous triggers in automation workflows.
+### Examples
+- **Set Input**: Input `{ context: "in1", payload: true }` with 2 slots, may output: `{ payload: true }`.
+- **No Change**: Input `{ context: "in2", payload: false }` with `in1=true`, no output if result unchanged.
+- **Invalid Slot**: Input `{ context: "in3", payload: true }` with 2 slots, no output, shows "invalid input slot".
 
 ### Error Handling
+- Missing `msg.context`: Shows "missing context" (yellow), no output.
 - Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid `inX` (e.g., `in3` for 2 slots): Shows "invalid input index" (red), no output.
+- Invalid slot (e.g., `in3` for 2 slots): Shows "invalid input slot" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Invalid slots (non-integer, <2): Shows "invalid slots" (red), uses default (2).
 
-Status shows blue dot for output when value changes (e.g., `out: true, in: [true, false]`), blue ring for unchanged inputs (same format), red/yellow for errors.
+Status shows blue for output (e.g., `in: [true, false], out: true`) or unchanged (same), red for errors, yellow for missing/unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

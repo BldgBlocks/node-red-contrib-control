@@ -16,8 +16,8 @@ module.exports = function(RED) {
         node.outMax = config.outMax ? parseFloat(config.outMax) : Infinity;
         node.maxChange = parseFloat(config.maxChange) || 0;
         node.directAction = config.directAction === true;
-        node.run = config.run !== false; // Default true
-        
+        node.run = config.run !== false;
+
         // Validate initial config
         if (isNaN(node.kp) || isNaN(node.ki) || isNaN(node.kd) || isNaN(node.setpoint) ||
             isNaN(node.deadband) || isNaN(node.maxChange)) {
@@ -56,15 +56,15 @@ module.exports = function(RED) {
         let lastOutput = null;
 
         node.on("input", function(msg, send, done) {
-            send = send || function () { node.send.apply(node, arguments); };
+            send = send || function() { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
                     return;
                 }
-                
+
                 if (["setpoint", "kp", "ki", "kd", "deadband", "outMin", "outMax", "maxChange"].includes(msg.context)) {
                     let value = parseFloat(msg.payload);
                     if (isNaN(value)) {
@@ -85,17 +85,13 @@ module.exports = function(RED) {
                     else if (msg.context === "outMin") node.outMin = value;
                     else if (msg.context === "outMax") node.outMax = value;
                     else node.maxChange = value;
-                    
+
                     if (isFinite(node.outMin) && isFinite(node.outMax) && node.outMax <= node.outMin) {
                         node.status({ fill: "red", shape: "ring", text: "invalid output range" });
                         if (done) done();
                         return;
                     }
-                    node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${value.toFixed(2)}` });
-                    if (msg.context === "setpoint") {
-                        if (done) done();
-                        return;
-                    }
+                    node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${value}` });
                 } else if (["run", "directAction"].includes(msg.context)) {
                     if (typeof msg.payload !== "boolean") {
                         node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
@@ -120,7 +116,7 @@ module.exports = function(RED) {
                     result = 0;
                     tuneMode = false;
                     tuneData = { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 };
-                    node.status({ fill: "red", shape: "dot", text: "reset: state cleared" });
+                    node.status({ fill: "green", shape: "dot", text: "reset" });
                     if (done) done();
                     return;
                 } else if (msg.context === "tune") {
@@ -135,7 +131,7 @@ module.exports = function(RED) {
                     node.ki = 0;
                     node.kd = 0;
                     tuneData = { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 };
-                    node.status({ fill: "red", shape: "dot", text: `tune: started with kp=${tuneKp.toFixed(2)}` });
+                    node.status({ fill: "green", shape: "dot", text: `tune: started, kp=${tuneKp}` });
                     if (done) done();
                     return;
                 } else {
@@ -143,6 +139,8 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
+                if (done) done();
+                return;
             }
 
             if (!msg.hasOwnProperty("payload")) {
@@ -170,14 +168,14 @@ module.exports = function(RED) {
                     node.status({
                         fill: "blue",
                         shape: "dot",
-                        text: `out: 0.00, in: ${input.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`
+                        text: `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.setpoint}`
                     });
                     send(outputMsg);
                 } else {
                     node.status({
                         fill: "blue",
                         shape: "ring",
-                        text: `out: 0.00, in: ${input.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`
+                        text: `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.setpoint}`
                     });
                 }
                 if (done) done();
@@ -193,14 +191,14 @@ module.exports = function(RED) {
                     node.status({
                         fill: "blue",
                         shape: "dot",
-                        text: `out: ${outputMsg.payload.toFixed(2)}, in: ${input.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`
+                        text: `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.setpoint}`
                     });
                     send(outputMsg);
                 } else {
                     node.status({
                         fill: "blue",
                         shape: "ring",
-                        text: `out: ${outputMsg.payload.toFixed(2)}, in: ${input.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`
+                        text: `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.setpoint}`
                     });
                 }
                 if (done) done();
@@ -254,7 +252,7 @@ module.exports = function(RED) {
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: `tune: completed, Kp=${node.kp.toFixed(2)}, Ki=${node.ki.toFixed(2)}, Kd=${node.kd.toFixed(2)}`
+                        text: `tune: completed, Kp=${node.kp}, Ki=${node.ki}, Kd=${node.kd}`
                     });
                     send(outputMsg);
                     if (done) done();
@@ -309,19 +307,18 @@ module.exports = function(RED) {
                 node.status({
                     fill: "blue",
                     shape: "dot",
-                    text: `out: ${result.toFixed(2)}, in: ${input.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`
+                    text: `in: ${input.toFixed(2)}, out: ${result.toFixed(2)}, setpoint: ${node.setpoint}`
                 });
                 send(outputMsg);
             } else {
                 node.status({
                     fill: "blue",
                     shape: "ring",
-                    text: `out: ${result.toFixed(2)}, in: ${input.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`
+                    text: `in: ${input.toFixed(2)}, out: ${result.toFixed(2)}, setpoint: ${node.setpoint}`
                 });
             }
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {

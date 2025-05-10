@@ -29,20 +29,27 @@
         outputLabels: ["product"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "multiply",
-        label: function () {
-            return this.name || "multiply";
+        label: function() {
+            return this.name || `multiply (${this.slots})`;
         },
-        oneditprepare: function () {
+        oneditprepare: function() {
             const id = this.id;
-            $.getJSON(`/multiply-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "multiply");
-                $("#node-input-slots").val(data.slots || 2);
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "multiply");
-                $("#node-input-slots").val(this.slots || 2);
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "multiply");
+            $("#node-input-slots").val(this.slots || 2);
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/multiply-block/${id}?t=${Date.now()}`, function(data) {
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.slots !== this.slots)) {
+                    $("#node-input-name").val(data.name || this.name || "multiply");
+                    $("#node-input-slots").val(data.slots || this.slots || 2);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
@@ -53,20 +60,26 @@
 Multiplies multiple numeric inputs.
 
 ### Inputs
-- **context** (string): Sets configuration ("reset" to clear inputs, "slots" to set number of slots) or identifies input slot (e.g., "in1", "in2").
-- **payload** (number | boolean): Number for input slot or slots configuration, boolean for reset.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("reset" to clear inputs, "slots" to set number of slots) or identifies input slot (e.g., "in1", "in2").
+- **payload** <span class="property-type">number | boolean | number</span>
+  Number for input slot, boolean for reset, integer for slots configuration.
 
 ### Outputs
-- **payload** (number): Product of all input slots.
+- **payload** <span class="property-type">number</span>
+  Product of all input slots.
 
 ### Details
-The Multiply Block is a Sedona-inspired node for control systems, multiplying numeric inputs from multiple slots identified by `msg.context` (e.g., `in1`, `in2`) in sequence (`in1 * in2 * ...`). The number of slots is configurable in the editor or via `msg.context = "slots"` with a positive integer (e.g., 3). Inputs default to 1 and are updated via `msg.context = "inX"` with a numeric `msg.payload`. Reset all inputs to 1 via `msg.context = "reset"` with `msg.payload = true`.
+The Multiply Block multiplies numeric inputs from multiple slots identified by `msg.context` (e.g., `in1`, `in2`) in sequence (`in1 * in2 * ...`). The number of slots is configurable in the editor or via `msg.context = "slots"` with a positive integer. Inputs default to 1 and are updated via `msg.context = "inX"` with a numeric `msg.payload`. Reset all inputs to 1 via `msg.context = "reset"` with `msg.payload = true`. The node label shows the slot count (e.g., `multiply (2)`).
 
-Editor changes require redeployment; message updates apply immediately, with slot changes reflected in the editor.
+Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
 
-Outputs are new messages (`{ payload: number }`), sent only when the product changes.
+The node outputs a new message with the product only when the product changes.
 
-Use in automation to compute products, such as scaling factors or combined metrics.
+### Examples
+- **Input Slot**: Input `{ context: "in1", payload: 5 }` with 2 slots, may output: `{ payload: 5 }` if `in2=1`.
+- **Reset**: Input `{ context: "reset", payload: true }`, no output, resets inputs to 1.
+- **Set Slots**: Input `{ context: "slots", payload: 3 }`, no output, sets 3 slots.
 
 ### Error Handling
 - Missing `msg.context`: Shows "missing context" (red), no output.
@@ -75,7 +88,11 @@ Use in automation to compute products, such as scaling factors or combined metri
 - Invalid reset value (non-boolean): Shows "invalid reset" (red), no output.
 - Invalid slots value (non-integer, <1): Shows "invalid slots" (red), no output.
 - Invalid input slot (e.g., `in5` with 3 slots): Shows "invalid input slot" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (red), no output.
+- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for config (e.g., `state reset`, `slots: 3`), blue dot for output when product changes (e.g., `out: 15.00, in: in2=5.00`), blue ring for unchanged outputs (same format), red for errors.
+Status shows green for configuration (e.g., `reset`, `slots: 3`), blue for output (e.g., `in: in2=5.00, out: 15.00`) or unchanged (same), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

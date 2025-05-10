@@ -25,20 +25,27 @@
         outputLabels: ["output"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "max",
-        label: function () {
+        label: function() {
             return this.name || "max";
         },
-        oneditprepare: function () {
+        oneditprepare: function() {
             const id = this.id;
-            $.getJSON(`/max-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "max");
-                $("#node-input-max").val(data.max || 50);
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "max");
-                $("#node-input-max").val(this.max || 50);
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "max");
+            $("#node-input-max").val(this.max || 50);
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/max-block/${id}?t=${Date.now()}`, function(data) {
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.max !== this.max)) {
+                    $("#node-input-name").val(data.name || this.name || "max");
+                    $("#node-input-max").val(data.max || this.max || 50);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
@@ -49,26 +56,37 @@
 Caps a number input at a configurable maximum value.
 
 ### Inputs
-- **context** (string): Sets configuration ("max" or "setpoint" to update maximum).
-- **payload** (number): Input number to cap, or maximum value for config.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("max" or "setpoint" to update maximum).
+- **payload** <span class="property-type">number</span>
+  Input number to cap, or maximum value for config.
 
 ### Outputs
-- **payload** (number): Input capped at the maximum value.
+- **payload** <span class="property-type">number</span>
+  Input capped at the maximum value.
+- Other properties from the input message (e.g., `msg.topic`, `msg.context`) are preserved.
 
 ### Details
-The Max Block is a Sedona-inspired node for control systems, capping `msg.payload` (a number) to a maximum value (default: 50).
+The Max Block caps `msg.payload` (a number) to a maximum value (default: 50). The node passes the original input message with `msg.payload` updated to the capped value.
 
-The node name and default maximum are configurable in the editor. The maximum can be updated via `msg.context = "max"` or `"setpoint"` with `msg.payload` as a number. Editor changes require redeployment to take effect and reset the maximum to the editor value; message updates apply immediately and are reflected in the editor.
+The node name and maximum are configurable in the editor. The maximum can be updated via `msg.context = "max"` or `"setpoint"` with a numeric `msg.payload`. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
 
-Outputs are new messages (`{ payload: number }`), sent only when the capped value changes.
+The node outputs the message only when the capped value changes.
 
-Use in automation workflows to limit numerical inputs, such as sensor readings or control signals.
+### Examples
+- **Cap Input**: Input `{ payload: 60 }` with `max=50`, output: `{ payload: 50, ...original }`.
+- **Set Max**: Input `{ context: "max", payload: 75 }`, no output, sets `max` to 75.
+- **Unchanged**: Input `{ payload: 40 }` with `max=50`, no output if previously output 40.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid input (non-number, NaN): Shows "invalid input" (red), no output.
-- Invalid maximum (non-number, NaN): Shows "invalid max" (red), no output.
+- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
+- Invalid input (non-numeric): Shows "invalid input" (red), no output.
+- Invalid maximum (non-numeric): Shows "invalid max" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for max updates (e.g., `max: 60.00`), blue dot for output when value changes (e.g., `in: 65.00, out: 60.00`), blue ring for unchanged inputs (same format), red/yellow for errors.
+Status shows green for configuration (e.g., `max: 60`), blue for output (e.g., `in: 65.00, out: 60.00`) or unchanged (same), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

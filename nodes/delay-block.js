@@ -24,12 +24,11 @@ module.exports = function(RED) {
         // Initialize state
         let prevState = false;
         let timeoutId = null;
-        let lastOutput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
@@ -47,8 +46,7 @@ module.exports = function(RED) {
                             timeoutId = null;
                         }
                         prevState = false;
-                        lastOutput = null;
-                        node.status({ fill: "green", shape: "dot", text: "state reset" });
+                        node.status({ fill: "green", shape: "dot", text: "reset" });
                     }
                     if (done) done();
                     return;
@@ -79,7 +77,7 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 } else {
-                    node.status({ fill: "red", shape: "ring", text: "unknown context" });
+                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
                     if (done) done();
                     return;
                 }
@@ -104,14 +102,11 @@ module.exports = function(RED) {
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                 }
-                node.status({ fill: "blue", shape: "ring", text: `in: ${inputValue}, awaiting` });
+                node.status({ fill: "blue", shape: "ring", text: `awaiting true` });
                 timeoutId = setTimeout(() => {
-                    if (lastOutput !== true) {
-                        lastOutput = true;
-                        const outputMsg = { payload: true, ...msg, context: undefined };
-                        node.status({ fill: "blue", shape: "dot", text: `out: true, in: ${inputValue}` });
-                        send(outputMsg);
-                    }
+                    msg.payload = true;
+                    node.status({ fill: "blue", shape: "dot", text: `out: true` });
+                    send(msg);
                     timeoutId = null;
                 }, node.delayOn);
             } else if (prevState && inputValue === false) {
@@ -119,22 +114,18 @@ module.exports = function(RED) {
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                 }
-                node.status({ fill: "blue", shape: "ring", text: `in: ${inputValue}, awaiting` });
+                node.status({ fill: "blue", shape: "ring", text: `awaiting false` });
                 timeoutId = setTimeout(() => {
-                    if (lastOutput !== false) {
-                        lastOutput = false;
-                        const outputMsg = { payload: false, ...msg, context: undefined };
-                        node.status({ fill: "blue", shape: "dot", text: `out: false, in: ${inputValue}` });
-                        send(outputMsg);
-                    }
+                    msg.payload = false;
+                    node.status({ fill: "blue", shape: "dot", text: `out: false` });
+                    send(msg);
                     timeoutId = null;
                 }, node.delayOff);
             } else {
-                node.status({ fill: "blue", shape: "ring", text: `in: ${inputValue}, awaiting` });
+                node.status({ fill: "blue", shape: "ring", text: `awaiting ${inputValue}` });
             }
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
@@ -144,7 +135,6 @@ module.exports = function(RED) {
                 timeoutId = null;
             }
             prevState = false;
-            lastOutput = null;
             node.delayOn = (parseFloat(config.delayOn) || 1000) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
             node.delayOff = (parseFloat(config.delayOff) || 1000) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
             if (isNaN(node.delayOn) || node.delayOn < 0) {

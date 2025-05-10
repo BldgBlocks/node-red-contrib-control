@@ -17,7 +17,7 @@
         color: "#301934",
         defaults: {
             name: { value: "and" },
-            slots: { value: 2, required: true, validate: function (v) { return Number.isInteger(+v) && +v >= 2; } }
+            slots: { value: 2, required: true, validate: function(v) { return Number.isInteger(+v) && +v >= 2; } }
         },
         inputs: 1,
         outputs: 1,
@@ -25,14 +25,27 @@
         outputLabels: ["output"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "and",
-        label: function () {
+        label: function() {
             return this.name ? `${this.name} (${this.slots})` : `and (${this.slots})`;
         },
-        oneditprepare: function () {
-            $("#node-input-slots").val(this.slots || 2);
+        oneditprepare: function() {
+            const id = this.id;
+            // Initialize with pending client-side values
             $("#node-input-name").val(this.name || "and");
+            $("#node-input-slots").val(this.slots || 2);
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/and-block/${id}?t=${Date.now()}`, function(data) {
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.slots !== this.slots)) {
+                    $("#node-input-name").val(data.name || this.name || "and");
+                    $("#node-input-slots").val(data.slots || this.slots || 2);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
+            });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
@@ -40,31 +53,38 @@
 
 <!-- Help Section: Provides documentation for the AND Block node -->
 <script type="text/markdown" data-help-name="and-block">
-Evaluates a configurable number of boolean inputs asynchronously, outputting true if all are true.
+Evaluates multiple boolean inputs, outputting true if all are true, and passes the original message.
 
 ### Inputs
-- **context** (string): Sets input values ("inX" for input X, e.g., "in1").
-- **payload** (any): Input value (boolean-convertible for "inX").
+- **context** <span class="property-type">string</span>
+  Sets input values ("inX" for input X, e.g., "in1").
+- **payload** <span class="property-type">any</span>
+  Input value, converted to boolean.
 
 ### Outputs
-- **payload** (boolean): True if all inputs are true, false otherwise.
+- **payload** <span class="property-type">boolean</span>
+  True if all inputs are true, false otherwise.
+- Other properties from the input message (e.g., `msg.context`, `msg.topic`) are preserved.
 
 ### Details
-The AND Block is a Sedona-inspired node for control systems, processing inputs (`in1`, `in2`, ..., `inN`). 
-It computes a logical AND, outputting `true` only when all inputs are `true`.
+The AND Block processes multiple boolean inputs, identified by `msg.context` (e.g., `in1`, `in2`), and computes a logical AND. The number of inputs (slots, default: 2) is configurable in the editor. Inputs default to false and are updated via `msg.context = "inX"` with a `msg.payload` that is converted to boolean (e.g., `1`, `"true"` → `true`; `0`, `null` → `false`).
 
-Inputs update asynchronously via `msg.context = "inX"` (e.g., `msg.context = "in1", msg.payload = true`). 
-The number of inputs (slots, default: 2) and node name are configurable only in the editor. Changes require redeployment to take effect.
+The node outputs the original message with `msg.payload` set to the AND result for every valid input update. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
 
-`msg.payload` for inputs is converted to boolean (e.g., `1`, `"true"` → `true`; `0`, `null` → `false`). 
-Outputs are new messages (`{ payload: boolean }`), sent only when an input value changes, discarding input properties like `msg.context`.
-
-Use with a Contextual In node to set `msg.context`. Ideal for interlocking logic or asynchronous conditions in automation workflows.
+### Examples
+- **Update Input**: Input `{ context: "in1", payload: true }`, output `{ context: "in1", payload: false }` (if `in2 = false`).
+- **All True**: Input `{ context: "in2", payload: true }` with `in1 = true`, output `{ context: "in2", payload: true }`.
+- **Invalid Index**: Input `{ context: "in3", payload: true }` with 2 slots, no output, status: `invalid input index 3`.
 
 ### Error Handling
+- Missing `msg.context`: Shows "missing context" (red), no output.
 - Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid `inX` (e.g., `in3` for 2 slots): Shows "invalid input index" (red), no output.
+- Invalid input index (e.g., `in3` for 2 slots): Shows "invalid input index X" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows blue dot for output when value changes (e.g., `out: true, in: [true, true]`), blue ring for unchanged inputs (same format), red/yellow for errors.
+Status shows blue for output (e.g., `slots: 2, out: true`), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

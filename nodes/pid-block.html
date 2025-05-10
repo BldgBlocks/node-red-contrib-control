@@ -45,11 +45,11 @@
     </div>
     <div class="form-row">
         <label for="node-input-directAction" title="Direct (true) or reverse (false) action"><i class="fa fa-exchange"></i> Direct Action</label>
-        <input type="checkbox" id="node-input-directAction" style="width: auto;">
+        <input type="checkbox" id="node-input-directAction" style="width: auto; vertical-align: middle;">
     </div>
     <div class="form-row">
         <label for="node-input-run" title="Enable (true) or disable (false) PID calculation"><i class="fa fa-play"></i> Run</label>
-        <input type="checkbox" id="node-input-run" style="width: auto;" checked>
+        <input type="checkbox" id="node-input-run" style="width: auto; vertical-align: middle;" checked>
     </div>
 </script>
 
@@ -78,40 +78,60 @@
         outputLabels: ["output"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "pid",
-        label: function () {
+        label: function() {
             return this.name || "pid";
         },
-        oneditprepare: function () {
+        oneditprepare: function() {
             const id = this.id;
-            $.getJSON(`/pid-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "pid");
-                $("#node-input-kp").val(data.kp || 0);
-                $("#node-input-ki").val(data.ki || 0);
-                $("#node-input-kd").val(data.kd || 0);
-                $("#node-input-setpoint").val(data.setpoint || 0);
-                $("#node-input-deadband").val(data.deadband || 0);
-                $("#node-input-dbBehavior").val(data.dbBehavior || "ReturnToZero");
-                $("#node-input-outMin").val(data.outMin == null ? "" : data.outMin);
-                $("#node-input-outMax").val(data.outMax == null ? "" : data.outMax);
-                $("#node-input-maxChange").val(data.maxChange || 0);
-                $("#node-input-directAction").prop("checked", !!data.directAction);
-                $("#node-input-run").prop("checked", data.run !== false);
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "pid");
-                $("#node-input-kp").val(this.kp || 0);
-                $("#node-input-ki").val(this.ki || 0);
-                $("#node-input-kd").val(this.kd || 0);
-                $("#node-input-setpoint").val(this.setpoint || 0);
-                $("#node-input-deadband").val(this.deadband || 0);
-                $("#node-input-dbBehavior").val(this.dbBehavior || "ReturnToZero");
-                $("#node-input-outMin").val(this.outMin == null ? "" : this.outMin);
-                $("#node-input-outMax").val(this.outMax == null ? "" : this.outMax);
-                $("#node-input-maxChange").val(this.maxChange || 0);
-                $("#node-input-directAction").prop("checked", !!this.directAction);
-                $("#node-input-run").prop("checked", this.run !== false);
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "pid");
+            $("#node-input-kp").val(this.kp || 0);
+            $("#node-input-ki").val(this.ki || 0);
+            $("#node-input-kd").val(this.kd || 0);
+            $("#node-input-setpoint").val(this.setpoint || 0);
+            $("#node-input-deadband").val(this.deadband || 0);
+            $("#node-input-dbBehavior").val(this.dbBehavior || "ReturnToZero");
+            $("#node-input-outMin").val(this.outMin == null ? "" : this.outMin);
+            $("#node-input-outMax").val(this.outMax == null ? "" : this.outMax);
+            $("#node-input-maxChange").val(this.maxChange || 0);
+            $("#node-input-directAction").prop("checked", !!this.directAction);
+            $("#node-input-run").prop("checked", this.run !== false);
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/pid-block/${id}?t=${Date.now()}`, function(data) {
+                // Only update if node is deployed and data differs
+                if (data && (
+                    data.name !== this.name ||
+                    data.kp !== this.kp ||
+                    data.ki !== this.ki ||
+                    data.kd !== this.kd ||
+                    data.setpoint !== this.setpoint ||
+                    data.deadband !== this.deadband ||
+                    data.dbBehavior !== this.dbBehavior ||
+                    data.outMin !== this.outMin ||
+                    data.outMax !== this.outMax ||
+                    data.maxChange !== this.maxChange ||
+                    data.directAction !== this.directAction ||
+                    data.run !== this.run
+                )) {
+                    $("#node-input-name").val(data.name || this.name || "pid");
+                    $("#node-input-kp").val(data.kp || this.kp || 0);
+                    $("#node-input-ki").val(data.ki || this.ki || 0);
+                    $("#node-input-kd").val(data.kd || this.kd || 0);
+                    $("#node-input-setpoint").val(data.setpoint || this.setpoint || 0);
+                    $("#node-input-deadband").val(data.deadband || this.deadband || 0);
+                    $("#node-input-dbBehavior").val(data.dbBehavior || this.dbBehavior || "ReturnToZero");
+                    $("#node-input-outMin").val(data.outMin == null ? "" : data.outMin);
+                    $("#node-input-outMax").val(data.outMax == null ? "" : data.outMax);
+                    $("#node-input-maxChange").val(data.maxChange || this.maxChange || 0);
+                    $("#node-input-directAction").prop("checked", !!data.directAction);
+                    $("#node-input-run").prop("checked", data.run !== false);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
@@ -122,22 +142,31 @@
 Implements a PID controller with deadband, output limits, and tuning.
 
 ### Inputs
-- **context** (string): Sets configuration ("setpoint", "kp", "ki", "kd", "deadband", "dbBehavior", "outMin", "outMax", "maxChange", "directAction", "run", "reset", "tune").
-- **payload** (number | boolean | string): Number for input/setpoint/kp/ki/kd/deadband/outMin/outMax/maxChange/tune kp, boolean for run/directAction, string for dbBehavior ("ReturnToZero" or "HoldLastResult").
+- **context** <span class="property-type">string</span>
+  Sets configuration ("setpoint", "kp", "ki", "kd", "deadband", "dbBehavior", "outMin", "outMax", "maxChange", "directAction", "run", "reset", "tune").
+- **payload** <span class="property-type">number | boolean | string</span>
+  Number for input/setpoint/kp/ki/kd/deadband/outMin/outMax/maxChange/tune kp, boolean for run/directAction, string for dbBehavior ("ReturnToZero" or "HoldLastResult").
 
 ### Outputs
-- **payload** (number): PID control output.
-- **diagnostics** (object): `{ pGain, intGain, dGain, error, errorSum }`.
-- **tuneResult** (object): `{ Kp, Ki, Kd, Ku, Tu }` when tuning completes.
+- **payload** <span class="property-type">number</span>
+  PID control output.
+- **diagnostics** <span class="property-type">object</span>
+  `{ pGain, intGain, dGain, error, errorSum }`.
+- **tuneResult** <span class="property-type">object</span>
+  `{ Kp, Ki, Kd, Ku, Tu }` when tuning completes.
 
 ### Details
-The PID Block is a Sedona-inspired node for control systems, calculating a PID control output based on `msg.payload` (number), a setpoint, and gains (`kp`, `ki`, `kd`). It supports deadband (`deadband`, `dbBehavior`), output limits (`outMin`, `outMax`), rate of change limit (`maxChange`), direct/reverse action (`directAction`), integral clamping, and Ziegler-Nichols tuning.
+The PID Block calculates a PID control output based on `msg.payload` (number), a setpoint, and gains (`kp`, `ki`, `kd`). It supports deadband (`deadband`, `dbBehavior`), output limits (`outMin`, `outMax`), rate of change limit (`maxChange`), direct/reverse action (`directAction`), integral clamping, and Ziegler-Nichols tuning. The node outputs a new message only when the control output or tuning result changes.
 
-Configure via the editor or `msg.context` with numbers, booleans, or strings. Special commands: `reset` (clears state), `tune` (starts tuning with kp). Editor changes require redeployment; message updates apply immediately and are reflected in the editor (except `reset`, `tune`).
+Configure via the editor or `msg.context` with appropriate values. Special commands: `reset` (clears state), `tune` (starts Ziegler-Nichols tuning with kp). Editor changes require redeployment; message updates apply immediately and are reflected in the editor (except `reset`, `tune`).
 
-Outputs are new messages with `payload` (control output), `diagnostics`, and `tuneResult` (for tuning). Messages are sent only when the output or tuning result changes.
+Ziegler-Nichols tuning monitors oscillations to compute ultimate gain (`Ku`) and period (`Tu`), then sets `kp = 0.6*Ku`, `ki = 2*kp/Tu`, `kd = kp*Tu/8`. Tuning requires a non-zero `kp` and stable oscillations.
 
-Use in automation for precise control of systems like temperature or motor speed.
+### Examples
+- **Input**: Input `{ payload: 25 }` with `setpoint=50`, `kp=1`, may output: `{ payload: 25, diagnostics: {...} }`.
+- **Set Config**: Input `{ context: "setpoint", payload: 75 }`, no output, sets `setpoint` to 75.
+- **Tune**: Input `{ context: "tune", payload: 2 }`, starts tuning, may output: `{ payload: 0, tuneResult: { Kp: 1.2, Ki: 0.4, Kd: 0.9, Ku: 2, Tu: 6 } }` on completion.
+- **Reset**: Input `{ context: "reset" }`, no output, clears state.
 
 ### Error Handling
 - Missing `msg.payload` for config: Shows "missing payload" (red), no output.
@@ -148,6 +177,11 @@ Use in automation for precise control of systems like temperature or motor speed
 - Invalid output range (outMax <= outMin): Shows "invalid output range" (red), no output.
 - Invalid input (non-numeric): Shows "invalid input" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Invalid config at startup: Shows "invalid config" or specific error (red), resets to defaults.
 
-Status shows green for config (e.g., `setpoint: 50.00`, `tune: completed`), red for reset/tune start (e.g., `reset: state cleared`), blue dot for output when value changes (e.g., `out: 50.00, in: 25.00, setpoint: 50.00`), blue ring for unchanged inputs, red/yellow for errors.
+Status shows green for configuration (e.g., `setpoint: 50`, `reset`, `tune: completed`), blue for output (e.g., `in: 25.00, out: 50.00, setpoint: 50`) or unchanged (same), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

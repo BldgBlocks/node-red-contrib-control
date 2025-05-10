@@ -25,20 +25,27 @@
         outputLabels: ["output"],
         icon: "font-awesome/fa-wrench",
         paletteLabel: "min",
-        label: function () {
+        label: function() {
             return this.name || "min";
         },
-        oneditprepare: function () {
+        oneditprepare: function() {
             const id = this.id;
-            $.getJSON(`/min-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "min");
-                $("#node-input-min").val(data.min || 50);
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "min");
-                $("#node-input-min").val(this.min || 50);
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "min");
+            $("#node-input-min").val(this.min || 50);
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/min-block/${id}?t=${Date.now()}`, function(data) {
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.min !== this.min)) {
+                    $("#node-input-name").val(data.name || this.name || "min");
+                    $("#node-input-min").val(data.min || this.min || 50);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
@@ -49,26 +56,37 @@
 Ensures a number input is at least a configurable minimum value.
 
 ### Inputs
-- **context** (string): Sets configuration ("min" or "setpoint" to update minimum).
-- **payload** (number): Input number to cap, or minimum value for config.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("min" or "setpoint" to update minimum).
+- **payload** <span class="property-type">number</span>
+  Input number to cap, or minimum value for config.
 
 ### Outputs
-- **payload** (number): Input enforced at the minimum value.
+- **payload** <span class="property-type">number</span>
+  Input enforced at the minimum value.
+- Other properties from the input message (e.g., `msg.topic`, `msg.context`) are preserved.
 
 ### Details
-The Min Block is a Sedona-inspired node for control systems, ensuring `msg.payload` (a number) is at least a minimum value (default: 50).
+The Min Block ensures `msg.payload` (a number) is at least a minimum value (default: 50). The node passes the original input message with `msg.payload` updated to the capped value.
 
-The node name and default minimum are configurable in the editor. The minimum can be updated via `msg.context = "min"` or `"setpoint"` with `msg.payload` as a number. Editor changes require redeployment to take effect and reset the minimum to the editor value; message updates apply immediately and are reflected in the editor.
+The node name and minimum are configurable in the editor. The minimum can be updated via `msg.context = "min"` or `"setpoint"` with a numeric `msg.payload`. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
 
-Outputs are new messages (`{ payload: number }`), sent only when the capped value changes.
+The node outputs the message only when the capped value changes.
 
-Use in automation workflows to ensure numerical inputs, such as sensor readings or control signals, meet a minimum threshold.
+### Examples
+- **Cap Input**: Input `{ payload: 40 }` with `min=50`, output: `{ payload: 50, ...original }`.
+- **Set Min**: Input `{ context: "min", payload: 25 }`, no output, sets `min` to 25.
+- **Unchanged**: Input `{ payload: 60 }` with `min=50`, no output if previously output 60.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid input (non-number, NaN): Shows "invalid input" (red), no output.
-- Invalid minimum (non-number, NaN): Shows "invalid min" (red), no output.
+- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
+- Invalid input (non-numeric): Shows "invalid input" (red), no output.
+- Invalid minimum (non-numeric): Shows "invalid min" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for min updates (e.g., `min: 60.00`), blue dot for output when value changes (e.g., `in: 45.00, out: 50.00`), blue ring for unchanged inputs (same format), red/yellow for errors.
+Status shows green for configuration (e.g., `min: 60`), blue for output (e.g., `in: 45.00, out: 50.00`) or unchanged (same), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

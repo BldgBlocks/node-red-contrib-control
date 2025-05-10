@@ -70,7 +70,7 @@ module.exports = function(RED) {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `enable set to ${node.enable}`
+                            text: `enable: ${node.enable}`
                         });
                         break;
                     case "hysteresis":
@@ -84,7 +84,7 @@ module.exports = function(RED) {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `hysteresis set to ${node.hysteresis.toFixed(2)}`
+                            text: `hysteresis: ${node.hysteresis}`
                         });
                         break;
                     case "threshold1":
@@ -114,7 +114,7 @@ module.exports = function(RED) {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `${msg.context} set to ${threshValue.toFixed(2)}`
+                            text: `${msg.context}: ${threshValue}`
                         });
                         break;
                     case "feedback1":
@@ -133,7 +133,7 @@ module.exports = function(RED) {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `${msg.context} set to ${msg.payload}`
+                            text: `${msg.context}: ${msg.payload}`
                         });
                         break;
                     default:
@@ -166,7 +166,7 @@ module.exports = function(RED) {
             if (msg.payload === "kill") {
                 out1 = out2 = out3 = out4 = false;
                 dOn = 0;
-                node.status({ fill: "red", shape: "dot", text: "kill: all outputs off" });
+                node.status({ fill: "red", shape: "dot", text: "kill: all off" });
                 send([{ payload: false }, { payload: false }, { payload: false }, { payload: false }]);
                 lastOutputs = [false, false, false, false];
                 if (done) done();
@@ -315,7 +315,6 @@ module.exports = function(RED) {
             lastInput = 0;
             lastOutputs = [false, false, false, false];
 
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });
@@ -338,13 +337,7 @@ module.exports = function(RED) {
                 feedback1: node.feedback1 !== false,
                 feedback2: node.feedback2 !== false,
                 feedback3: node.feedback3 !== false,
-                feedback4: node.feedback4 !== false,
-                out1: node.out1 || false,
-                out2: node.out2 || false,
-                out3: node.out3 || false,
-                out4: node.out4 || false,
-                dOn: node.dOn || 0,
-                lastInput: !isNaN(node.lastInput) ? node.lastInput : 0
+                feedback4: node.feedback4 !== false
             });
         } else {
             res.status(404).json({ error: "Node not found" });

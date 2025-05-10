@@ -139,13 +139,13 @@ module.exports = function(RED) {
                 node.status({
                     fill: "blue",
                     shape: "dot",
-                    text: `out: [${node.isHeating ? "heating" : "cooling"}, ${above}, ${below}], in: ${input.toFixed(2)}, sp: ${node.setpoint.toFixed(2)}`
+                    text: `out: [${node.isHeating ? "heating" : "cooling"}, ${above}, ${below}], in: ${input.toFixed(2)}, sp: ${node.setpoint.toFixed(1)}`
                 });
             } else {
                 node.status({
                     fill: "blue",
                     shape: "ring",
-                    text: `out: [${node.isHeating ? "heating" : "cooling"}, ${above}, ${below}], in: ${input.toFixed(2)}, sp: ${node.setpoint.toFixed(2)}`
+                    text: `out: [${node.isHeating ? "heating" : "cooling"}, ${above}, ${below}], in: ${input.toFixed(2)}, sp: ${node.setpoint.toFixed(1)}`
                 });
             }
 

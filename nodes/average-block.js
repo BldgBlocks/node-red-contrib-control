@@ -17,7 +17,6 @@ module.exports = function(RED) {
         // Initialize state
         let sum = 0;
         let count = 0;
-        let lastAvg = null;
 
         // Valid range
         const minValid = 1;
@@ -26,7 +25,7 @@ module.exports = function(RED) {
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
@@ -41,7 +40,6 @@ module.exports = function(RED) {
                     if (msg.payload === true) {
                         sum = 0;
                         count = 0;
-                        lastAvg = null;
                         node.status({ fill: "green", shape: "dot", text: "state reset" });
                     }
                     if (done) done();
@@ -91,32 +89,21 @@ module.exports = function(RED) {
             // Calculate average
             const avg = count ? sum / count : null;
 
-            // Output only if average changed
-            if (lastAvg !== avg) {
-                lastAvg = avg;
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `out: ${avg !== null ? avg.toFixed(3) : "null"}`
-                });
-                send({ payload: avg });
-            } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `out: ${avg !== null ? avg.toFixed(3) : "null"}`
-                });
-            }
+            // Send new message
+            node.status({
+                fill: "blue",
+                shape: "dot",
+                text: `window: ${node.maxValues}, out: ${avg !== null ? avg : "null"}`
+            });
+            send({ payload: avg });
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
             // Reset state on redeployment
             sum = 0;
             count = 0;
-            lastAvg = null;
             node.maxValues = parseInt(config.sampleSize) || 10;
             if (isNaN(node.maxValues) || node.maxValues < 1) {
                 node.maxValues = 10;

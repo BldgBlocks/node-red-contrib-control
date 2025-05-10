@@ -7,7 +7,7 @@ module.exports = function(RED) {
         // Initialize properties from config
         node.name = config.name || "min";
         node.min = parseFloat(config.min) || 50;
-        if (typeof node.min !== "number" || isNaN(node.min)) {
+        if (isNaN(node.min)) {
             node.min = 50;
             node.status({ fill: "red", shape: "ring", text: "invalid min" });
         }
@@ -18,7 +18,7 @@ module.exports = function(RED) {
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
@@ -27,12 +27,12 @@ module.exports = function(RED) {
                 
                 if (msg.context === "min" || msg.context === "setpoint") {
                     const minValue = parseFloat(msg.payload);
-                    if (typeof minValue === "number" && !isNaN(minValue)) {
+                    if (!isNaN(minValue)) {
                         node.min = minValue;
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `min: ${minValue.toFixed(2)}`
+                            text: `min: ${minValue}`
                         });
                     } else {
                         node.status({ fill: "red", shape: "ring", text: "invalid min" });
@@ -52,8 +52,8 @@ module.exports = function(RED) {
                 return;
             }
 
-            const inputValue = msg.payload;
-            if (typeof inputValue !== "number" || isNaN(inputValue)) {
+            const inputValue = parseFloat(msg.payload);
+            if (isNaN(inputValue)) {
                 node.status({ fill: "red", shape: "ring", text: "invalid input" });
                 if (done) done();
                 return;
@@ -65,13 +65,13 @@ module.exports = function(RED) {
             // Check if output value has changed
             if (lastOutput !== outputValue) {
                 lastOutput = outputValue;
-                send({ payload: outputValue });
-
+                msg.payload = outputValue;
                 node.status({
                     fill: "blue",
                     shape: "dot",
                     text: `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`
                 });
+                send(msg);
             } else {
                 node.status({
                     fill: "blue",
@@ -81,16 +81,14 @@ module.exports = function(RED) {
             }
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
             // Reset min to config value on redeployment
             node.min = parseFloat(config.min) || 50;
-            if (typeof node.min !== "number" || isNaN(node.min)) {
+            if (isNaN(node.min)) {
                 node.min = 50;
             }
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });
@@ -104,7 +102,7 @@ module.exports = function(RED) {
         if (node && node.type === "min-block") {
             res.json({
                 name: node.name || "min",
-                min: typeof node.min === "number" && !isNaN(node.min) ? node.min : 50
+                min: !isNaN(node.min) ? node.min : 50
             });
         } else {
             res.status(404).json({ error: "Node not found" });

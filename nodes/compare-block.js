@@ -7,18 +7,15 @@ module.exports = function(RED) {
         // Initialize properties from config
         node.name = config.name || "compare";
         node.setpoint = parseFloat(config.setpoint) || 50;
-        if (typeof node.setpoint !== "number" || isNaN(node.setpoint)) {
+        if (isNaN(node.setpoint)) {
             node.setpoint = 50;
             node.status({ fill: "red", shape: "ring", text: "invalid setpoint" });
         }
 
-        // Store last input value to check for changes
-        let lastInput = null;
-
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
@@ -27,12 +24,12 @@ module.exports = function(RED) {
                 
                 if (msg.context === "setpoint") {
                     const setpointValue = parseFloat(msg.payload);
-                    if (typeof setpointValue === "number" && !isNaN(setpointValue)) {
+                    if (!isNaN(setpointValue)) {
                         node.setpoint = setpointValue;
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `setpoint: ${setpointValue.toFixed(2)}`
+                            text: `setpoint: ${setpointValue}`
                         });
                     } else {
                         node.status({ fill: "red", shape: "ring", text: "invalid setpoint" });
@@ -52,8 +49,8 @@ module.exports = function(RED) {
                 return;
             }
 
-            const inputValue = msg.payload;
-            if (typeof inputValue !== "number" || isNaN(inputValue)) {
+            const inputValue = parseFloat(msg.payload);
+            if (isNaN(inputValue)) {
                 node.status({ fill: "red", shape: "ring", text: "invalid input" });
                 if (done) done();
                 return;
@@ -69,35 +66,22 @@ module.exports = function(RED) {
                 { payload: less }
             ];
 
-            // Check if input value has changed
-            if (lastInput !== inputValue) {
-                lastInput = inputValue;
-                send(outputs);
-
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `in: ${inputValue.toFixed(2)}, sp: ${node.setpoint.toFixed(2)}, out: [${greater}, ${equal}, ${less}]`
-                });
-            } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `in: ${inputValue.toFixed(2)}, sp: ${node.setpoint.toFixed(2)}, out: [${greater}, ${equal}, ${less}]`
-                });
-            }
+            node.status({
+                fill: "blue",
+                shape: "dot",
+                text: `in: ${inputValue.toFixed(2)}, sp: ${node.setpoint}, out: [${greater}, ${equal}, ${less}]`
+            });
+            send(outputs);
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
             // Reset setpoint to config value on redeployment
             node.setpoint = parseFloat(config.setpoint) || 50;
-            if (typeof node.setpoint !== "number" || isNaN(node.setpoint)) {
+            if (isNaN(node.setpoint)) {
                 node.setpoint = 50;
             }
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });
@@ -111,7 +95,7 @@ module.exports = function(RED) {
         if (node && node.type === "compare-block") {
             res.json({
                 name: node.name || "compare",
-                setpoint: typeof node.setpoint === "number" && !isNaN(node.setpoint) ? node.setpoint : 50
+                setpoint: !isNaN(node.setpoint) ? node.setpoint : 50
             });
         } else {
             res.status(404).json({ error: "Node not found" });

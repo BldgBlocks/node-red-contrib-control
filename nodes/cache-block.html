@@ -21,14 +21,21 @@
         icon: "font-awesome/fa-wrench",
         paletteLabel: "cache",
         label: function() {
-            return this.name || "cache";
+            return this.name ? `${this.name} (1)` : `cache (1)`;
         },
         oneditprepare: function() {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "cache");
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/cache-block/${id}?t=${Date.now()}`, function(data) {
-                $("#node-input-name").val(data.name || "cache");
-            }).fail(function() {
-                $("#node-input-name").val(this.name || "cache");
+                // Only update if node is deployed and data differs
+                if (data && data.name !== this.name) {
+                    $("#node-input-name").val(data.name || this.name || "cache");
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
         oneditsave: function() {
@@ -39,29 +46,38 @@
 
 <!-- Help Section: Provides documentation for the Cache Block node -->
 <script type="text/markdown" data-help-name="cache-block">
-Caches a value and outputs it on request.
+Caches a value and outputs it on request, passing the original message.
 
 ### Inputs
-- **context** (string): Sets action ("update" to store, "execute" to output, "reset" to clear value).
-- **payload** (any | boolean): Value to store or output, boolean (true) for reset.
+- **context** <span class="property-type">string</span>
+  Sets action ("update" to store, "execute" to output, "reset" to clear value).
+- **payload** <span class="property-type">any | boolean</span>
+  Value to store or output, boolean (true) for reset.
 
 ### Outputs
-1. **output** (any): Last stored value on execute.
+- **payload** <span class="property-type">any</span>
+  Last stored value when `execute` is triggered.
+- Other properties from the input message (e.g., `msg.context`, `msg.topic`) are preserved.
 
 ### Details
-The Cache Block is a Sedona-inspired node for control systems, storing `msg.payload` when `msg.context = "update"`, outputting the last stored value when `msg.context = "execute"`. 
-Clears the stored value to null via `msg.context = "reset"` with `msg.payload = true`. 
-The node name is configurable only in the editor. Actions are controlled via `msg.context`.
+The Cache Block stores a value from `msg.payload` when `msg.context = "update"` and outputs the last stored value when `msg.context = "execute"`. The stored value is cleared to null via `msg.context = "reset"` with `msg.payload = true`. The node name is configurable in the editor, and changes require redeployment.
 
-Outputs are new messages (`msg` with `msg.payload = lastValue`) only when `msg.context = "execute"`.
+The node outputs the original message with `msg.payload` set to the cached value when `msg.context = "execute"`. No output occurs for `update` or `reset` actions.
 
-Use in automation to hold and retrieve values in workflows.
+### Examples
+- **Update Cache**: Input `{ context: "update", payload: 42 }`, no output, stores 42.
+- **Execute**: Input `{ context: "execute", payload: "any" }`, output `{ context: "execute", payload: 42 }`.
+- **Reset**: Input `{ context: "reset", payload: true }`, no output, clears cache to null.
 
 ### Error Handling
 - Missing `msg.context`: Shows "missing context" (red), no output.
 - Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid reset value (non-boolean, not true): Shows "invalid reset" (red), no output.
+- Invalid reset value (non-boolean or false): Shows "invalid reset" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for reset (e.g., `state reset`), blue ring for input (e.g., `in: update=5`), blue dot for output (e.g., `out: 5, in: execute=5`), red for errors, yellow for unknown context.
+Status shows green for reset (e.g., `reset`), blue for update (e.g., `update: 42.00`) or execute (e.g., `execute: 42.00`), red for errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

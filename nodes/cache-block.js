@@ -13,7 +13,7 @@ module.exports = function(RED) {
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (!msg.context) {
+            if (!msg.hasOwnProperty("context")) {
                 node.status({ fill: "red", shape: "ring", text: "missing context" });
                 if (done) done();
                 return;
@@ -31,7 +31,7 @@ module.exports = function(RED) {
                     node.status({
                         fill: "blue",
                         shape: "ring",
-                        text: `in: update=${msg.payload}`
+                        text: `update: ${typeof msg.payload === "number" ? msg.payload.toFixed(2) : msg.payload}`
                     });
                     if (done) done();
                     return;
@@ -40,7 +40,7 @@ module.exports = function(RED) {
                     node.status({
                         fill: "blue",
                         shape: "dot",
-                        text: `out: ${msg.payload}, in: execute=${msg.payload}`
+                        text: `execute: ${typeof lastValue === "number" ? lastValue.toFixed(2) : lastValue}`
                     });
                     send(msg);
                     if (done) done();
@@ -55,7 +55,7 @@ module.exports = function(RED) {
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: "state reset"
+                        text: "reset"
                     });
                     if (done) done();
                     return;
@@ -69,8 +69,6 @@ module.exports = function(RED) {
         node.on("close", function(done) {
             // Reset state on redeployment
             lastValue = null;
-            
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });
@@ -83,8 +81,7 @@ module.exports = function(RED) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "cache-block") {
             res.json({
-                name: node.name || "cache",
-                lastValue: node.lastValue // Note: lastValue is not directly accessible; would require storing in node
+                name: node.name || "cache"
             });
         } else {
             res.status(404).json({ error: "Node not found" });

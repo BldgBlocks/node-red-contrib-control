@@ -16,7 +16,6 @@ module.exports = function(RED) {
 
         // Initialize state
         let inputs = Array(node.slots).fill(1);
-        let lastResult = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
@@ -41,8 +40,7 @@ module.exports = function(RED) {
                 }
                 if (msg.payload === true) {
                     inputs = Array(node.slots).fill(1);
-                    lastResult = null;
-                    node.status({ fill: "green", shape: "dot", text: "state reset" });
+                    node.status({ fill: "green", shape: "dot", text: "reset" });
                 }
                 if (done) done();
                 return;
@@ -55,7 +53,6 @@ module.exports = function(RED) {
                 }
                 node.slots = newSlots;
                 inputs = Array(node.slots).fill(1);
-                lastResult = null;
                 node.status({ fill: "green", shape: "dot", text: `slots: ${node.slots}` });
                 if (done) done();
                 return;
@@ -79,7 +76,7 @@ module.exports = function(RED) {
                 }
                 inputs[slotIndex] = newValue;
             } else {
-                node.status({ fill: "red", shape: "ring", text: "unknown context" });
+                node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
                 if (done) done();
                 return;
             }
@@ -87,25 +84,14 @@ module.exports = function(RED) {
             // Calculate division
             const result = inputs.reduce((acc, val, idx) => idx === 0 ? val : acc / val, 1);
 
-            // Output only if result changed
-            if (lastResult !== result) {
-                lastResult = result;
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `out: ${result.toFixed(2)}, in: ${msg.context}=${parseFloat(msg.payload).toFixed(2)}`
-                });
-                send({ payload: result });
-            } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `out: ${result.toFixed(2)}, in: ${msg.context}=${parseFloat(msg.payload).toFixed(2)}`
-                });
-            }
+            node.status({
+                fill: "blue",
+                shape: "dot",
+                text: `out: ${result.toFixed(2)}, in: ${msg.context}=${Number.isInteger(parseFloat(msg.payload)) ? parseFloat(msg.payload) : parseFloat(msg.payload).toFixed(2)}`
+            });
+            send({ payload: result });
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
@@ -115,7 +101,6 @@ module.exports = function(RED) {
                 node.slots = 2;
             }
             inputs = Array(node.slots).fill(1);
-            lastResult = null;
             node.status({});
             done();
         });

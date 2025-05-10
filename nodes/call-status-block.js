@@ -5,7 +5,7 @@ module.exports = function(RED) {
         const node = this;
         
         // Initialize properties from config
-        node.name = config.name || "call-status";
+        node.name = config.name || "call status";
         node.statusTimeout = parseFloat(config.statusTimeout) || 30;
         node.clearDelay = parseFloat(config.clearDelay) || 10;
         node.normalOff = config.normalOff === true;
@@ -36,7 +36,7 @@ module.exports = function(RED) {
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
@@ -60,7 +60,7 @@ module.exports = function(RED) {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `${msg.context} set to ${value.toFixed(2)}`
+                            text: `${msg.context}: ${value}`
                         });
                         if (done) done();
                         return;
@@ -85,7 +85,7 @@ module.exports = function(RED) {
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `${msg.context} set to ${msg.payload}`
+                            text: `${msg.context}: ${msg.payload}`
                         });
                         send(checkStatusConditions());
                         if (done) done();
@@ -190,7 +190,6 @@ module.exports = function(RED) {
             }
 
             if (done) done();
-            return;
 
             function checkStatusConditions() {
                 if (call && node.runLostStatus) {
@@ -261,7 +260,6 @@ module.exports = function(RED) {
                 node.clearDelay = 10;
             }
 
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });
@@ -274,7 +272,7 @@ module.exports = function(RED) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "call-status-block") {
             res.json({
-                name: node.name || "call-status",
+                name: node.name || "call status",
                 statusTimeout: !isNaN(node.statusTimeout) && node.statusTimeout > 0 ? node.statusTimeout : 30,
                 clearDelay: !isNaN(node.clearDelay) && node.clearDelay > 0 ? node.clearDelay : 10,
                 normalOff: node.normalOff === true,
