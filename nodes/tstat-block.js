@@ -21,7 +21,6 @@ module.exports = function(RED) {
         // Initialize state
         let above = false;
         let below = false;
-        let lastInput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
@@ -110,9 +109,6 @@ module.exports = function(RED) {
             const hiValue = node.setpoint + delta;
             const loValue = node.setpoint - delta;
 
-            const prevAbove = above;
-            const prevBelow = below;
-
             if (input > hiValue) {
                 above = true;
                 below = false;
@@ -125,32 +121,21 @@ module.exports = function(RED) {
                 below = false;
             }
 
-            // Check if input or outputs have changed
+            // Send outputs
             const outputs = [
                 { payload: node.isHeating },
                 { payload: above },
                 { payload: below }
             ];
+            send(outputs);
 
-            if (lastInput !== input || prevAbove !== above || prevBelow !== below) {
-                lastInput = input;
-                send(outputs);
-
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `out: [${node.isHeating ? "heating" : "cooling"}, ${above}, ${below}], in: ${input.toFixed(2)}, sp: ${node.setpoint.toFixed(1)}`
-                });
-            } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `out: [${node.isHeating ? "heating" : "cooling"}, ${above}, ${below}], in: ${input.toFixed(2)}, sp: ${node.setpoint.toFixed(1)}`
-                });
-            }
+            node.status({
+                fill: "blue",
+                shape: "dot",
+                text: `mode: ${node.isHeating ? "heating" : "cooling"}, above: ${above}, below: ${below}, in: ${input.toFixed(2)}`
+            });
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
@@ -164,7 +149,6 @@ module.exports = function(RED) {
             if (isNaN(node.diff) || node.diff < 0) {
                 node.diff = 2;
             }
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });

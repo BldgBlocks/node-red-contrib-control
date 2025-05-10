@@ -1,0 +1,129 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="rate-limit-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-mode" title="Processing mode"><i class="fa fa-cog"></i> Mode</label>
+        <select id="node-input-mode">
+            <option value="rate-limit">Rate Limit</option>
+            <option value="threshold">Threshold</option>
+            <option value="full-value">Full Value</option>
+        </select>
+    </div>
+    <div class="form-row rate-limit-field">
+        <label for="node-input-rate" title="Rate of change (units per second)"><i class="fa fa-tachometer"></i> Rate (units/s)</label>
+        <input type="number" id="node-input-rate" placeholder="1" min="0.01" step="0.01">
+    </div>
+    <div class="form-row rate-limit-field">
+        <label for="node-input-interval" title="Update interval (ms)"><i class="fa fa-clock-o"></i> Interval (ms)</label>
+        <input type="number" id="node-input-interval" placeholder="100" min="10" step="10">
+    </div>
+    <div class="form-row threshold-field">
+        <label for="node-input-threshold" title="Threshold for output (units)"><i class="fa fa-filter"></i> Threshold (units)</label>
+        <input type="number" id="node-input-threshold" placeholder="5" min="0" step="0.01">
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("rate-limit-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "rate limit" },
+            mode: { value: "rate-limit", required: true },
+            rate: { value: 1, required: false, validate: function (v) { return !v || Number(v) > 0; } },
+            interval: { value: 100, required: false, validate: function (v) { return !v || (Number.isInteger(+v) && +v >= 10); } },
+            threshold: { value: 5, required: false, validate: function (v) { return !v || Number(v) >= 0; } }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["value"],
+        outputLabels: ["processed value"],
+        icon: "font-awesome/fa-wrench",
+        paletteLabel: "rate limit",
+        label: function () {
+            return this.name || this.mode;
+        },
+        oneditprepare: function () {
+            const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "rate limit");
+            $("#node-input-mode").val(this.mode || "rate-limit");
+            $("#node-input-rate").val(this.rate || 1);
+            $("#node-input-interval").val(this.interval || 100);
+            $("#node-input-threshold").val(this.threshold || 5);
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/rate-limit-block/${id}?t=${Date.now()}`, function (data) {
+                // Only update if node is deployed and data differs
+                if (data && (
+                    data.name !== this.name ||
+                    data.mode !== this.mode ||
+                    data.rate !== this.rate ||
+                    data.interval !== this.interval ||
+                    data.threshold !== this.threshold
+                )) {
+                    $("#node-input-name").val(data.name || this.name || "rate limit");
+                    $("#node-input-mode").val(data.mode || this.mode || "rate-limit");
+                    $("#node-input-rate").val(data.rate || this.rate || 1);
+                    $("#node-input-interval").val(data.interval || this.interval || 100);
+                    $("#node-input-threshold").val(data.threshold || this.threshold || 5);
+                }
+            }.bind(this)).fail(function () {
+                // No server data; rely on this properties (already set)
+            });
+
+            // Field visibility logic
+            function updateFieldVisibility() {
+                const mode = $("#node-input-mode").val();
+                $(".rate-limit-field").toggle(mode === "rate-limit");
+                $(".threshold-field").toggle(mode === "threshold");
+            }
+            $("#node-input-mode").on("change", updateFieldVisibility);
+            updateFieldVisibility();
+        },
+        oneditsave: function () {
+            // Standard config properties are automatically saved by Node-RED
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="rate-limit-block">
+Processes a numeric input value based on a selected mode and passes the original message.
+
+### Inputs
+- **payload** <span class="property-type">number</span>
+  The input value to process.
+
+### Outputs
+- **payload** <span class="property-type">number</span>
+  The processed value, depending on the mode.
+- Other properties from the input message (e.g., `msg.topic`) are preserved.
+
+### Details
+The Rate Limit Block processes numeric inputs in one of three modes, selected via the editor:
+
+- **Rate Limit**: Limits the rate of change, adjusting the output toward the input at a configurable rate (units per second) with updates at a specified interval (milliseconds).
+- **Threshold**: Outputs the input when it differs from the last processed value by more than a configurable threshold.
+- **Full Value**: Passes the input value unchanged (bypass mode).
+
+The node outputs the input message with `msg.payload` set to the processed value, preserving other properties. The current value is stored in context for persistence. Editor changes require redeployment; message-based updates apply immediately.
+
+### Examples
+- **Rate Limit**: Mode set to `rate-limit`, rate = 2, interval = 100ms, input `{ payload: 10 }`, output `{ payload: ~2 }` after 1s (ramping up).
+- **Threshold**: Mode set to `threshold`, threshold = 5, input `{ payload: 7 }`, output `{ payload: 7 }` if previous was 0.
+- **Full Value**: Mode set to `full-value`, input `{ payload: 42, topic: "test" }`, output `{ payload: 42, topic: "test" }`.
+
+### Error Handling
+- Non-numeric or invalid `msg.payload`: Shows "invalid input" (red), no output.
+
+Status shows green for config (e.g., `mode: rate-limit, target: 10.00`), blue for output (e.g., `mode: X, out: Y`), red for errors.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+</script>

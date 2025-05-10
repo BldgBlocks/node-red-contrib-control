@@ -26,43 +26,81 @@ module.exports = function(RED) {
 
         // Initialize state
         let lastInput = node.inMin;
-        let lastOutput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
 
-            if (!msg.context) {
+            if (msg.context) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
                     if (done) done();
                     return;
                 }
-                const inputValue = parseFloat(msg.payload);
-                if (isNaN(inputValue)) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input" });
-                    if (done) done();
-                    return;
+
+                let shouldOutput = false;
+                switch (msg.context) {
+                    case "inMin":
+                    case "inMax":
+                    case "outMin":
+                    case "outMax":
+                        const value = parseFloat(msg.payload);
+                        if (isNaN(value)) {
+                            node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
+                            if (done) done();
+                            return;
+                        }
+                        if (msg.context === "inMin") node.inMin = value;
+                        else if (msg.context === "inMax") node.inMax = value;
+                        else if (msg.context === "outMin") node.outMin = value;
+                        else node.outMax = value;
+                        if (node.inMax <= node.inMin) {
+                            node.status({ fill: "red", shape: "ring", text: "invalid input range" });
+                            if (done) done();
+                            return;
+                        }
+                        if (node.outMax <= node.outMin) {
+                            node.status({ fill: "red", shape: "ring", text: "invalid output range" });
+                            if (done) done();
+                            return;
+                        }
+                        node.status({
+                            fill: "green",
+                            shape: "dot",
+                            text: `${msg.context}: ${value.toFixed(2)}`
+                        });
+                        shouldOutput = true;
+                        break;
+                    case "clamp":
+                        if (typeof msg.payload !== "boolean") {
+                            node.status({ fill: "red", shape: "ring", text: "invalid clamp" });
+                            if (done) done();
+                            return;
+                        }
+                        node.clamp = msg.payload;
+                        node.status({
+                            fill: "green",
+                            shape: "dot",
+                            text: `clamp: ${node.clamp}`
+                        });
+                        shouldOutput = true;
+                        break;
+                    default:
+                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        if (done) done();
+                        return;
                 }
-                if (node.inMax <= node.inMin) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input range" });
-                    if (done) done();
-                    return;
+
+                // Recalculate with last input after config update
+                if (shouldOutput) {
+                    const out = calculate(lastInput, node.inMin, node.inMax, node.outMin, node.outMax, node.clamp);
+                    msg.payload = out;
+                    node.status({
+                        fill: "blue",
+                        shape: "dot",
+                        text: `out: ${out.toFixed(2)}, in: ${lastInput.toFixed(2)}`
+                    });
+                    send(msg);
                 }
-                if (node.outMax <= node.outMin) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid output range" });
-                    if (done) done();
-                    return;
-                }
-                lastInput = inputValue;
-                const out = calculate(inputValue, node.inMin, node.inMax, node.outMin, node.outMax, node.clamp);
-                const statusShape = out === lastOutput ? "ring" : "dot";
-                lastOutput = out;
-                node.status({
-                    fill: "blue",
-                    shape: statusShape,
-                    text: `out: ${out.toFixed(2)}, in: ${inputValue.toFixed(2)}`
-                });
-                send({ payload: out });
                 if (done) done();
                 return;
             }
@@ -72,75 +110,31 @@ module.exports = function(RED) {
                 if (done) done();
                 return;
             }
-
-            let shouldOutput = false;
-            const prevOutput = lastOutput;
-
-            switch (msg.context) {
-                case "inMin":
-                case "inMax":
-                case "outMin":
-                case "outMax":
-                    const value = parseFloat(msg.payload);
-                    if (isNaN(value)) {
-                        node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
-                        if (done) done();
-                        return;
-                    }
-                    if (msg.context === "inMin") node.inMin = value;
-                    else if (msg.context === "inMax") node.inMax = value;
-                    else if (msg.context === "outMin") node.outMin = value;
-                    else node.outMax = value;
-                    if (node.inMax <= node.inMin) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid input range" });
-                        if (done) done();
-                        return;
-                    }
-                    if (node.outMax <= node.outMin) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid output range" });
-                        if (done) done();
-                        return;
-                    }
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `${msg.context} set to ${value.toFixed(2)}`
-                    });
-                    shouldOutput = true;
-                    break;
-                case "clamp":
-                    if (typeof msg.payload !== "boolean") {
-                        node.status({ fill: "red", shape: "ring", text: "invalid clamp" });
-                        if (done) done();
-                        return;
-                    }
-                    node.clamp = msg.payload;
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `clamp set to ${node.clamp}`
-                    });
-                    shouldOutput = true;
-                    break;
-                default:
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
-                    if (done) done();
-                    return;
+            const inputValue = parseFloat(msg.payload);
+            if (isNaN(inputValue)) {
+                node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                if (done) done();
+                return;
             }
-
-            // Recalculate with last input after config update
-            if (shouldOutput) {
-                const out = calculate(lastInput, node.inMin, node.inMax, node.outMin, node.outMax, node.clamp);
-                if (out !== prevOutput) {
-                    lastOutput = out;
-                    node.status({
-                        fill: "blue",
-                        shape: "dot",
-                        text: `out: ${out.toFixed(2)}, in: ${lastInput.toFixed(2)}`
-                    });
-                    send({ payload: out });
-                }
+            if (node.inMax <= node.inMin) {
+                node.status({ fill: "red", shape: "ring", text: "invalid input range" });
+                if (done) done();
+                return;
             }
+            if (node.outMax <= node.outMin) {
+                node.status({ fill: "red", shape: "ring", text: "invalid output range" });
+                if (done) done();
+                return;
+            }
+            lastInput = inputValue;
+            const out = calculate(inputValue, node.inMin, node.inMax, node.outMin, node.outMax, node.clamp);
+            msg.payload = out;
+            node.status({
+                fill: "blue",
+                shape: "dot",
+                text: `out: ${out.toFixed(2)}, in: ${inputValue.toFixed(2)}`
+            });
+            send(msg);
 
             if (done) done();
         });
@@ -170,9 +164,6 @@ module.exports = function(RED) {
             }
 
             lastInput = node.inMin;
-            lastOutput = null;
-
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });

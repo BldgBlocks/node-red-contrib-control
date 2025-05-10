@@ -1,4 +1,4 @@
-<!-- UI Template Section: Defines the edit dialog for the TimeSequence Block node -->
+<!-- UI Template Section: Defines the edit dialog for the Time Sequence Block node -->
 <script type="text/html" data-template-name="time-sequence-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -30,12 +30,19 @@
         },
         oneditprepare: function() {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "time sequence");
+            $("#node-input-delay").val(this.delay !== undefined ? this.delay : 5000);
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/time-sequence-block/${id}?t=${Date.now()}`, function(data) {
-                $("#node-input-name").val(data.name || "time sequence");
-                $("#node-input-delay").val(data.delay !== undefined ? data.delay : 5000);
-            }).fail(function() {
-                $("#node-input-name").val(this.name || "time sequence");
-                $("#node-input-delay").val(this.delay !== undefined ? this.delay : 5000);
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.delay !== this.delay)) {
+                    $("#node-input-name").val(data.name || this.name || "time sequence");
+                    $("#node-input-delay").val(data.delay !== undefined ? data.delay : this.delay || 5000);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
         oneditsave: function() {
@@ -44,31 +51,35 @@
     });
 </script>
 
-<!-- Help Section: Provides documentation for the TimeSequence Block node -->
+<!-- Help Section: Provides documentation for the Time Sequence Block node -->
 <script type="text/markdown" data-help-name="time-sequence-block">
 Triggers a sequence of outputs with configurable delays, ignoring inputs during active sequence.
 
 ### Inputs
-- **context** (string): Sets configuration ("delay" for delay time, "reset" to clear sequence).
-- **payload** (any): Input value to pass through outputs, boolean (true) for reset.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("delay" for delay time, "reset" to clear sequence).
+- **payload** <span class="property-type">any</span>
+  Input value to pass through outputs, boolean (true) for reset.
 
 ### Outputs
-1. **stage1** (any): Input message, output immediately with `msg.stage = 1`.
-2. **stage2** (any): Input message, output after delay with `msg.stage = 2`.
-3. **stage3** (any): Input message, output after 2x delay with `msg.stage = 3`.
-4. **reset** (any | boolean): Input message, output after 3x delay with `msg.stage = 4`; `false` on reset.
+- **stage1** <span class="property-type">any</span>
+  Input message, output immediately with `msg.stage = 1`.
+- **stage2** <span class="property-type">any</span>
+  Input message, output after delay with `msg.stage = 2`.
+- **stage3** <span class="property-type">any</span>
+  Input message, output after 2x delay with `msg.stage = 3`.
+- **reset** <span class="property-type">any | boolean</span>
+  Input message, output after 3x delay with `msg.stage = 4`; `false` on reset.
 
 ### Details
-The TimeSequence Block is a Sedona-inspired node for control systems, triggering a sequence of four outputs (stage 1, stage 2, stage 3, reset) with the input `msg` passed through, including `msg.stage` (1 to 4) to indicate the sequence stage. 
-Each output is delayed by a configurable interval (default: 5000ms), set via the editor or `msg.context = "delay"` with `msg.payload` as a non-negative number (e.g., `5000` for 5s). 
-Reset the sequence via `msg.context = "reset"` with `msg.payload = true`, which outputs `{ payload: false }` to all ports and enables new sequences.
+The Time Sequence Block triggers a sequence of four outputs (stage 1, stage 2, stage 3, reset) with the input message passed through, including `msg.stage` (1 to 4) to indicate the sequence stage. Each output is delayed by a configurable interval (default: 5000ms), set via the editor or `msg.context = "delay"` with a non-negative numeric `msg.payload`. Reset the sequence via `msg.context = "reset"` with `msg.payload = true`, outputting `{ payload: false }` to all ports.
 
-The node name and `delay` are configurable in the editor; `delay` is also configurable via `msg.context`. 
-Editor changes require redeployment; message-based changes apply immediately, resetting to editor values on redeployment. 
-Inputs during an active sequence are ignored. 
-The input message is output sequentially on four ports, preserving properties (e.g., `msg.topic`).
+The node name and delay are configurable in the editor or via `msg.context` for delay. Editor changes require redeployment; message-based changes apply immediately and are reflected in the editor. Inputs during an active sequence are ignored.
 
-Use in automation workflows for timed control sequences, such as staged device activation.
+### Examples
+- **Start Sequence**: Input `{ payload: "start", topic: "test" }`, output 1: `{ payload: "start", topic: "test", stage: 1 }`, output 2 after delay: `{ payload: "start", topic: "test", stage: 2 }`, etc.
+- **Set Delay**: Input `{ context: "delay", payload: 1000 }`, no output, sets delay to 1000ms.
+- **Reset Sequence**: Input `{ context: "reset", payload: true }`, outputs `{ payload: false }` to all ports.
 
 ### Error Handling
 - Missing `msg.payload`: Shows "missing payload" (red), no output.
@@ -77,5 +88,9 @@ Use in automation workflows for timed control sequences, such as staged device a
 - Unknown `msg.context`: Shows "unknown context" (red), no output.
 - Input during active sequence: Shows "sequence running" (yellow), no output.
 
-Status shows green for configuration (e.g., `delay: 5000 ms`, `state reset`), blue dot for output (e.g., `out: stage 1, in: "start"`), red for sequence running or errors, yellow for warnings.
+Status shows green for config (e.g., `delay: 5000 ms`, `state reset`), blue for output (e.g., `stage: stage 1, in: "start"`), red for errors, yellow for warnings.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

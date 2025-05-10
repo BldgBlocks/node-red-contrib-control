@@ -5,7 +5,7 @@ module.exports = function(RED) {
         const node = this;
         
         // Initialize properties from config
-        node.name = config.name || "saw-tooth wave";
+        node.name = config.name || "saw tooth wave";
         node.lowerLimit = parseFloat(config.lowerLimit) || 0;
         node.upperLimit = parseFloat(config.upperLimit) || 100;
         const periodMultiplier = config.periodUnits === "minutes" ? 60000 : config.periodUnits === "seconds" ? 1000 : 1;
@@ -25,7 +25,6 @@ module.exports = function(RED) {
         // Initialize state
         let lastExecution = Date.now();
         let phase = 0;
-        let lastValue = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function () { node.send.apply(node, arguments); };
@@ -84,13 +83,8 @@ module.exports = function(RED) {
 
             // Return lowerLimit if period is invalid
             if (node.period <= 0) {
-                if (lastValue !== node.lowerLimit) {
-                    lastValue = node.lowerLimit;
-                    node.status({ fill: "blue", shape: "dot", text: `out: ${node.lowerLimit.toFixed(2)}, phase: ${phase.toFixed(2)}` });
-                    send({ payload: node.lowerLimit });
-                } else {
-                    node.status({ fill: "blue", shape: "ring", text: `out: ${node.lowerLimit.toFixed(2)}, phase: ${phase.toFixed(2)}` });
-                }
+                node.status({ fill: "blue", shape: "dot", text: `out: ${node.lowerLimit.toFixed(2)}, phase: ${phase.toFixed(2)}` });
+                send({ payload: node.lowerLimit });
                 if (done) done();
                 return;
             }
@@ -102,14 +96,9 @@ module.exports = function(RED) {
             const amplitude = node.upperLimit - node.lowerLimit;
             const value = node.lowerLimit + amplitude * phase;
 
-            // Output only if value changed significantly
-            if (lastValue === null || Math.abs(lastValue - value) > 0.01) {
-                lastValue = value;
-                node.status({ fill: "blue", shape: "dot", text: `out: ${value.toFixed(2)}, phase: ${phase.toFixed(2)}` });
-                send({ payload: value });
-            } else {
-                node.status({ fill: "blue", shape: "ring", text: `out: ${value.toFixed(2)}, phase: ${phase.toFixed(2)}` });
-            }
+            // Output new message
+            node.status({ fill: "blue", shape: "dot", text: `out: ${value.toFixed(2)}, phase: ${phase.toFixed(2)}` });
+            send({ payload: value });
 
             if (done) done();
         });
@@ -118,7 +107,6 @@ module.exports = function(RED) {
             // Reset state on redeployment
             lastExecution = Date.now();
             phase = 0;
-            lastValue = null;
             node.lowerLimit = parseFloat(config.lowerLimit) || 0;
             node.upperLimit = parseFloat(config.upperLimit) || 100;
             node.period = (parseFloat(config.period) || 10) * (config.periodUnits === "minutes" ? 60000 : config.periodUnits === "seconds" ? 1000 : 1);
@@ -149,7 +137,7 @@ module.exports = function(RED) {
                 periodUnits = "seconds";
             }
             res.json({
-                name: node.name || "saw-tooth wave",
+                name: node.name || "saw tooth wave",
                 lowerLimit: node.lowerLimit || 0,
                 upperLimit: node.upperLimit || 100,
                 period: period,

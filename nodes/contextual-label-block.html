@@ -1,23 +1,18 @@
-<!-- UI Template Section: Defines the edit dialog for the Contextual Label Block node -->
+<!-- UI Template Section -->
 <script type="text/html" data-template-name="contextual-label-block">
     <div class="form-row">
-        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
-    </div>
-    <div class="form-row">
-        <label for="node-input-contextProperty" title="Context property to attach to msg.context"><i class="fa fa-list"></i> Context Property</label>
-        <input type="text" id="node-input-contextProperty" placeholder="e.g., priority, clear, in1">
+        <label for="node-input-contextPropertyName" title="Context property to set (e.g., priority, clear, in1)"><i class="fa fa-key"></i> Context Property</label>
+        <input type="text" id="node-input-contextPropertyName" placeholder="e.g., priority">
     </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
+<!-- JavaScript Section -->
 <script type="text/javascript">
     RED.nodes.registerType("contextual-label-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "contextual label" },
-            contextProperty: { value: "context", required: true }
+            contextPropertyName: { value: "context", required: true, validate: function(v) { return v && typeof v === "string" && v.trim().length > 0; } }
         },
         inputs: 1,
         outputs: 1,
@@ -26,59 +21,56 @@
         icon: "font-awesome/fa-wrench",
         paletteLabel: "contextual label",
         label: function() {
-            return this.name || `contextual ${this.contextProperty || "label"}`;
+            return `contextual ${this.contextPropertyName || "context"}`;
         },
         oneditprepare: function() {
             const id = this.id;
             // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "contextual label");
-            $("#node-input-contextProperty").val(this.contextProperty || "context");
+            $("#node-input-contextPropertyName").val(this.contextPropertyName || "context");
 
             // Fetch server data only for deployed nodes
             $.getJSON(`/contextual-label-block/${id}?t=${Date.now()}`, function(data) {
                 // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.contextProperty !== this.contextProperty)) {
-                    $("#node-input-name").val(data.name || this.name || "contextual label");
-                    $("#node-input-contextProperty").val(data.contextProperty || this.contextProperty || "context");
+                if (data && data.contextPropertyName !== this.contextPropertyName) {
+                    $("#node-input-contextPropertyName").val(data.contextPropertyName || this.contextPropertyName || "context");
                 }
             }.bind(this)).fail(function() {
                 // No server data; rely on this properties (already set)
             });
         },
         oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
+            // Standard config properties are automatically saved
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Contextual Label Block node -->
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="contextual-label-block">
-Attaches a context property to the input message, passing it through unchanged.
+Attaches a context property to a message, passing through the existing message.
 
 ### Inputs
-- **payload** <span class="property-type">any</span>
-  The input message payload to pass through unchanged.
+- **input** <span class="property-type">any</span>
+  The input message with an existing `msg.payload`.
 
 ### Outputs
-- **payload** <span class="property-type">any</span>
-  The original payload, unchanged.
-- **context** <span class="property-type">string</span>
-  The configured context property (e.g., `priority`, `clear`, `in1`).
-- Other properties from the input message (e.g., `msg.topic`) are preserved.
+- **output** <span class="property-type">object</span>
+  Input message with `msg.context` set to the context property and other properties unchanged.
 
 ### Details
-The Contextual Label Block attaches a `msg.context` property to the input message, set to a value configured in the editor (e.g., `priority`, `clear`, `in1`). The original `msg.payload` and other properties are passed through unchanged. The context property is set in the editor and requires redeployment to change; no runtime configuration is supported.
+The Contextual Label Block attaches a context property (`msg.context`) to a message without modifying its existing `msg.payload` or other properties. A single context property (e.g., `priority`, `clear`, `in1`) is configured in the editor, setting the node’s display name as `contextual <contextProperty>`.
+
+The context property is configurable only in the editor. Editor changes require redeployment; no runtime configuration is supported.
 
 ### Examples
-- **Set Priority**: Config `contextProperty = priority`, input `{ payload: 5 }`, output `{ context: "priority", payload: 5 }`.
-- **Clear Priority**: Config `contextProperty = clear`, input `{ payload: null }`, output `{ context: "clear", payload: null }`.
-- **Set Input**: Config `contextProperty = in1`, input `{ payload: 42.0 }`, output `{ context: "in1", payload: 42.0 }`.
+- **Set Priority**: Set `contextProperty = priority`, input `{ payload: 5 }`, output `{ context: "priority", payload: 5 }`.
+- **Clear Priority**: Set `contextProperty = clear`, input `{ payload: null }`, output `{ context: "clear", payload: null }`.
+- **Set Input**: Set `contextProperty = in1`, input `{ payload: 42.0, topic: "test" }`, output `{ context: "in1", payload: 42.0, topic: "test" }`.
 
 ### Error Handling
-- Missing or invalid input message (not an object): Shows "missing message" (red), no output.
+- Missing `msg` or invalid input (not an object): Shows "missing message" (red), no output.
 - Invalid context property (empty or non-string): Shows "invalid context property" (red), no output.
 
-Status shows blue for output (e.g., `context: priority, value: 5.00` for numbers, `context: clear, value: null` for null), red for errors.
+Status shows blue for output (e.g., `context: priority, value: 5`), red for errors.
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation

@@ -5,13 +5,12 @@ module.exports = function(RED) {
         const node = this;
         
         // Initialize properties from config
-        node.name = config.name || "contextual label";
-        node.contextProperty = config.contextProperty || "context";
+        node.contextPropertyName = config.contextPropertyName || "context";
 
         // Validate initial config
-        if (!node.contextProperty || typeof node.contextProperty !== "string" || node.contextProperty.trim() === "") {
+        if (!node.contextPropertyName || typeof node.contextPropertyName !== "string" || node.contextPropertyName.trim() === "") {
+            node.contextPropertyName = "context";
             node.status({ fill: "red", shape: "ring", text: "invalid context property" });
-            node.contextProperty = "context";
         }
 
         node.on("input", function(msg, send, done) {
@@ -23,12 +22,11 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Set msg.context and pass original message
-            msg.context = node.contextProperty;
+            msg.context = node.contextPropertyName;
             node.status({
                 fill: "blue",
                 shape: "dot",
-                text: `context: ${node.contextProperty}, value: ${typeof msg.payload === "number" ? msg.payload.toFixed(2) : msg.payload}`
+                text: `context: ${node.contextPropertyName}, value: ${JSON.stringify(msg.payload)}`
             });
             send(msg);
 
@@ -36,6 +34,13 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
+            // Reset properties on redeployment
+            node.contextPropertyName = config.contextPropertyName || "context";
+
+            if (!node.contextPropertyName || typeof node.contextPropertyName !== "string" || node.contextPropertyName.trim() === "") {
+                node.contextPropertyName = "context";
+            }
+
             node.status({});
             done();
         });
@@ -48,8 +53,7 @@ module.exports = function(RED) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "contextual-label-block") {
             res.json({
-                name: node.name || "contextual label",
-                contextProperty: node.contextProperty || "context"
+                contextPropertyName: node.contextPropertyName || "context"
             });
         } else {
             res.status(404).json({ error: "Node not found" });

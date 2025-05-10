@@ -40,16 +40,28 @@
         },
         oneditprepare: function() {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "tstat");
+            $("#node-input-setpoint").val(this.setpoint !== undefined ? this.setpoint : 70);
+            $("#node-input-diff").val(this.diff !== undefined ? this.diff : 2);
+            $("#node-input-isHeating").prop("checked", this.isHeating === true);
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/tstat-block/${id}?t=${Date.now()}`, function(data) {
-                $("#node-input-name").val(data.name || "tstat");
-                $("#node-input-setpoint").val(data.setpoint !== undefined ? data.setpoint : 70);
-                $("#node-input-diff").val(data.diff !== undefined ? data.diff : 2);
-                $("#node-input-isHeating").prop("checked", data.isHeating === true);
-            }).fail(function() {
-                $("#node-input-name").val(this.name || "tstat");
-                $("#node-input-setpoint").val(this.setpoint !== undefined ? this.setpoint : 70);
-                $("#node-input-diff").val(this.diff !== undefined ? this.diff : 2);
-                $("#node-input-isHeating").prop("checked", this.isHeating === true);
+                // Only update if node is deployed and data differs
+                if (data && (
+                    data.name !== this.name ||
+                    data.setpoint !== this.setpoint ||
+                    data.diff !== this.diff ||
+                    data.isHeating !== this.isHeating
+                )) {
+                    $("#node-input-name").val(data.name || this.name || "tstat");
+                    $("#node-input-setpoint").val(data.setpoint !== undefined ? data.setpoint : this.setpoint || 70);
+                    $("#node-input-diff").val(data.diff !== undefined ? data.diff : this.diff || 2);
+                    $("#node-input-isHeating").prop("checked", data.isHeating === true);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
         oneditsave: function() {
@@ -63,33 +75,42 @@
 Thermostat controller for heating/cooling with setpoint and differential.
 
 ### Inputs
-- **context** (string): Sets configuration ("setpoint", "diff", "isHeating").
-- **payload** (number | boolean): Numeric input for temperature, or config value (number for setpoint/diff, boolean for isHeating).
+- **context** <span class="property-type">string</span>
+  Sets configuration ("setpoint", "diff", "isHeating").
+- **payload** <span class="property-type">number | boolean</span>
+  Numeric input for temperature, or config value (number for setpoint/diff, boolean for isHeating).
 
 ### Outputs
-1. **isHeating** (boolean): True for heating mode, false for cooling mode.
-2. **above** (boolean): True if input > setpoint + diff/2.
-3. **below** (boolean): True if input < setpoint - diff/2.
+- **isHeating** <span class="property-type">boolean</span>
+  True for heating mode, false for cooling mode.
+- **above** <span class="property-type">boolean</span>
+  True if input > setpoint + diff/2.
+- **below** <span class="property-type">boolean</span>
+  True if input < setpoint - diff/2.
 
 ### Details
-The Tstat Block is a Sedona-inspired node for control systems, comparing a numeric input (`msg.payload`) to a setpoint with a differential (`diff`) to control heating or cooling. 
-It sets `above` when input > `setpoint + diff/2`, `below` when input < `setpoint - diff/2`. 
-Clears `above` when input < `setpoint`, clears `below` when input > `setpoint` (hysteresis).
+The Tstat Block compares a numeric input (`msg.payload`) to a setpoint with a differential (`diff`) to control heating or cooling. It sets `above` when input > `setpoint + diff/2`, `below` when input < `setpoint - diff/2`. It clears `above` when input < `setpoint`, clears `below` when input > `setpoint` (hysteresis).
 
-The node name is configurable only in the editor. Setpoint, differential, and heating mode (`isHeating`) are configurable via the editor or `msg.context` (e.g., `msg.context = "setpoint", msg.payload = 72`). 
-Editor changes require redeployment; message-based changes apply immediately, resetting to editor values on redeployment.
+The node name is configurable only in the editor. Setpoint, differential, and heating mode (`isHeating`) are configurable via the editor or `msg.context`. Editor changes require redeployment; message-based changes apply immediately and are reflected in the editor.
 
-Outputs are new messages (`{ payload: boolean }`), sent to three ports (isHeating, above, below) only when the input or output states change.
+Outputs are new messages sent to three ports (isHeating, above, below) for each valid temperature input.
 
-Use in automation for thermostat control, e.g., HVAC systems.
+### Examples
+- **Temperature Input**: Config `setpoint=70`, `diff=2`, `isHeating=true`, input `{ payload: 65 }`, outputs: `{ payload: true }`, `{ payload: false }`, `{ payload: true }`.
+- **Set Setpoint**: Input `{ context: "setpoint", payload: 72 }`, no output, sets `setpoint=72`.
+- **Toggle Mode**: Input `{ context: "isHeating", payload: false }`, no output, sets cooling mode.
 
 ### Error Handling
 - Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
-- Invalid input (non-numeric, NaN): Shows "invalid input" (red), no output.
-- Invalid setpoint (non-numeric, NaN): Shows "invalid setpoint" (red), no output.
+- Invalid input (non-numeric): Shows "invalid input" (red), no output.
+- Invalid setpoint (non-numeric): Shows "invalid setpoint" (red), no output.
 - Invalid diff (non-numeric, negative): Shows "invalid diff" (red), no output.
 - Invalid isHeating (non-boolean): Shows "invalid isHeating" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for configuration updates (e.g., `setpoint: 72.00`, `isHeating: true`), blue dot for output when states change (e.g., `out: [heating, false, true], in: 65.00, sp: 70.00`), blue ring for unchanged inputs (same format), red/yellow for errors.
+Status shows green for config (e.g., `setpoint: 72.00`, `isHeating: true`), blue for output (e.g., `mode: heating, above: false, below: true, in: 65.00`), red or yellow for errors.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

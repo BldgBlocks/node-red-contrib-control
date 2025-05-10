@@ -6,10 +6,10 @@ module.exports = function (RED) {
 
         // Initialize configuration
         node.name = config.name || "";
-        node.R_fixed = parseFloat(config.R_fixed) || 23500; // Ohms
-        node.Vsupply = parseFloat(config.Vsupply) || 5.08; // Volts
-        node.Vref = parseFloat(config.Vref) || 4.096; // Volts
-        node.ADC_max = parseFloat(config.ADC_max) || 32768; // ADC max value
+        node.R_fixed = parseFloat(config.R_fixed) || 23500;
+        node.Vsupply = parseFloat(config.Vsupply) || 5.08;
+        node.Vref = parseFloat(config.Vref) || 4.096;
+        node.ADC_max = parseFloat(config.ADC_max) || 32768;
 
         // Initialize context
         node.lastVoltage = context.get("lastVoltage") || 0;
@@ -43,7 +43,7 @@ module.exports = function (RED) {
         node.status({
             fill: "blue",
             shape: "dot",
-            text: `voltage: ${node.lastVoltage.toFixed(2)} v, resistance: ${node.lastResistance.toFixed(2)} ohms`
+            text: `volt: ${node.lastVoltage.toFixed(2)}, res: ${node.lastResistance.toFixed(2)}`
         });
         console.log(`initialized thermistor-block node ${node.id}: r_fixed=${node.R_fixed}, vsupply=${node.Vsupply}, vref=${node.Vref}, adc_max=${node.ADC_max}`);
 
@@ -64,7 +64,7 @@ module.exports = function (RED) {
                     node.status({
                         fill: "red",
                         shape: "ring",
-                        text: `invalid input: expected 2-byte buffer, got ${msg.payload.length}-byte buffer`
+                        text: `invalid input: expected 2-byte buffer`
                     });
                     console.log(`error in thermistor-block node ${node.id}: invalid input: ${JSON.stringify(msg.payload)}`);
                     if (done) done();
@@ -77,7 +77,7 @@ module.exports = function (RED) {
                     node.status({
                         fill: "red",
                         shape: "ring",
-                        text: `invalid input: expected numeric [highByte, lowByte] in buffer data, got ${JSON.stringify(msg.payload)}`
+                        text: `invalid input: expected numeric [highByte, lowByte]`
                     });
                     console.log(`error in thermistor-block node ${node.id}: invalid input: ${JSON.stringify(msg.payload)}`);
                     if (done) done();
@@ -89,7 +89,7 @@ module.exports = function (RED) {
                 node.status({
                     fill: "red",
                     shape: "ring",
-                    text: `invalid input: expected [highByte, lowByte] or 2-byte buffer, got ${JSON.stringify(msg.payload)}`
+                    text: `invalid input: expected [highByte, lowByte] or 2-byte buffer`
                 });
                 console.log(`error in thermistor-block node ${node.id}: invalid input: ${JSON.stringify(msg.payload)}`);
                 if (done) done();
@@ -124,30 +124,24 @@ module.exports = function (RED) {
                     return;
                 }
 
-                // Check for unchanged output
-                const isUnchanged = voltage === node.lastVoltage && R_thermistor === node.lastResistance;
+                // Update context and status
                 node.lastVoltage = voltage;
                 node.lastResistance = R_thermistor;
                 context.set("lastVoltage", node.lastVoltage);
                 context.set("lastResistance", node.lastResistance);
 
-                // Update status
                 node.status({
                     fill: "blue",
-                    shape: isUnchanged ? "ring" : "dot",
-                    text: `voltage: ${voltage.toFixed(2)} v, resistance: ${R_thermistor.toFixed(2)} ohms`
+                    shape: "dot",
+                    text: `volt: ${voltage.toFixed(2)}, res: ${R_thermistor.toFixed(2)}`
                 });
 
-                // Send outputs only if changed
-                if (!isUnchanged) {
-                    send([
-                        { payload: voltage },
-                        { payload: R_thermistor }
-                    ]);
-                    console.log(`processed thermistor-block node ${node.id}: voltage=${voltage.toFixed(2)} v, resistance=${R_thermistor.toFixed(2)} ohms`);
-                } else {
-                    console.log(`unchanged output for thermistor-block node ${node.id}: voltage=${voltage.toFixed(2)} v, resistance=${R_thermistor.toFixed(2)} ohms`);
-                }
+                // Send outputs
+                send([
+                    { payload: voltage },
+                    { payload: R_thermistor }
+                ]);
+                console.log(`processed thermistor-block node ${node.id}: voltage=${voltage.toFixed(2)} v, resistance=${R_thermistor.toFixed(2)} ohms`);
 
             } catch (error) {
                 node.status({ fill: "red", shape: "ring", text: "calculation error" });

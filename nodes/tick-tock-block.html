@@ -32,13 +32,23 @@
         },
         oneditprepare: function() {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "tick tock");
+            $("#node-input-period").val(this.period || 10);
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/tick-tock-block/${id}?t=${Date.now()}`, function(data) {
-                $("#node-input-name").val(data.name || "tick tock");
-                $("#node-input-period").val(data.period || 10);
-            }).fail(function() {
-                $("#node-input-name").val(this.name || "tick tock");
-                $("#node-input-period").val(this.period || 10);
+                // Only update if node is deployed and data differs
+                if (data && (data.name !== this.name || data.period !== this.period)) {
+                    $("#node-input-name").val(data.name || this.name || "tick tock");
+                    $("#node-input-period").val(data.period || this.period || 10);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
+        },
+        oneditsave: function() {
+            // Standard config properties are automatically saved
         }
     });
 </script>
@@ -47,20 +57,34 @@
 Generates a square wave output toggling between true and false.
 
 ### Inputs
-- **context** (string): Identifies config ("period", "command").
-- **payload** (number | string): Numeric value for period, string ("start" or "stop") for command.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("period", "command").
+- **payload** <span class="property-type">number | string</span>
+  Numeric value for period, string ("start" or "stop") for command.
 
 ### Outputs
-- **payload** (boolean): Square wave value (true or false).
+- **payload** <span class="property-type">boolean</span>
+  Square wave value (true or false).
 
 ### Details
-The Tick Tock Block generates a square wave output toggling between `true` and `false` every half `period` (seconds). Use `msg.context = "command"` with `"start"` to begin or `"stop"` to halt, and `msg.context = "period"` with a positive number to adjust the period. Outputs are sent only when the state changes.
+The Tick Tock Block generates a square wave output toggling between `true` and `false` every half `period` (seconds). Use `msg.context = "command"` with `"start"` to begin or `"stop"` to halt, and `msg.context = "period"` with a positive number to adjust the period. Outputs are new messages sent for each state change after a start command or period update.
+
+The period and name are configurable in the editor. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
+
+### Examples
+- **Start Wave**: Input `{ context: "command", payload: "start" }`, output `{ payload: true }`, then `{ payload: false }` after half period.
+- **Set Period**: Input `{ context: "period", payload: 5 }`, no output unless running, updates period to 5 seconds.
+- **Stop Wave**: Input `{ context: "command", payload: "stop" }`, no output, stops wave.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing payload" (red).
-- Invalid period (non-numeric, non-positive): Shows "invalid period" (red).
-- Invalid command (not "start" or "stop"): Shows "invalid command" (red).
-- Unknown `msg.context`: Shows "unknown context" (yellow).
+- Missing `msg.payload`: Shows "missing payload" (red), no output.
+- Invalid period (non-numeric, non-positive): Shows "invalid period" (red), no output.
+- Invalid command (not "start" or "stop"): Shows "invalid command" (red), no output.
+- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status: Green for config (e.g., `period: 10.00`, `started, period: 10.00`), blue for output (e.g., `out: true`), red for stop or errors, yellow for unknown context.
+Status shows green for config (e.g., `period: 10.00`, `started, period: 10.00`), blue for output (e.g., `out: true`), red for stop or errors, yellow for unknown context.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>

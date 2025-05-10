@@ -1,28 +1,24 @@
 <!-- UI Template Section -->
 <script type="text/html" data-template-name="thermistor-block">
     <div class="form-row">
-        <label for="node-input-name" title="display name shown on the canvas"><i class="fa fa-tag"></i> name</label>
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-R_fixed" title="fixed resistor value in ohms for thermistor circuit"><i class="fa fa-wrench"></i> r_fixed (ohms)</label>
+        <label for="node-input-R_fixed" title="Fixed resistor value in ohms for thermistor circuit"><i class="fa fa-wrench"></i> R_fixed (ohms)</label>
         <input type="number" id="node-input-R_fixed" placeholder="23500" min="0.01" step="0.01">
     </div>
     <div class="form-row">
-        <label for="node-input-Vsupply" title="supply voltage in volts for the thermistor circuit"><i class="fa fa-bolt"></i> vsupply (volts)</label>
+        <label for="node-input-Vsupply" title="Supply voltage in volts for the thermistor circuit"><i class="fa fa-bolt"></i> Vsupply (volts)</label>
         <input type="number" id="node-input-Vsupply" placeholder="5.08" min="0.01" step="0.01">
     </div>
     <div class="form-row">
-        <label for="node-input-Vref" title="reference voltage in volts for ADC conversion"><i class="fa fa-bolt"></i> vref (volts)</label>
+        <label for="node-input-Vref" title="Reference voltage in volts for ADC conversion"><i class="fa fa-bolt"></i> Vref (volts)</label>
         <input type="number" id="node-input-Vref" placeholder="4.096" min="0.01" step="0.01">
     </div>
     <div class="form-row">
-        <label for="node-input-ADC_max" title="maximum ADC value for raw data conversion"><i class="fa fa-microchip"></i> adc_max</label>
+        <label for="node-input-ADC_max" title="Maximum ADC value for raw data conversion"><i class="fa fa-microchip"></i> ADC_max</label>
         <input type="number" id="node-input-ADC_max" placeholder="32768" min="1" step="1">
-    </div>
-    <div class="form-row">
-        <label for="node-input-name" title="display name shown on the canvas"><i class="fa fa-tag"></i> name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
     </div>
 </script>
 
@@ -45,23 +41,39 @@
         icon: "font-awesome/fa-wrench",
         paletteLabel: "thermistor",
         label: function () {
-            return this.name ? `Thermistor ${this.name}` : `thermistor ${this.R_fixed} ohms`;
+            return this.name || "thermistor";
         },
         oneditprepare: function () {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "");
+            $("#node-input-R_fixed").val(this.R_fixed || 23500);
+            $("#node-input-Vsupply").val(this.Vsupply || 5.08);
+            $("#node-input-Vref").val(this.Vref || 4.096);
+            $("#node-input-ADC_max").val(this.ADC_max || 32768);
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/thermistor-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "");
-                $("#node-input-R_fixed").val(data.R_fixed || 23500);
-                $("#node-input-Vsupply").val(data.Vsupply || 5.08);
-                $("#node-input-Vref").val(data.Vref || 4.096);
-                $("#node-input-ADC_max").val(data.ADC_max || 32768);
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "");
-                $("#node-input-R_fixed").val(this.R_fixed || 23500);
-                $("#node-input-Vsupply").val(this.Vsupply || 5.08);
-                $("#node-input-Vref").val(this.Vref || 4.096);
-                $("#node-input-ADC_max").val(this.ADC_max || 32768);
+                // Only update if node is deployed and data differs
+                if (data && (
+                    data.name !== this.name ||
+                    data.R_fixed !== this.R_fixed ||
+                    data.Vsupply !== this.Vsupply ||
+                    data.Vref !== this.Vref ||
+                    data.ADC_max !== this.ADC_max
+                )) {
+                    $("#node-input-name").val(data.name || this.name || "");
+                    $("#node-input-R_fixed").val(data.R_fixed || this.R_fixed || 23500);
+                    $("#node-input-Vsupply").val(data.Vsupply || this.Vsupply || 5.08);
+                    $("#node-input-Vref").val(data.Vref || this.Vref || 4.096);
+                    $("#node-input-ADC_max").val(data.ADC_max || this.ADC_max || 32768);
+                }
+            }.bind(this)).fail(function () {
+                // No server data; rely on this properties (already set)
             });
+        },
+        oneditsave: function () {
+            // Standard config properties are automatically saved by Node-RED
         }
     });
 </script>
@@ -72,45 +84,43 @@ Converts a 16-bit raw sensor value into voltage and thermistor resistance.
 
 ### Inputs
 - **payload** <span class="property-type">array | buffer | object</span>
-  - Two-byte array `[highByte, lowByte]`, 2-byte buffer, or object `{type: "Buffer", data: [highByte, lowByte]}` representing a 16-bit raw value.
+  Two-byte array `[highByte, lowByte]`, 2-byte buffer, or object `{type: "Buffer", data: [highByte, lowByte]}` representing a 16-bit raw value.
 
 ### Outputs
-- Voltage output
-  - **payload** <span class="property-type">number</span>
-    - Calculated voltage in volts.
-- Resistance output
-  - **payload** <span class="property-type">number</span>
-    - Calculated thermistor resistance in ohms.
+- **Voltage output** <span class="property-type">number</span>
+  Calculated voltage in volts.
+- **Resistance output** <span class="property-type">number</span>
+  Calculated thermistor resistance in ohms.
 
 ### Details
-`msg.payload` must be a two-byte array `[highByte, lowByte]`, a 2-byte buffer, or an object `{type: "Buffer", data: [highByte, lowByte]}` from an ADC. The node calculates:
-- Voltage: `voltage = (raw * vref) / adc_max`, where `raw = (highByte << 8) | lowByte`.
-- Resistance: `r_thermistor = r_fixed * (voltage / (vsupply - voltage))`.
+The Thermistor Block converts raw ADC data from a thermistor circuit into voltage and resistance. The input `msg.payload` must be a two-byte array `[highByte, lowByte]`, a 2-byte buffer, or an object `{type: "Buffer", data: [highByte, lowByte]}`. It calculates:
+- Voltage: `voltage = (raw * Vref) / ADC_max`, where `raw = (highByte << 8) | lowByte`.
+- Resistance: `R_thermistor = R_fixed * (voltage / (Vsupply - voltage))`.
 
-The node outputs only when the calculated voltage or resistance changes, reducing unnecessary messages. The last valid voltage and resistance are stored in context to maintain status across restarts.
-
-Configuration options:
-- `r_fixed`: Fixed resistor value in ohms (default: 23500).
-- `vsupply`: Supply voltage in volts (default: 5.08).
-- `vref`: Reference voltage in volts for ADC conversion (default: 4.096).
-- `adc_max`: Maximum ADC value (default: 32768).
+Configuration options (set in editor):
+- `R_fixed`: Fixed resistor value in ohms (default: 23500).
+- `Vsupply`: Supply voltage in volts (default: 5.08).
+- `Vref`: Reference voltage in volts for ADC conversion (default: 4.096).
+- `ADC_max`: Maximum ADC value (default: 32768).
 - `name`: Optional display name for the node.
 
-Use this node in control systems to convert raw ADC data from a thermistor circuit into voltage and resistance for applications like temperature monitoring.
+The node outputs new messages for both voltage and resistance on separate outputs for each valid input. The last valid voltage and resistance are stored in context for persistence. Editor changes require redeployment.
+
+### Examples
+- **Valid Input**: Input `{ payload: [128, 0] }` with `Vref=4.096`, `ADC_max=32768`, output 1: `{ payload: 2.048 }`, output 2: `{ payload: 23500 }` (with `R_fixed=23500`, `Vsupply=5.08`).
+- **Buffer Input**: Input `{ payload: Buffer.from([64, 0]) }`, output 1: `{ payload: 1.024 }`, output 2: calculates resistance accordingly.
+- **Invalid Input**: Input `{ payload: [1] }`, no output, status: `invalid input: expected [highByte, lowByte] or 2-byte buffer`.
 
 ### Error Handling
-- Missing message: Shows `missing message` (red).
-- Invalid input (not a two-byte array, buffer, or valid buffer object): Shows `invalid input: <value>` (red).
-- Raw value out of range (negative or > adc_max): Shows `raw value out of range` (red).
-- Voltage out of range (≤ 0 or ≥ vsupply): Shows `voltage out of range` (red).
-- Invalid resistance (negative or NaN): Shows `invalid resistance` (red).
-- Invalid configuration (e.g., negative r_fixed): Shows `invalid <property>` (red).
-- Calculation errors: Shows `calculation error` (red).
+- Missing message: Shows "missing message" (red), no output.
+- Invalid input (not a two-byte array, buffer, or valid buffer object): Shows "invalid input" (red), no output.
+- Raw value out of range (negative or > ADC_max): Shows "raw value out of range" (red), no output.
+- Voltage out of range (≤ 0 or ≥ Vsupply): Shows "voltage out of range" (red), no output.
+- Invalid resistance (negative or NaN): Shows "invalid resistance" (red), no output.
+- Invalid configuration (e.g., negative R_fixed): Shows "invalid R_fixed" (red), no output.
+- Calculation errors: Shows "calculation error" (red), no output.
 
-Status shows:
-- Blue dot for new output (`voltage: X.XX v, resistance: Y.YY ohms`).
-- Blue ring for unchanged output (`voltage: X.XX v, resistance: Y.YY ohms`).
-- Red ring for errors (`invalid input`, `invalid r_fixed`).
+Status shows blue for output (e.g., `volt: 2.05, res: 23500.00`), red for errors (e.g., `invalid input`, `invalid R_fixed`).
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation

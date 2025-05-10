@@ -41,7 +41,7 @@
       "comment-block": "nodes/comment-block.js",
       "oneshot-block": "nodes/oneshot-block.js",
       "boolean-switch-block": "nodes/boolean-switch-block.js",
-      "ratelimitthreshold-block": "nodes/ratelimitthreshold-block.js",
+      "rate-limit-block": "nodes/rate-limit-block.js",
       "thermistor-block": "nodes/thermistor-block.js",
       "units-block": "nodes/units-block.js"
     }

@@ -10,13 +10,12 @@ module.exports = function(RED) {
         // Validate period
         if (isNaN(node.period) || node.period <= 0) {
             node.status({ fill: "red", shape: "ring", text: "invalid period" });
-            node.period = 10; // Default fallback
+            node.period = 10;
         }
 
         // State variables
         let intervalId = null;
         let state = true;
-        let lastState = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -41,22 +40,14 @@ module.exports = function(RED) {
                     if (intervalId) {
                         clearInterval(intervalId);
                         state = true;
-                        lastState = null;
                         const halfPeriodMs = (node.period * 1000) / 2;
-                        if (state !== lastState) {
-                            lastState = state;
-                            send({ payload: state });
-                            node.status({ fill: "blue", shape: "dot", text: `out: ${state}, period: ${node.period.toFixed(2)}` });
-                        }
+                        send({ payload: state });
+                        node.status({ fill: "blue", shape: "dot", text: `out: ${state}` });
                         intervalId = setInterval(() => {
                             state = !state;
-                            if (state !== lastState) {
-                                lastState = state;
-                                send({ payload: state });
-                                node.status({ fill: "blue", shape: "dot", text: `out: ${state}, period: ${node.period.toFixed(2)}` });
-                            }
+                            send({ payload: state });
+                            node.status({ fill: "blue", shape: "dot", text: `out: ${state}` });
                         }, halfPeriodMs);
-                        node.status({ fill: "green", shape: "dot", text: `started, period: ${node.period}s` });
                     }
                 } else if (msg.context === "command") {
                     if (typeof msg.payload !== "string") {
@@ -66,22 +57,15 @@ module.exports = function(RED) {
                     }
                     if (msg.payload === "start" && !intervalId) {
                         state = true;
-                        lastState = null;
                         const halfPeriodMs = (node.period * 1000) / 2;
-                        if (state !== lastState) {
-                            lastState = state;
-                            send({ payload: state });
-                            node.status({ fill: "blue", shape: "dot", text: `out: ${state}` });
-                        }
+                        send({ payload: state });
+                        node.status({ fill: "blue", shape: "dot", text: `out: ${state}` });
                         intervalId = setInterval(() => {
                             state = !state;
-                            if (state !== lastState) {
-                                lastState = state;
-                                send({ payload: state });
-                                node.status({ fill: "blue", shape: "dot", text: `out: ${state}` });
-                            }
+                            send({ payload: state });
+                            node.status({ fill: "blue", shape: "dot", text: `out: ${state}` });
                         }, halfPeriodMs);
-                        node.status({ fill: "green", shape: "dot", text: `started, period: ${node.period}s` });
+                        node.status({ fill: "green", shape: "dot", text: `started, period: ${node.period.toFixed(2)}` });
                     } else if (msg.payload === "stop" && intervalId) {
                         clearInterval(intervalId);
                         intervalId = null;
@@ -104,7 +88,6 @@ module.exports = function(RED) {
                 intervalId = null;
             }
             state = true;
-            lastState = null;
             node.status({});
             done();
         });

@@ -94,12 +94,12 @@ module.exports = function(RED) {
                 if (stage === 0) return; // Stop if reset
                 const stageLabels = ["stage 1", "stage 2", "stage 3", "reset"];
                 const outputs = [null, null, null, null];
-                cloneMsg.stage = stage; // Add stage to output message
+                cloneMsg.stage = stage;
                 outputs[stage - 1] = cloneMsg;
                 node.status({
                     fill: "blue",
                     shape: "dot",
-                    text: `out: ${stageLabels[stage - 1]}, in: ${JSON.stringify(cloneMsg.payload).slice(0, 20)}`
+                    text: `stage: ${stageLabels[stage - 1]}, in: ${JSON.stringify(cloneMsg.payload).slice(0, 20)}`
                 });
                 send(outputs);
 
@@ -107,7 +107,7 @@ module.exports = function(RED) {
                 if (stage <= 4) {
                     timer = setTimeout(sendNextOutput, node.delay);
                 } else {
-                    stage = 0; // Sequence complete
+                    stage = 0;
                     timer = null;
                 }
             };
@@ -131,7 +131,6 @@ module.exports = function(RED) {
                 node.delay = 5000;
             }
 
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });
@@ -145,8 +144,7 @@ module.exports = function(RED) {
         if (node && node.type === "time-sequence-block") {
             res.json({
                 name: node.name || "time sequence",
-                delay: !isNaN(node.delay) && node.delay >= 0 ? node.delay : 5000,
-                stage: node.stage || 0
+                delay: !isNaN(node.delay) && node.delay >= 0 ? node.delay : 5000
             });
         } else {
             res.status(404).json({ error: "Node not found" });

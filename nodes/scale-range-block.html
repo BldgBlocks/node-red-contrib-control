@@ -50,20 +50,34 @@
         },
         oneditprepare: function() {
             const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-name").val(this.name || "scale range");
+            $("#node-input-inMin").val(this.inMin !== undefined ? this.inMin : 0.0);
+            $("#node-input-inMax").val(this.inMax !== undefined ? this.inMax : 100.0);
+            $("#node-input-outMin").val(this.outMin !== undefined ? this.outMin : 0.0);
+            $("#node-input-outMax").val(this.outMax !== undefined ? this.outMax : 80.0);
+            $("#node-input-clamp").prop("checked", this.clamp !== false);
+
+            // Fetch server data only for deployed nodes
             $.getJSON(`/scale-range-block/${id}?t=${Date.now()}`, function(data) {
-                $("#node-input-name").val(data.name || "scale range");
-                $("#node-input-inMin").val(data.inMin !== undefined ? data.inMin : 0.0);
-                $("#node-input-inMax").val(data.inMax !== undefined ? data.inMax : 100.0);
-                $("#node-input-outMin").val(data.outMin !== undefined ? data.outMin : 0.0);
-                $("#node-input-outMax").val(data.outMax !== undefined ? data.outMax : 80.0);
-                $("#node-input-clamp").prop("checked", data.clamp !== false);
-            }).fail(function() {
-                $("#node-input-name").val(this.name || "scale range");
-                $("#node-input-inMin").val(this.inMin !== undefined ? this.inMin : 0.0);
-                $("#node-input-inMax").val(this.inMax !== undefined ? this.inMax : 100.0);
-                $("#node-input-outMin").val(this.outMin !== undefined ? this.outMin : 0.0);
-                $("#node-input-outMax").val(this.outMax !== undefined ? this.outMax : 80.0);
-                $("#node-input-clamp").prop("checked", this.clamp !== false);
+                // Only update if node is deployed and data differs
+                if (data && (
+                    data.name !== this.name ||
+                    data.inMin !== this.inMin ||
+                    data.inMax !== this.inMax ||
+                    data.outMin !== this.outMin ||
+                    data.outMax !== this.outMax ||
+                    data.clamp !== this.clamp
+                )) {
+                    $("#node-input-name").val(data.name || this.name || "scale range");
+                    $("#node-input-inMin").val(data.inMin !== undefined ? data.inMin : this.inMin || 0.0);
+                    $("#node-input-inMax").val(data.inMax !== undefined ? data.inMax : this.inMax || 100.0);
+                    $("#node-input-outMin").val(data.outMin !== undefined ? data.outMin : this.outMin || 0.0);
+                    $("#node-input-outMax").val(data.outMax !== undefined ? data.outMax : this.outMax || 80.0);
+                    $("#node-input-clamp").prop("checked", data.clamp !== false);
+                }
+            }.bind(this)).fail(function() {
+                // No server data; rely on this properties (already set)
             });
         },
         oneditsave: function() {
@@ -74,28 +88,31 @@
 
 <!-- Help Section: Provides documentation for the Scale Range Block node -->
 <script type="text/markdown" data-help-name="scale-range-block">
-Scales a numeric input from one range to another with optional clamping.
+Scales a numeric input from one range to another and passes the original message.
 
 ### Inputs
-- **context** (string): Identifies configuration ("inMin", "inMax", "outMin", "outMax", "clamp").
-- **payload** (number | boolean): Number for input or range configuration, boolean for clamp.
+- **context** <span class="property-type">string</span>
+  Sets configuration ("inMin", "inMax", "outMin", "outMax", "clamp").
+- **payload** <span class="property-type">number | boolean</span>
+  Number for input or range configuration, boolean for clamp.
 
 ### Outputs
-1. **output** (number): Scaled output.
+- **payload** <span class="property-type">number</span>
+  Scaled output value.
+- Other properties from the input message (e.g., `msg.context`, `msg.topic`) are preserved.
 
 ### Details
-The Scale Range Block is a Sedona-inspired node for control systems, scaling a numeric input (`msg.payload`) from an input range (`inMin` to `inMax`) to an output range (`outMin` to `outMax`) with optional clamping (`clamp`). 
-Configure via the editor or `msg.context = "inMin"`, `inMax`, `outMin`, `outMax` (numbers), or `clamp` (boolean). 
-Non-config messages scale the input. 
-Configuration updates trigger recalculation with the last input, outputting only if the scaled value changes.
+The Scale Range Block scales a numeric input (`msg.payload`) from an input range (`inMin` to `inMax`) to an output range (`outMin` to `outMax`) with optional clamping (`clamp`). Non-config messages scale the input, while configuration messages update settings via `msg.context` with a numeric or boolean `msg.payload`.
 
-The node name, `inMin`, `inMax`, `outMin`, `outMax`, and `clamp` are configurable in the editor; `inMin`, `inMax`, `outMin`, `outMax`, and `clamp` are also configurable via `msg.context`. 
-Editor changes require redeployment; message-based changes apply immediately, resetting to editor values on redeployment.
+The node name, `inMin`, `inMax`, `outMin`, `outMax`, and `clamp` are configurable in the editor or via `msg.context`. The node outputs the input message with `msg.payload` set to the scaled value, preserving other properties. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
 
-Use in automation to map sensor values to control ranges.
+### Examples
+- **Scale Input**: Config `inMin=0`, `inMax=100`, `outMin=0`, `outMax=80`, input `{ payload: 50, topic: "test" }`, output `{ payload: 40, topic: "test" }`.
+- **Set Range**: Input `{ context: "outMax", payload: 90 }`, output `{ payload: 45 }` (recalculated with last input=50).
+- **Toggle Clamp**: Input `{ context: "clamp", payload: false }`, output recalculated with last input.
 
 ### Error Handling
-- Missing `msg.payload` for config or input: Shows "missing payload" (red), no output.
+- Missing `msg.payload`: Shows "missing payload" (red), no output.
 - Invalid inMin/inMax/outMin/outMax (non-numeric): Shows "invalid inMin" (red), no output.
 - Invalid clamp (non-boolean): Shows "invalid clamp" (red), no output.
 - Invalid input range (inMax <= inMin): Shows "invalid input range" (red), no output.
@@ -103,5 +120,9 @@ Use in automation to map sensor values to control ranges.
 - Invalid input (non-numeric): Shows "invalid input" (red), no output.
 - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
 
-Status shows green for configuration (e.g., `inMin set to 0.00`, `clamp set to true`), blue dot for output changes (e.g., `out: 50.00, in: 75.00`), blue ring for unchanged output (same format), red for errors, yellow for unknown context.
+Status shows green for config (e.g., `inMin: 0.00`, `clamp: true`), blue for output (e.g., `out: 40.00, in: 50.00`), red or yellow for errors.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
 </script>
