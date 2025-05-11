@@ -1,0 +1,89 @@
+<!-- UI Template Section: Defines the edit dialog for the Debounce Block node -->
+<script type="text/html" data-template-name="debounce-block">
+    <div class="form-row">
+        <label for="node-input-period" title="Filter period in milliseconds (positive number, e.g., 1000)"><i class="fa fa-clock-o"></i> Filter Period (ms)</label>
+        <input type="number" id="node-input-period" placeholder="1000" min="0.001" step="any">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("debounce-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            period: {
+                value: 1000,
+                required: true,
+                validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; }
+            }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-wrench",
+        paletteLabel: "debounce",
+        label: function () {
+            return "debounce";
+        },
+        oneditprepare: function () {
+            const id = this.id;
+            // Initialize with pending client-side values
+            $("#node-input-period").val(this.period || 1000);
+
+            // Fetch server data only for deployed nodes
+            $.getJSON(`/debounce-block/${id}?t=${Date.now()}`, function (data) {
+                // Only update if node is deployed and data differs
+                if (data && data.period !== this.period) {
+                    $("#node-input-period").val(data.period || this.period || 1000);
+                }
+            }.bind(this)).fail(function () {
+                // No server data; rely on this properties (already set)
+            });
+        },
+        oneditsave: function () {
+            // Standard config properties are automatically saved by Node-RED
+        }
+    });
+</script>
+
+<!-- Help Section: Provides documentation for the Debounce Block node -->
+<script type="text/markdown" data-help-name="debounce-block">
+Debounces consecutive `true` payloads with a configurable filter period.
+
+### Inputs
+- **context** <span class="property-type">string</span>
+  Sets configuration ("period" to update filter period).
+- **payload** <span class="property-type">boolean</span>
+  `true` to trigger debounced output, or numeric value for period config.
+
+### Outputs
+- **payload** <span class="property-type">boolean</span>
+  `true` after the filter period elapses without new `true` payloads.
+- Other properties from the input message (e.g., `msg.topic`) are preserved, except `msg.context`, which is removed.
+
+### Details
+The Debounce Block filters `true` payloads, debouncing them to produce a single `true` output after a configurable filter period (default: 1000ms) elapses without new `true` payloads. Consecutive `true` payloads within the period reset the timer, delaying the output until the period completes. Non-`true` payloads (e.g., `false`, numbers, strings) are ignored.
+
+The filter period is configurable in the editor or via `msg.context = "period"` with a positive numeric `msg.payload` (in milliseconds). Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
+
+Outputs are the input message with `msg.payload = true` and `msg.context` removed, sent after the debounce period.
+
+### Examples
+- **Debounced True**: Config `period=1000ms`, input `{ payload: true, topic: "test" }`, output `{ payload: true, topic: "test" }` after 1000ms if no further `true` payloads.
+- **Consecutive True**: Input `{ payload: true }` at t=0ms, `{ payload: true }` at t=500ms, output `{ payload: true }` at t=1500ms (1000ms after last `true`).
+- **Set Period**: Input `{ context: "period", payload: 2000 }`, no output, sets period to 2000ms.
+- **Invalid Input**: Input `{ payload: false }`, no output, status: `invalid input: expected true`.
+
+### Error Handling
+- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
+- Invalid period (non-numeric, non-positive): Shows "invalid period" (red), no output.
+- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+
+Status shows green for config (e.g., `period: 1000 ms`), blue for output (e.g., `out: true`), red or yellow for errors.
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+</script>

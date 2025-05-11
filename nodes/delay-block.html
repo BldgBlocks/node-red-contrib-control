@@ -141,8 +141,6 @@ The Delay Block delays `msg.payload` (boolean) transitions, outputting `true` af
 
 The node name and delay settings (`delayOn`, `delayOff`) are configurable in the editor with selectable units (milliseconds, seconds, minutes). Delays can also be set via `msg.context = "delayOn"` or `"delayOff"` with a non-negative number in `msg.payload`, optionally specifying `msg.units`. Reset the state via `msg.context = "reset"` with `msg.payload = true`, clearing pending delays.
 
-Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
-
 ### Examples
 - **True Input**: Input `{ payload: true }` with `delayOn: 1000`, after 1s, output: `{ payload: true, ...original }`.
 - **Set Delay**: Input `{ context: "delayOn", payload: 2, units: "seconds" }`, no output, sets `delayOn` to 2000 ms.

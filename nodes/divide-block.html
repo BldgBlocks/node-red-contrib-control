@@ -72,8 +72,6 @@ Divides multiple numeric inputs in sequence.
 ### Details
 The Divide Block divides numeric inputs from multiple slots (`in1`, `in2`, etc.) in sequence (`in1 / in2 / ...`). The number of slots is configurable in the editor or via `msg.context = "slots"` with a positive integer. Inputs default to 1 and are updated via `msg.context = "inX"` with a numeric `msg.payload`. Inputs for `in2` onward must be non-zero to avoid division by zero. Reset all inputs to 1 via `msg.context = "reset"` with `msg.payload = true`.
 
-Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
-
 The node outputs a new message for every valid input slot update.
 
 ### Examples

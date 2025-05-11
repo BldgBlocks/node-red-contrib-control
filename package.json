@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "Sedona-inspired control nodes for Node-RED",
   "keywords": [ "sedona", "control", "hvac" ],
+  "files": ["nodes/*.js", "nodes/*.html"],
   "node-red": {
     "nodes": {
       "and-block": "nodes/and-block.js",
@@ -43,7 +44,9 @@
       "boolean-switch-block": "nodes/boolean-switch-block.js",
       "rate-limit-block": "nodes/rate-limit-block.js",
       "thermistor-block": "nodes/thermistor-block.js",
-      "units-block": "nodes/units-block.js"
+      "units-block": "nodes/units-block.js",
+      "debounce-block": "nodes/debounce-block.js",
+      "on-change-block": "nodes/on-change-block.js"
     }
   },
   "author": "buildingblocks",
