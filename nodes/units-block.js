@@ -1,77 +1,99 @@
-module.exports = function (RED) {
+module.exports = function(RED) {
     function UnitsBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
         const context = this.context();
 
-        // Initialize configuration
-        node.name = config.name || "";
-        node.unit = config.unit || "°F";
-
-        // Initialize context
-        node.lastUnit = context.get("lastUnit") || node.unit;
-        node.lastPayload = context.get("lastPayload") || null;
-        context.set("lastUnit", node.lastUnit);
-        context.set("lastPayload", node.lastPayload);
+        // Initialize runtime state
+        node.runtime = {
+            name: config.name || "",
+            unit: config.unit || "°F",
+            lastUnit: context.get("lastUnit") || config.unit || "°F",
+            lastPayload: context.get("lastPayload") || null
+        };
 
         // Validate configuration
         const validUnits = ["°C", "°F", "K", "%RH", "Pa", "kPa", "bar", "mbar", "psi", "atm", "inH₂O", "mmH₂O", "CFM", "m³/h", "L/s", "V", "mV", "A", "mA", "W", "Ω", "%", "m", "cm", "mm", "km", "ft", "in", "kg", "g", "lb", "s", "min", "h", "L", "mL", "gal", "lx", "cd", "B", "T"];
-        if (!validUnits.includes(node.unit)) {
-            node.status({ fill: "red", shape: "ring", text: "invalid unit" });
-            console.log(`invalid configuration for units-block node ${node.id}: unit=${node.unit}`);
-            return;
+        if (!validUnits.includes(node.runtime.unit)) {
+            node.runtime.unit = "°F";
+            node.runtime.lastUnit = "°F";
+            node.status({ fill: "red", shape: "ring", text: "invalid unit, using °F" });
+            node.warn(`Invalid configuration: unit=${config.unit}, using °F`);
+        } else {
+            node.status({
+                fill: "green",
+                shape: "dot",
+                text: `unit: ${node.runtime.unit}`
+            });
         }
 
-        // Set initial status
-        const payloadPreview = node.lastPayload !== null ? (typeof node.lastPayload === "number" ? node.lastPayload.toFixed(2) : JSON.stringify(node.lastPayload)) : "none";
-        node.status({
-            fill: "blue",
-            shape: "dot",
-            text: `unit: ${node.lastUnit}, value: ${payloadPreview}`
-        });
-        console.log(`initialized units-block node ${node.id}: unit=${node.unit}`);
-
-        node.on("input", function (msg, send, done) {
-            send = send || function () { node.send.apply(node, arguments); };
+        node.on("input", function(msg, send, done) {
+            send = send || function() { node.send.apply(node, arguments); };
 
             // Validate input
             if (!msg || typeof msg !== "object") {
                 node.status({ fill: "red", shape: "ring", text: "missing message" });
-                console.log(`error in units-block node ${node.id}: missing message`);
+                node.warn(`Missing message`);
                 if (done) done();
                 return;
             }
 
             try {
-                // Append msg.units
-                const outputMsg = { ...msg, units: node.unit };
+                // Handle configuration messages
+                if (msg.context) {
+                    if (typeof msg.context !== "string" || !msg.context.trim()) {
+                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        node.warn(`Unknown context: ${msg.context}`);
+                        if (done) done();
+                        return;
+                    }
+                    if (msg.context === "unit") {
+                        if (!msg.hasOwnProperty("payload") || typeof msg.payload !== "string" || !validUnits.includes(msg.payload)) {
+                            node.status({ fill: "red", shape: "ring", text: "invalid unit" });
+                            node.warn(`Invalid unit: ${msg.payload}`);
+                            if (done) done();
+                            return;
+                        }
+                        node.runtime.unit = msg.payload;
+                        node.runtime.lastUnit = msg.payload;
+                        context.set("lastUnit", node.runtime.lastUnit);
+                        node.status({ fill: "green", shape: "dot", text: `unit: ${node.runtime.unit}` });
+                        if (done) done();
+                        return;
+                    } else {
+                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        node.warn(`Unknown context: ${msg.context}`);
+                        if (done) done();
+                        return;
+                    }
+                }
 
-                // Check for unchanged output
-                const isUnchanged = node.unit === node.lastUnit && JSON.stringify(msg.payload) === JSON.stringify(node.lastPayload);
-                node.lastUnit = node.unit;
-                node.lastPayload = msg.payload;
-                context.set("lastUnit", node.lastUnit);
-                context.set("lastPayload", node.lastPayload);
+                // Process input
+                const outputMsg = { ...msg, units: node.runtime.unit };
+                const payloadPreview = msg.payload !== null ? (typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload)) : "none";
+                const isUnchanged = node.runtime.unit === node.runtime.lastUnit && JSON.stringify(msg.payload) === JSON.stringify(node.runtime.lastPayload);
+
+                // Update state
+                node.runtime.lastUnit = node.runtime.unit;
+                node.runtime.lastPayload = msg.payload;
+                context.set("lastUnit", node.runtime.lastUnit);
+                context.set("lastPayload", node.runtime.lastPayload);
 
                 // Update status
-                const payloadPreview = msg.payload !== null ? (typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload)) : "none";
                 node.status({
                     fill: "blue",
                     shape: isUnchanged ? "ring" : "dot",
-                    text: `unit: ${node.unit}, value: ${payloadPreview}`
+                    text: `in: ${payloadPreview}, unit: ${node.runtime.unit}`
                 });
 
                 // Send output only if changed
                 if (!isUnchanged) {
                     send(outputMsg);
-                    console.log(`processed units-block node ${node.id}: unit=${node.unit}, payload=${payloadPreview}`);
-                } else {
-                    console.log(`unchanged output for units-block node ${node.id}: unit=${node.unit}, payload=${payloadPreview}`);
                 }
 
             } catch (error) {
                 node.status({ fill: "red", shape: "ring", text: "processing error" });
-                console.error(`error in units-block node ${node.id}: ${error.message}`);
+                node.warn(`Processing error: ${error.message}`);
                 if (done) done(error);
                 return;
             }
@@ -79,9 +101,8 @@ module.exports = function (RED) {
             if (done) done();
         });
 
-        node.on("close", function (done) {
+        node.on("close", function(done) {
             node.status({});
-            console.log(`closed units-block node ${node.id}`);
             done();
         });
     }
@@ -89,12 +110,12 @@ module.exports = function (RED) {
     RED.nodes.registerType("units-block", UnitsBlockNode);
 
     // HTTP endpoint for editor reflection
-    RED.httpAdmin.get("/units-block/:id", RED.auth.needsPermission("units-block.read"), function (req, res) {
+    RED.httpAdmin.get("/units-block/:id", RED.auth.needsPermission("units-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "units-block") {
             res.json({
-                name: node.name || "",
-                unit: node.unit || "°F"
+                name: node.runtime.name || "",
+                unit: node.runtime.unit || "°F"
             });
         } else {
             res.status(404).json({ error: "node not found" });

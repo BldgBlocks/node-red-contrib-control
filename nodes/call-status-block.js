@@ -1,44 +1,51 @@
 module.exports = function(RED) {
     function CallStatusBlockNode(config) {
         RED.nodes.createNode(this, config);
-        
         const node = this;
-        
-        // Initialize properties from config
-        node.name = config.name || "call status";
-        node.statusTimeout = parseFloat(config.statusTimeout) || 30;
-        node.clearDelay = parseFloat(config.clearDelay) || 10;
-        node.normalOff = config.normalOff === true;
-        node.normalOn = config.normalOn !== false;
-        node.runLostStatus = config.runLostStatus === true;
-        node.noStatusOnRun = config.noStatusOnRun !== false;
-        node.runLostStatusMessage = config.runLostStatusMessage || "Status lost during run";
-        node.noStatusOnRunMessage = config.noStatusOnRunMessage || "No status received during run";
+
+        // Initialize runtime state
+        node.runtime = {
+            name: config.name || "",
+            statusTimeout: parseFloat(config.statusTimeout) || 30,
+            clearDelay: parseFloat(config.clearDelay) || 10,
+            normalOff: config.normalOff === true,
+            normalOn: config.normalOn !== false,
+            runLostStatus: config.runLostStatus === true,
+            noStatusOnRun: config.noStatusOnRun !== false,
+            runLostStatusMessage: config.runLostStatusMessage || "Status lost during run",
+            noStatusOnRunMessage: config.noStatusOnRunMessage || "No status received during run",
+            call: false,
+            status: false,
+            alarm: false,
+            alarmMessage: "",
+            statusTimer: null,
+            clearTimer: null
+        };
 
         // Validate initial config
-        if (isNaN(node.statusTimeout) || node.statusTimeout <= 0) {
-            node.statusTimeout = 30;
+        if (isNaN(node.runtime.statusTimeout) || node.runtime.statusTimeout <= 0) {
+            node.runtime.statusTimeout = 30;
             node.status({ fill: "red", shape: "ring", text: "invalid statusTimeout" });
         }
-        if (isNaN(node.clearDelay) || node.clearDelay <= 0) {
-            node.clearDelay = 10;
+        if (isNaN(node.runtime.clearDelay) || node.runtime.clearDelay <= 0) {
+            node.runtime.clearDelay = 10;
             node.status({ fill: "red", shape: "ring", text: "invalid clearDelay" });
         }
 
-        // Initialize state
-        let call = false;
-        let status = false;
-        let alarm = false;
-        let alarmMessage = "";
-        let statusTimer = null;
-        let clearTimer = null;
-
         node.on("input", function(msg, send, done) {
-            send = send || function () { node.send.apply(node, arguments); };
+            send = send || function() { node.send.apply(node, arguments); };
 
+            // Guard against invalid message
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
                     if (done) done();
                     return;
                 }
@@ -52,15 +59,26 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        if (msg.context === "statusTimeout") {
-                            node.statusTimeout = value;
-                        } else {
-                            node.clearDelay = value;
+                        node.runtime[msg.context] = value;
+                        if (node.runtime.statusTimer) {
+                            clearTimeout(node.runtime.statusTimer);
+                            node.runtime.statusTimer = null;
+                            if (node.runtime.noStatusOnRun && node.runtime.call) {
+                                node.runtime.statusTimer = setTimeout(() => {
+                                    if (!node.runtime.status) {
+                                        node.runtime.alarm = true;
+                                        node.runtime.alarmMessage = node.runtime.noStatusOnRunMessage;
+                                        node.status({ fill: "red", shape: "dot", text: `no status on run, alarm: true` });
+                                        send(sendOutputs());
+                                    }
+                                    node.runtime.statusTimer = null;
+                                }, node.runtime.statusTimeout * 1000);
+                            }
                         }
                         node.status({
                             fill: "green",
                             shape: "dot",
-                            text: `${msg.context}: ${value}`
+                            text: `${msg.context}: ${value.toFixed(2)}`
                         });
                         if (done) done();
                         return;
@@ -73,14 +91,20 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        if (msg.context === "normalOff") {
-                            node.normalOff = msg.payload;
-                        } else if (msg.context === "normalOn") {
-                            node.normalOn = msg.payload;
-                        } else if (msg.context === "runLostStatus") {
-                            node.runLostStatus = msg.payload;
-                        } else {
-                            node.noStatusOnRun = msg.payload;
+                        node.runtime[msg.context] = msg.payload;
+                        if (msg.context === "noStatusOnRun" && !msg.payload && node.runtime.statusTimer) {
+                            clearTimeout(node.runtime.statusTimer);
+                            node.runtime.statusTimer = null;
+                        } else if (msg.context === "noStatusOnRun" && msg.payload && node.runtime.call && !node.runtime.status) {
+                            node.runtime.statusTimer = setTimeout(() => {
+                                if (!node.runtime.status) {
+                                    node.runtime.alarm = true;
+                                    node.runtime.alarmMessage = node.runtime.noStatusOnRunMessage;
+                                    node.status({ fill: "red", shape: "dot", text: `no status on run, alarm: true` });
+                                    send(sendOutputs());
+                                }
+                                node.runtime.statusTimer = null;
+                            }, node.runtime.statusTimeout * 1000);
                         }
                         node.status({
                             fill: "green",
@@ -97,16 +121,16 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        if (msg.context === "runLostStatusMessage") {
-                            node.runLostStatusMessage = msg.payload;
-                        } else {
-                            node.noStatusOnRunMessage = msg.payload;
-                        }
+                        node.runtime[msg.context] = msg.payload;
                         node.status({
                             fill: "green",
                             shape: "dot",
                             text: `${msg.context} set`
                         });
+                        if (node.runtime.alarm && node.runtime.alarmMessage === (msg.context === "runLostStatusMessage" ? node.runtime.noStatusOnRunMessage : node.runtime.runLostStatusMessage)) {
+                            node.runtime.alarmMessage = msg.payload;
+                            send(sendOutputs());
+                        }
                         if (done) done();
                         return;
                     case "status":
@@ -115,28 +139,29 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        if (!call) {
+                        if (!node.runtime.call) {
                             node.status({ fill: "red", shape: "ring", text: "status ignored" });
                             if (done) done();
                             return;
                         }
-                        status = msg.payload;
-                        if (status && statusTimer) {
-                            clearTimeout(statusTimer);
-                            statusTimer = null;
-                            alarm = false;
-                            alarmMessage = "";
+                        node.runtime.status = msg.payload;
+                        if (node.runtime.status && node.runtime.statusTimer) {
+                            clearTimeout(node.runtime.statusTimer);
+                            node.runtime.statusTimer = null;
+                            node.runtime.alarm = false;
+                            node.runtime.alarmMessage = "";
                         }
                         send(checkStatusConditions());
                         if (done) done();
                         return;
                     default:
                         node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
-                        if (done) done();
+                        if (done) done("Unknown context");
                         return;
                 }
             }
 
+            // Validate call input
             if (typeof msg.payload !== "boolean") {
                 node.status({ fill: "red", shape: "ring", text: "invalid call" });
                 if (done) done();
@@ -144,45 +169,45 @@ module.exports = function(RED) {
             }
 
             // Process call change
-            if (msg.payload !== call) {
-                call = msg.payload;
+            if (msg.payload !== node.runtime.call) {
+                node.runtime.call = msg.payload;
 
                 // Clear existing timers
-                if (statusTimer) {
-                    clearTimeout(statusTimer);
-                    statusTimer = null;
+                if (node.runtime.statusTimer) {
+                    clearTimeout(node.runtime.statusTimer);
+                    node.runtime.statusTimer = null;
                 }
-                if (clearTimer) {
-                    clearTimeout(clearTimer);
-                    clearTimer = null;
+                if (node.runtime.clearTimer) {
+                    clearTimeout(node.runtime.clearTimer);
+                    node.runtime.clearTimer = null;
                 }
 
-                if (call) {
+                if (node.runtime.call) {
                     // Start call: reset status and alarm, set timeout
-                    status = false;
-                    alarm = false;
-                    alarmMessage = "";
-                    if (node.noStatusOnRun) {
-                        statusTimer = setTimeout(() => {
-                            if (!status) {
-                                alarm = true;
-                                alarmMessage = node.noStatusOnRunMessage;
+                    node.runtime.status = false;
+                    node.runtime.alarm = false;
+                    node.runtime.alarmMessage = "";
+                    if (node.runtime.noStatusOnRun) {
+                        node.runtime.statusTimer = setTimeout(() => {
+                            if (!node.runtime.status) {
+                                node.runtime.alarm = true;
+                                node.runtime.alarmMessage = node.runtime.noStatusOnRunMessage;
                                 node.status({ fill: "red", shape: "dot", text: `no status on run, alarm: true` });
                                 send(sendOutputs());
                             }
-                            statusTimer = null;
-                        }, node.statusTimeout * 1000);
+                            node.runtime.statusTimer = null;
+                        }, node.runtime.statusTimeout * 1000);
                     }
                 } else {
                     // Stop call: schedule status and alarm clear
-                    clearTimer = setTimeout(() => {
-                        status = false;
-                        alarm = false;
-                        alarmMessage = "";
+                    node.runtime.clearTimer = setTimeout(() => {
+                        node.runtime.status = false;
+                        node.runtime.alarm = false;
+                        node.runtime.alarmMessage = "";
                         send(sendOutputs());
                         updateStatus();
-                        clearTimer = null;
-                    }, node.clearDelay * 1000);
+                        node.runtime.clearTimer = null;
+                    }, node.runtime.clearDelay * 1000);
                 }
                 send(checkStatusConditions());
             } else {
@@ -192,23 +217,23 @@ module.exports = function(RED) {
             if (done) done();
 
             function checkStatusConditions() {
-                if (call && node.runLostStatus) {
-                    if (status !== node.normalOn) {
-                        alarm = true;
-                        alarmMessage = node.runLostStatusMessage;
+                if (node.runtime.call && node.runtime.runLostStatus) {
+                    if (node.runtime.status !== node.runtime.normalOn) {
+                        node.runtime.alarm = true;
+                        node.runtime.alarmMessage = node.runtime.runLostStatusMessage;
                         node.status({ fill: "red", shape: "dot", text: `run lost, alarm: true` });
                         return sendOutputs();
                     }
                 }
-                if (!call && status !== node.normalOff) {
-                    alarm = true;
-                    alarmMessage = "Status mismatch when off";
+                if (!node.runtime.call && node.runtime.status !== node.runtime.normalOff) {
+                    node.runtime.alarm = true;
+                    node.runtime.alarmMessage = "Status mismatch when off";
                     node.status({ fill: "red", shape: "dot", text: `off mismatch, alarm: true` });
                     return sendOutputs();
                 }
-                if (!alarm || (status === node.normalOn && call) || (status === node.normalOff && !call)) {
-                    alarm = false;
-                    alarmMessage = "";
+                if (!node.runtime.alarm || (node.runtime.status === node.runtime.normalOn && node.runtime.call) || (node.runtime.status === node.runtime.normalOff && !node.runtime.call)) {
+                    node.runtime.alarm = false;
+                    node.runtime.alarmMessage = "";
                 }
                 updateStatus();
                 return sendOutputs();
@@ -216,14 +241,14 @@ module.exports = function(RED) {
 
             function sendOutputs() {
                 return [
-                    { payload: call },
+                    { payload: node.runtime.call },
                     {
                         payload: {
-                            call,
-                            status,
-                            alarm,
-                            alarmMessage,
-                            timeout: !!statusTimer
+                            call: node.runtime.call,
+                            status: node.runtime.status,
+                            alarm: node.runtime.alarm,
+                            alarmMessage: node.runtime.alarmMessage,
+                            timeout: !!node.runtime.statusTimer
                         }
                     }
                 ];
@@ -231,33 +256,40 @@ module.exports = function(RED) {
 
             function updateStatus() {
                 node.status({
-                    fill: alarm ? "red" : "blue",
+                    fill: node.runtime.alarm ? "red" : "blue",
                     shape: "dot",
-                    text: `call: ${call}, status: ${status}, alarm: ${alarm}`
+                    text: `call: ${node.runtime.call}, status: ${node.runtime.status}, alarm: ${node.runtime.alarm}`
                 });
             }
         });
 
         node.on("close", function(done) {
-            // Clear timers
-            if (statusTimer) clearTimeout(statusTimer);
-            if (clearTimer) clearTimeout(clearTimer);
+            if (node.runtime.statusTimer) clearTimeout(node.runtime.statusTimer);
+            if (node.runtime.clearTimer) clearTimeout(node.runtime.clearTimer);
 
-            // Reset properties to config values on redeployment
-            node.statusTimeout = parseFloat(config.statusTimeout) || 30;
-            node.clearDelay = parseFloat(config.clearDelay) || 10;
-            node.normalOff = config.normalOff === true;
-            node.normalOn = config.normalOn !== false;
-            node.runLostStatus = config.runLostStatus === true;
-            node.noStatusOnRun = config.noStatusOnRun !== false;
-            node.runLostStatusMessage = config.runLostStatusMessage || "Status lost during run";
-            node.noStatusOnRunMessage = config.noStatusOnRunMessage || "No status received during run";
+            node.runtime = {
+                name: config.name || "",
+                statusTimeout: parseFloat(config.statusTimeout) || 30,
+                clearDelay: parseFloat(config.clearDelay) || 10,
+                normalOff: config.normalOff === true,
+                normalOn: config.normalOn !== false,
+                runLostStatus: config.runLostStatus === true,
+                noStatusOnRun: config.noStatusOnRun !== false,
+                runLostStatusMessage: config.runLostStatusMessage || "Status lost during run",
+                noStatusOnRunMessage: config.noStatusOnRunMessage || "No status received during run",
+                call: false,
+                status: false,
+                alarm: false,
+                alarmMessage: "",
+                statusTimer: null,
+                clearTimer: null
+            };
 
-            if (isNaN(node.statusTimeout) || node.statusTimeout <= 0) {
-                node.statusTimeout = 30;
+            if (isNaN(node.runtime.statusTimeout) || node.runtime.statusTimeout <= 0) {
+                node.runtime.statusTimeout = 30;
             }
-            if (isNaN(node.clearDelay) || node.clearDelay <= 0) {
-                node.clearDelay = 10;
+            if (isNaN(node.runtime.clearDelay) || node.runtime.clearDelay <= 0) {
+                node.runtime.clearDelay = 10;
             }
 
             node.status({});
@@ -267,20 +299,24 @@ module.exports = function(RED) {
 
     RED.nodes.registerType("call-status-block", CallStatusBlockNode);
 
-    // Serve dynamic config from runtime
-    RED.httpAdmin.get("/call-status-block/:id", RED.auth.needsPermission("call-status-block.read"), function(req, res) {
+    // Serve runtime state for editor
+    RED.httpAdmin.get("/call-status-block-runtime/:id", RED.auth.needsPermission("call-status-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "call-status-block") {
             res.json({
-                name: node.name || "call status",
-                statusTimeout: !isNaN(node.statusTimeout) && node.statusTimeout > 0 ? node.statusTimeout : 30,
-                clearDelay: !isNaN(node.clearDelay) && node.clearDelay > 0 ? node.clearDelay : 10,
-                normalOff: node.normalOff === true,
-                normalOn: node.normalOn === true,
-                runLostStatus: node.runLostStatus === true,
-                noStatusOnRun: node.noStatusOnRun === true,
-                runLostStatusMessage: node.runLostStatusMessage || "Status lost during run",
-                noStatusOnRunMessage: node.noStatusOnRunMessage || "No status received during run"
+                name: node.runtime.name,
+                statusTimeout: node.runtime.statusTimeout,
+                clearDelay: node.runtime.clearDelay,
+                normalOff: node.runtime.normalOff,
+                normalOn: node.runtime.normalOn,
+                runLostStatus: node.runtime.runLostStatus,
+                noStatusOnRun: node.runtime.noStatusOnRun,
+                runLostStatusMessage: node.runtime.runLostStatusMessage,
+                noStatusOnRunMessage: node.runtime.noStatusOnRunMessage,
+                call: node.runtime.call,
+                status: node.runtime.status,
+                alarm: node.runtime.alarm,
+                alarmMessage: node.runtime.alarmMessage
             });
         } else {
             res.status(404).json({ error: "Node not found" });

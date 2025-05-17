@@ -4,22 +4,38 @@ module.exports = function(RED) {
         
         const node = this;
         
-        // Initialize properties from config
-        node.name = config.name || "add";
-        node.slots = parseInt(config.slots) || 2;
-        
+        // Initialize runtime state
+        node.runtime = {
+            name: config.name || "add",
+            slots: parseInt(config.slots) || 2,
+            inputs: Array(parseInt(config.slots) || 2).fill(0),
+            lastSum: null
+        };
+
         // Validate initial config
-        if (isNaN(node.slots) || node.slots < 1) {
-            node.status({ fill: "red", shape: "ring", text: "invalid slots" });
-            node.slots = 2;
+        if (isNaN(node.runtime.slots) || node.runtime.slots < 1) {
+            node.runtime.slots = 2;
+            node.runtime.inputs = Array(2).fill(0);
+            node.status({ fill: "red", shape: "ring", text: "invalid slots, using 2" });
+        } else {
+            node.status({
+                fill: "green",
+                shape: "dot",
+                text: `name: ${node.runtime.name}, slots: ${node.runtime.slots}`
+            });
         }
 
-        // Initialize state
-        let inputs = Array(node.slots).fill(0);
-
         node.on("input", function(msg, send, done) {
-            send = send || function () { node.send.apply(node, arguments); };
+            send = send || function() { node.send.apply(node, arguments); };
 
+            // Guard against invalid msg
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Check for missing context or payload
             if (!msg.hasOwnProperty("context")) {
                 node.status({ fill: "red", shape: "ring", text: "missing context" });
                 if (done) done();
@@ -32,6 +48,7 @@ module.exports = function(RED) {
                 return;
             }
 
+            // Handle configuration messages
             if (msg.context === "reset") {
                 if (typeof msg.payload !== "boolean") {
                     node.status({ fill: "red", shape: "ring", text: "invalid reset" });
@@ -39,11 +56,12 @@ module.exports = function(RED) {
                     return;
                 }
                 if (msg.payload === true) {
-                    inputs = Array(node.slots).fill(0);
+                    node.runtime.inputs = Array(node.runtime.slots).fill(0);
+                    node.runtime.lastSum = null;
                     node.status({ fill: "green", shape: "dot", text: "state reset" });
+                    if (done) done();
+                    return;
                 }
-                if (done) done();
-                return;
             } else if (msg.context === "slots") {
                 let newSlots = parseInt(msg.payload);
                 if (isNaN(newSlots) || newSlots < 1) {
@@ -51,15 +69,16 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                node.slots = newSlots;
-                inputs = Array(node.slots).fill(0);
-                node.status({ fill: "green", shape: "dot", text: `slots: ${node.slots}` });
+                node.runtime.slots = newSlots;
+                node.runtime.inputs = Array(newSlots).fill(0);
+                node.runtime.lastSum = null;
+                node.status({ fill: "green", shape: "dot", text: `slots: ${node.runtime.slots}` });
                 if (done) done();
                 return;
             } else if (msg.context.startsWith("in")) {
                 let slotIndex = parseInt(msg.context.slice(2)) - 1;
-                if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= node.slots) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input slot" });
+                if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= node.runtime.slots) {
+                    node.status({ fill: "red", shape: "ring", text: `invalid input slot ${msg.context}` });
                     if (done) done();
                     return;
                 }
@@ -69,50 +88,38 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                inputs[slotIndex] = newValue;
-                node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${newValue.toFixed(2)}` });
+                node.runtime.inputs[slotIndex] = newValue;
+                // Calculate sum
+                const sum = node.runtime.inputs.reduce((acc, val) => acc + val, 0);
+                const isUnchanged = sum === node.runtime.lastSum;
+                node.status({
+                    fill: "blue",
+                    shape: isUnchanged ? "ring" : "dot",
+                    text: `${msg.context}: ${newValue.toFixed(2)}, sum: ${sum.toFixed(2)}`
+                });
+                node.runtime.lastSum = sum;
+                send({ payload: sum });
+                if (done) done();
+                return;
             } else {
-                node.status({ fill: "red", shape: "ring", text: "unknown context" });
+                node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
                 if (done) done();
                 return;
             }
-
-            // Calculate sum and send new message
-            const sum = inputs.reduce((acc, val) => acc + val, 0);
-            node.status({
-                fill: "blue",
-                shape: "dot",
-                text: `slots: ${node.slots}, sum: ${sum}`
-            });
-            send({ payload: sum });
-
-            if (done) done();
         });
 
         node.on("close", function(done) {
             // Reset state on redeployment
-            node.slots = parseInt(config.slots) || 2;
-            if (isNaN(node.slots) || node.slots < 1) {
-                node.slots = 2;
+            node.runtime.slots = parseInt(config.slots) || 2;
+            if (isNaN(node.runtime.slots) || node.runtime.slots < 1) {
+                node.runtime.slots = 2;
             }
-            inputs = Array(node.slots).fill(0);
+            node.runtime.inputs = Array(node.runtime.slots).fill(0);
+            node.runtime.lastSum = null;
             node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("add-block", AddBlockNode);
-
-    // Serve dynamic config from runtime
-    RED.httpAdmin.get("/add-block/:id", RED.auth.needsPermission("add-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "add-block") {
-            res.json({
-                name: node.name || "add",
-                slots: node.slots || 2
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

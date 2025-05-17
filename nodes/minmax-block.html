@@ -1,16 +1,20 @@
-<!-- UI Template Section: Defines the edit dialog for the MinMax Block node -->
+<!-- UI Template Section: Defines the edit dialog -->
 <script type="text/html" data-template-name="minmax-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-min" title="Minimum value for clamping (number)"><i class="fa fa-arrow-down"></i> Min</label>
-        <input type="number" id="node-input-min" placeholder="0" step="any">
+        <label for="node-input-min" title="Minimum value for clamping the input number"><i class="fa fa-arrow-down"></i> Min</label>
+        <input type="number" id="node-input-min" placeholder="0" min="0" step="any">
     </div>
     <div class="form-row">
-        <label for="node-input-max" title="Maximum value for clamping (number)"><i class="fa fa-arrow-up"></i> Max</label>
-        <input type="number" id="node-input-max" placeholder="100" step="any">
+        <label for="node-input-max" title="Maximum value for clamping the input number"><i class="fa fa-arrow-up"></i> Max</label>
+        <input type="number" id="node-input-max" placeholder="100" min="0" step="any">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
     </div>
 </script>
 
@@ -20,80 +24,89 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "minmax" },
-            min: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)); } },
-            max: { value: 100, required: true, validate: function(v) { return !isNaN(parseFloat(v)); } }
+            name: { value: "" },
+            min: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            max: { value: 100, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-arrows-v",
         paletteLabel: "minmax",
         label: function() {
             return this.name || "minmax";
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "minmax");
-            $("#node-input-min").val(this.min || 0);
-            $("#node-input-max").val(this.max || 100);
+            const node = this;
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-min").val(node.min || 0);
+            $("#node-input-max").val(node.max || 100);
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/minmax-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.min !== this.min || data.max !== this.max)) {
-                    $("#node-input-name").val(data.name || this.name || "minmax");
-                    $("#node-input-min").val(data.min || this.min || 0);
-                    $("#node-input-max").val(data.max || this.max || 100);
+            // Ensure node.min and node.max are numbers for comparison
+            const editorMin = parseFloat(node.min) || 0;
+            const editorMax = parseFloat(node.max) || 100;
+
+            $.getJSON(`/minmax-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.min !== undefined && !isNaN(data.min) && parseFloat(data.min) !== parseFloat(editorMin)) {
+                    changes.push(`min: ${data.min}`);
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+                if (data.max !== undefined && !isNaN(data.max) && parseFloat(data.max) !== parseFloat(editorMax)) {
+                    changes.push(`max: ${data.max}`);
+                }
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
         oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
+        },
+        oneditvalidate: function() {
+            const min = parseFloat($("#node-input-min").val());
+            const max = parseFloat($("#node-input-max").val());
+            return !isNaN(min) && !isNaN(max) && min >= 0 && max >= 0 && min <= max;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the MinMax Block node -->
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="minmax-block">
 Clamps a numeric input to a configurable range.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("min" or "max").
-- **payload** <span class="property-type">number</span>
-  Input value to clamp or config value for min/max.
+: context (string) : Configures range (`"min"`, `"max"`). Unmatched values trigger warning.
+: payload (number) : Input number to clamp or new min/max value with `msg.context`.
 
 ### Outputs
-- **payload** <span class="property-type">number</span>
-  Clamped input value within [min, max].
-- Other properties from the input message (e.g., `msg.topic`, `msg.context`) are preserved.
+: payload (number) : Input number clamped to `[min, max]`.
+: *other* (any) : All input properties preserved, including `msg.context`.
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "minmax").
+: min (number) : Minimum value for clamping (≥ 0). Default: 0.
+: max (number) : Maximum value for clamping (≥ 0, ≥ min). Default: 100.
 
 ### Details
-The MinMax Block clamps `msg.payload` (a number) to a range defined by `min` and `max` (default: 0, 100). It ensures `min ≤ max` by adjusting the other value if needed (e.g., setting `min > max` updates `max` to `min`). The node passes the original input message with `msg.payload` updated to the clamped value.
-
-The node name, min, and max are configurable in the editor. Min and max can be updated via `msg.context = "min"` or `"max"` with a numeric `msg.payload`. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
-
-The node outputs the message only when the input or clamped output value changes.
-
-### Examples
-- **Clamp Input**: Input `{ payload: 150 }` with `min=0`, `max=100`, output: `{ payload: 100, ...original }`.
-- **Set Min**: Input `{ context: "min", payload: 10 }`, no output, sets `min` to 10.
-- **Set Max Below Min**: Input `{ context: "max", payload: 5 }` with `min=10`, no output, sets `max=5`, `min=5`.
+Clamps `msg.payload` (a number) to the range `[min, max]` (default: [0, 100]), forwarding the input message with updated `msg.payload`. Ensures `min ≤ max` by adjusting the other value if needed (e.g., setting `min > max` sets `max = min`). Configurable via editor (`name`, `min`, `max`) or `msg.context` (`"min"`, `"max"`) with numeric `msg.payload`. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `min`, `max`) are shown in "Changed Runtime Values" if different from editor defaults (e.g., `min ≠ 0`, `max ≠ 100`). Outputs on every valid input, with status indicating whether the output changed.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
-- Invalid input (non-numeric): Shows "invalid input" (red), no output.
-- Invalid min/max (non-numeric): Shows "invalid min" or "invalid max" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid `msg.payload` (non-numeric): No output, red status (`invalid payload`).
+- Invalid `min`/`max` (non-numeric, negative): No output, red status (`invalid min`/`max`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`).
 
-Status shows green for configuration (e.g., `min: 10`, `max: 90, min adjusted to 90`), blue for output (e.g., `in: 75.00, out: 75.00`) or unchanged (same), red for errors, yellow for unknown context.
+### Status
+- Green (dot): Configuration (e.g., `min: 10`, `max: 100`, `min: 10, max adjusted to 10`).
+- Blue (dot): Output with changed value (e.g., `in: 150.00, out: 100.00`).
+- Blue (ring): Output with unchanged value (e.g., `in: 75.00, out: 75.00`).
+- Red (ring): Errors (e.g., `missing payload`, `invalid payload`, `invalid min`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

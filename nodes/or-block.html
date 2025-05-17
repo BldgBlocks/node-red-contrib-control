@@ -1,4 +1,3 @@
-<!-- UI Template Section: Defines the edit dialog for the OR Block node -->
 <script type="text/html" data-template-name="or-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -8,15 +7,18 @@
         <label for="node-input-slots" title="Number of boolean inputs (integer ≥ 2)"><i class="fa fa-list"></i> Slots</label>
         <input type="number" id="node-input-slots" placeholder="2" min="2" step="1">
     </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
     RED.nodes.registerType("or-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "or" },
+            name: { value: "" },
             slots: { 
                 value: 2, 
                 required: true, 
@@ -27,68 +29,94 @@
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "join.svg",
         paletteLabel: "or",
         label: function() {
             return this.name ? `${this.name} (${this.slots})` : `or (${this.slots})`;
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "or");
-            $("#node-input-slots").val(this.slots || 2);
+            const node = this;
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/or-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.slots !== this.slots)) {
-                    $("#node-input-name").val(data.name || this.name || "or");
-                    $("#node-input-slots").val(data.slots || this.slots || 2);
+            // Initialize inputs
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-slots").val(node.slots || 2);
+
+            // Validate slots input
+            $("#node-input-slots").on("input", function() {
+                const val = parseInt($(this).val(), 10);
+                if (!Number.isInteger(val) || val < 2) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+            });
+
+            // Fetch runtime changes
+            $.getJSON(`/or-block-runtime/${node.id}`, function(data) {
+                const runtime = data || {};
+                const changes = [];
+                if (runtime.name !== undefined && runtime.name !== node.name) {
+                    changes.push(`name: ${runtime.name}`);
+                }
+                if (runtime.slots !== undefined && runtime.slots !== Number(node.slots)) {
+                    changes.push(`slots: ${runtime.slots}`);
+                }
+                if (runtime.inputs && Array.isArray(runtime.inputs)) {
+                    runtime.inputs.forEach((value, index) => {
+                        if (value !== false) { // Only show non-default values
+                            changes.push(`in${index + 1}: ${value}`);
+                        }
+                    });
+                }
+                const displayText = changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None";
+                $("#node-runtime-changes").text(displayText);
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: None");
             });
         },
         oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
+            // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const slots = parseInt($("#node-input-slots").val(), 10);
+            if (!Number.isInteger(slots) || slots < 2) {
+                $("#node-input-slots").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the OR Block node -->
 <script type="text/markdown" data-help-name="or-block">
-Evaluates a configurable number of boolean inputs asynchronously, outputting true if any are true.
+Computes the logical OR of multiple boolean inputs, outputting a new message with the result.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets input values ("inX" for input X, e.g., "in1").
-- **payload** <span class="property-type">any</span>
-  Input value (boolean-convertible for "inX").
+: context (string) : Identifies the input slot (e.g., `"in1"`, `"in2"`).
+: payload (any) : Value for the slot, converted to boolean (`true`, `1` → `true`; `false`, `0`, `null` → `false`).
 
 ### Outputs
-- **payload** <span class="property-type">boolean</span>
-  True if any input is true, false otherwise.
+: payload (boolean) : `true` if any slot is `true`, `false` otherwise.
 
 ### Details
-The OR Block computes a logical OR of boolean inputs from multiple slots (`in1`, `in2`, ..., `inN`), outputting `true` if any input is `true`. Inputs are updated asynchronously via `msg.context = "inX"` (e.g., `msg.context = "in1", msg.payload = true`). The number of slots (default: 2) and node name are configurable in the editor, with the label showing the slot count (e.g., `or (2)`). Editor changes require redeployment.
-
-`msg.payload` is converted to boolean (e.g., `1`, `"true"` → `true`; `0`, `null` → `false`). The node outputs a new message only when the logical OR result changes.
-
-### Examples
-- **Set Input**: Input `{ context: "in1", payload: true }` with 2 slots, may output: `{ payload: true }`.
-- **No Change**: Input `{ context: "in2", payload: false }` with `in1=true`, no output if result unchanged.
-- **Invalid Slot**: Input `{ context: "in3", payload: true }` with 2 slots, no output, shows "invalid input slot".
+Evaluates the logical OR of a fixed number of boolean inputs (`slots` ≥ 2, set in editor). Each slot is updated via `msg.context = "inX"` (e.g., `"in1"`, `"in2"`) with `msg.payload` converted to boolean. Outputs `{ payload: boolean }` with the OR result whenever a valid input updates a slot. Slots persist their state, shown in "Changed Runtime Values" if non-default (`true`). The original message is not passed through.
 
 ### Error Handling
-- Missing `msg.context`: Shows "missing context" (yellow), no output.
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid slot (e.g., `in3` for 2 slots): Shows "invalid input slot" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
-- Invalid slots (non-integer, <2): Shows "invalid slots" (red), uses default (2).
+- Invalid `slots` (non-integer, <2): Defaults to 2, red status (`invalid slots, using 2`).
+- Missing `msg.context`: No output, red status (`missing context`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid input index (e.g., `in3` for 2 slots): No output, red status (`invalid input index X`).
+- Unknown `msg.context` (not `inX`): No output, yellow status (`unknown context`).
+- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
 
-Status shows blue for output (e.g., `in: [true, false], out: true`) or unchanged (same), red for errors, yellow for missing/unknown context.
+### Status
+- Green (dot): Configuration updates (e.g., `slots: 2`).
+- Blue (dot): Outputs when state changes (e.g., `in: [true, false], out: true`).
+- Blue (ring): Outputs when state unchanged (e.g., `in: [true, false], out: true`).
+- Red (ring): Errors (e.g., `invalid slots, using 2`, `missing context`, `invalid message`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

@@ -1,4 +1,4 @@
-<!-- UI Template Section: Defines the edit dialog for the Scale Range Block node -->
+<!-- UI Template Section: Defines the edit dialog -->
 <script type="text/html" data-template-name="scale-range-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -24,6 +24,10 @@
         <label for="node-input-clamp" title="Clamp output to output range (boolean)"><i class="fa fa-lock"></i> Clamp</label>
         <input type="checkbox" id="node-input-clamp" style="width: auto; vertical-align: middle;">
     </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
 </script>
 
 <!-- JavaScript Section: Registers the node and handles editor logic -->
@@ -32,97 +36,111 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "scale range" },
-            inMin: { value: 0.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)); } },
-            inMax: { value: 100.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)); } },
-            outMin: { value: 0.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)); } },
-            outMax: { value: 80.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)); } },
+            name: { value: "" },
+            inMin: { value: 0.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            inMax: { value: 100.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            outMin: { value: 0.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            outMax: { value: 80.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
             clamp: { value: true }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-arrows-h",
         paletteLabel: "scale range",
         label: function() {
             return this.name || "scale range";
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "scale range");
-            $("#node-input-inMin").val(this.inMin !== undefined ? this.inMin : 0.0);
-            $("#node-input-inMax").val(this.inMax !== undefined ? this.inMax : 100.0);
-            $("#node-input-outMin").val(this.outMin !== undefined ? this.outMin : 0.0);
-            $("#node-input-outMax").val(this.outMax !== undefined ? this.outMax : 80.0);
-            $("#node-input-clamp").prop("checked", this.clamp !== false);
+            const node = this;
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-inMin").val(node.inMin !== undefined ? node.inMin : 0.0);
+            $("#node-input-inMax").val(node.inMax !== undefined ? node.inMax : 100.0);
+            $("#node-input-outMin").val(node.outMin !== undefined ? node.outMin : 0.0);
+            $("#node-input-outMax").val(node.outMax !== undefined ? node.outMax : 80.0);
+            $("#node-input-clamp").prop("checked", node.clamp !== false);
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/scale-range-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (
-                    data.name !== this.name ||
-                    data.inMin !== this.inMin ||
-                    data.inMax !== this.inMax ||
-                    data.outMin !== this.outMin ||
-                    data.outMax !== this.outMax ||
-                    data.clamp !== this.clamp
-                )) {
-                    $("#node-input-name").val(data.name || this.name || "scale range");
-                    $("#node-input-inMin").val(data.inMin !== undefined ? data.inMin : this.inMin || 0.0);
-                    $("#node-input-inMax").val(data.inMax !== undefined ? data.inMax : this.inMax || 100.0);
-                    $("#node-input-outMin").val(data.outMin !== undefined ? data.outMin : this.outMin || 0.0);
-                    $("#node-input-outMax").val(data.outMax !== undefined ? data.outMax : this.outMax || 80.0);
-                    $("#node-input-clamp").prop("checked", data.clamp !== false);
+            $.getJSON(`/scale-range-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.inMin !== undefined && !isNaN(data.inMin) && isFinite(data.inMin) && data.inMin !== parseFloat(node.inMin || 0.0)) {
+                    changes.push(`inMin: ${data.inMin.toFixed(2)}`);
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+                if (data.inMax !== undefined && !isNaN(data.inMax) && isFinite(data.inMax) && data.inMax !== parseFloat(node.inMax || 100.0)) {
+                    changes.push(`inMax: ${data.inMax.toFixed(2)}`);
+                }
+                if (data.outMin !== undefined && !isNaN(data.outMin) && isFinite(data.outMin) && data.outMin !== parseFloat(node.outMin || 0.0)) {
+                    changes.push(`outMin: ${data.outMin.toFixed(2)}`);
+                }
+                if (data.outMax !== undefined && !isNaN(data.outMax) && isFinite(data.outMax) && data.outMax !== parseFloat(node.outMax || 80.0)) {
+                    changes.push(`outMax: ${data.outMax.toFixed(2)}`);
+                }
+                if (data.clamp !== (node.clamp !== false)) {
+                    changes.push(`clamp: ${data.clamp}`);
+                }
+                if (data.lastInput !== undefined && !isNaN(data.lastInput) && isFinite(data.lastInput) && data.lastInput !== parseFloat(node.inMin || 0.0)) {
+                    changes.push(`lastInput: ${data.lastInput.toFixed(2)}`);
+                }
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
         oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
+        },
+        oneditvalidate: function() {
+            const inMin = parseFloat($("#node-input-inMin").val());
+            const inMax = parseFloat($("#node-input-inMax").val());
+            const outMin = parseFloat($("#node-input-outMin").val());
+            const outMax = parseFloat($("#node-input-outMax").val());
+            return !isNaN(inMin) && isFinite(inMin) && !isNaN(inMax) && isFinite(inMax) && inMax > inMin &&
+                   !isNaN(outMin) && isFinite(outMin) && !isNaN(outMax) && isFinite(outMax) && outMax > outMin;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Scale Range Block node -->
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="scale-range-block">
 Scales a numeric input from one range to another and passes the original message.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("inMin", "inMax", "outMin", "outMax", "clamp").
-- **payload** <span class="property-type">number | boolean</span>
-  Number for input or range configuration, boolean for clamp.
+: context (string) : Configures settings (`"inMin"`, `"inMax"`, `"outMin"`, `"outMax"`, `"clamp"`). Unmatched values trigger error.
+: payload (number | boolean) : Number for input or range configuration, boolean for clamp.
 
 ### Outputs
-- **payload** <span class="property-type">number</span>
-  Scaled output value.
-- Other properties from the input message (e.g., `msg.context`, `msg.topic`) are preserved.
+: payload (number) : Scaled output value.
+: Other properties (e.g., `msg.context`, `msg.topic`) from the input message are preserved.
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "scale range").
+: inMin (number) : Minimum input value. Default: 0.0.
+: inMax (number) : Maximum input value (> inMin). Default: 100.0.
+: outMin (number) : Minimum output value. Default: 0.0.
+: outMax (number) : Maximum output value (> outMin). Default: 80.0.
+: clamp (boolean) : Clamp output to output range. Default: true.
 
 ### Details
-The Scale Range Block scales a numeric input (`msg.payload`) from an input range (`inMin` to `inMax`) to an output range (`outMin` to `outMax`) with optional clamping (`clamp`). Non-config messages scale the input, while configuration messages update settings via `msg.context` with a numeric or boolean `msg.payload`.
-
-The node name, `inMin`, `inMax`, `outMin`, `outMax`, and `clamp` are configurable in the editor or via `msg.context`. The node outputs the input message with `msg.payload` set to the scaled value, preserving other properties. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
-
-### Examples
-- **Scale Input**: Config `inMin=0`, `inMax=100`, `outMin=0`, `outMax=80`, input `{ payload: 50, topic: "test" }`, output `{ payload: 40, topic: "test" }`.
-- **Set Range**: Input `{ context: "outMax", payload: 90 }`, output `{ payload: 45 }` (recalculated with last input=50).
-- **Toggle Clamp**: Input `{ context: "clamp", payload: false }`, output recalculated with last input.
+Scales `msg.payload` (number) from an input range (`inMin` to `inMax`) to an output range (`outMin` to `outMax`) using linear interpolation, with optional clamping to `[outMin, outMax]` if `clamp` is `true`. Configurable via editor or `msg.context`. Outputs the input message with `msg.payload` set to the scaled value, preserving other properties. Outputs on valid input or configuration change (recalculates with last input). Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `inMin`, `inMax`, `outMin`, `outMax`, `clamp`, `lastInput`) shown in "Changed Runtime Values" if different from defaults.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid inMin/inMax/outMin/outMax (non-numeric): Shows "invalid inMin" (red), no output.
-- Invalid clamp (non-boolean): Shows "invalid clamp" (red), no output.
-- Invalid input range (inMax <= inMin): Shows "invalid input range" (red), no output.
-- Invalid output range (outMax <= outMin): Shows "invalid output range" (red), no output.
-- Invalid input (non-numeric): Shows "invalid input" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload`: No output, red status (`missing input` or `missing payload for X`).
+- Invalid inMin/inMax/outMin/outMax (non-numeric, non-finite): No output, red status (`invalid X`).
+- Invalid clamp (non-boolean): No output, red status (`invalid clamp`).
+- Invalid input range (inMax <= inMin): No output, red status (`invalid input range`).
+- Invalid output range (outMax <= outMin): No output, red status (`invalid output range`).
+- Invalid input (non-numeric, non-finite): No output, red status (`invalid input`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for config (e.g., `inMin: 0.00`, `clamp: true`), blue for output (e.g., `out: 40.00, in: 50.00`), red or yellow for errors.
+### Status
+- Green (dot): Configuration (e.g., `inMin: 0.00`, `clamp: true`).
+- Blue (dot): Output (e.g., `out: 40.00, in: 50.00`).
+- Red (ring): Errors (e.g., `invalid input`, `invalid input range`).
+- Yellow (ring): Unknown context (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

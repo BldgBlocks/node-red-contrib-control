@@ -1,24 +1,32 @@
 module.exports = function(RED) {
     function CacheBlockNode(config) {
         RED.nodes.createNode(this, config);
-        
         const node = this;
-        
-        // Initialize properties from config
-        node.name = config.name || "cache";
-        
-        // Initialize state
-        let lastValue = null;
+
+        // Initialize runtime state
+        node.runtime = {
+            name: config.name || "",
+            cachedMessage: null
+        };
 
         node.on("input", function(msg, send, done) {
-            send = send || function () { node.send.apply(node, arguments); };
+            send = send || function() { node.send.apply(node, arguments); };
 
-            if (!msg.hasOwnProperty("context")) {
+            // Guard against invalid message
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Validate context
+            if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
                 node.status({ fill: "red", shape: "ring", text: "missing context" });
                 if (done) done();
                 return;
             }
 
+            // Validate payload
             if (!msg.hasOwnProperty("payload")) {
                 node.status({ fill: "red", shape: "ring", text: "missing payload" });
                 if (done) done();
@@ -27,22 +35,32 @@ module.exports = function(RED) {
 
             switch (msg.context) {
                 case "update":
-                    lastValue = msg.payload;
+                    node.runtime.cachedMessage = RED.util.cloneMessage(msg);
                     node.status({
-                        fill: "blue",
-                        shape: "ring",
-                        text: `update: ${typeof msg.payload === "number" ? msg.payload.toFixed(2) : msg.payload}`
+                        fill: "green",
+                        shape: "dot",
+                        text: `update: ${typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload).slice(0, 20)}`
                     });
                     if (done) done();
                     return;
                 case "execute":
-                    msg.payload = lastValue;
-                    node.status({
-                        fill: "blue",
-                        shape: "dot",
-                        text: `execute: ${typeof lastValue === "number" ? lastValue.toFixed(2) : lastValue}`
-                    });
-                    send(msg);
+                    if (node.runtime.cachedMessage === null) {
+                        node.status({
+                            fill: "blue",
+                            shape: "dot",
+                            text: "execute: null"
+                        });
+                        send({ payload: null });
+                    } else {
+                        const outputMsg = RED.util.cloneMessage(node.runtime.cachedMessage);
+                        outputMsg.payload = node.runtime.cachedMessage.payload;
+                        node.status({
+                            fill: "blue",
+                            shape: "dot",
+                            text: `execute: ${typeof outputMsg.payload === "number" ? outputMsg.payload.toFixed(2) : JSON.stringify(outputMsg.payload).slice(0, 20)}`
+                        });
+                        send(outputMsg);
+                    }
                     if (done) done();
                     return;
                 case "reset":
@@ -51,7 +69,7 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    lastValue = null;
+                    node.runtime.cachedMessage = null;
                     node.status({
                         fill: "green",
                         shape: "dot",
@@ -61,14 +79,13 @@ module.exports = function(RED) {
                     return;
                 default:
                     node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
-                    if (done) done();
+                    if (done) done("Unknown context");
                     return;
             }
         });
 
         node.on("close", function(done) {
-            // Reset state on redeployment
-            lastValue = null;
+            node.runtime.cachedMessage = null;
             node.status({});
             done();
         });
@@ -76,12 +93,13 @@ module.exports = function(RED) {
 
     RED.nodes.registerType("cache-block", CacheBlockNode);
 
-    // Serve dynamic config from runtime
-    RED.httpAdmin.get("/cache-block/:id", RED.auth.needsPermission("cache-block.read"), function(req, res) {
+    // Serve runtime state for editor
+    RED.httpAdmin.get("/cache-block-runtime/:id", RED.auth.needsPermission("cache-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "cache-block") {
             res.json({
-                name: node.name || "cache"
+                name: node.runtime.name,
+                cachedValue: node.runtime.cachedMessage ? node.runtime.cachedMessage.payload : null
             });
         } else {
             res.status(404).json({ error: "Node not found" });

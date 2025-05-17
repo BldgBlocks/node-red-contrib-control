@@ -1,23 +1,29 @@
 module.exports = function(RED) {
     function CountBlockNode(config) {
         RED.nodes.createNode(this, config);
-        
         const node = this;
-        
-        // Initialize properties from config
-        node.name = config.name || "count";
-        
-        // Initialize state
-        let count = 0;
-        let prevState = false;
-        let lastCount = null;
+
+        // Initialize runtime state
+        node.runtime = {
+            name: config.name || "",
+            count: 0,
+            prevState: false
+        };
 
         node.on("input", function(msg, send, done) {
-            send = send || function () { node.send.apply(node, arguments); };
+            send = send || function() { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            // Guard against invalid message
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Handle context updates
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    node.status({ fill: "red", shape: "ring", text: "missing payload for reset" });
                     if (done) done();
                     return;
                 }
@@ -28,19 +34,24 @@ module.exports = function(RED) {
                         return;
                     }
                     if (msg.payload === true) {
-                        count = 0;
-                        lastCount = null;
+                        const prevCount = node.runtime.count;
+                        node.runtime.count = 0;
+                        node.runtime.prevState = false;
                         node.status({ fill: "green", shape: "dot", text: "state reset" });
+                        if (prevCount !== 0) {
+                            send({ payload: node.runtime.count });
+                        }
                     }
                     if (done) done();
                     return;
                 } else {
-                    node.status({ fill: "red", shape: "ring", text: "unknown context" });
-                    if (done) done();
+                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    if (done) done("Unknown context");
                     return;
                 }
             }
 
+            // Validate input
             if (!msg.hasOwnProperty("payload")) {
                 node.status({ fill: "red", shape: "ring", text: "missing input" });
                 if (done) done();
@@ -55,31 +66,23 @@ module.exports = function(RED) {
             }
 
             // Increment on false → true transition
-            if (!prevState && inputValue === true) {
-                count++;
+            if (!node.runtime.prevState && inputValue === true) {
+                node.runtime.count++;
+                node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.count}` });
+                send({ payload: node.runtime.count });
+            } else {
+                node.status({ fill: "blue", shape: "ring", text: `out: ${node.runtime.count}` });
             }
 
             // Update prevState
-            prevState = inputValue;
-
-            // Output only if count changed
-            if (lastCount !== count) {
-                lastCount = count;
-                node.status({ fill: "blue", shape: "dot", text: `out: ${count}` });
-                send({ payload: count });
-            } else {
-                node.status({ fill: "blue", shape: "ring", text: `out: ${count}` });
-            }
+            node.runtime.prevState = inputValue;
 
             if (done) done();
-            return;
         });
 
         node.on("close", function(done) {
-            // Reset state on redeployment
-            count = 0;
-            prevState = false;
-            lastCount = null;
+            node.runtime.count = 0;
+            node.runtime.prevState = false;
             node.status({});
             done();
         });
@@ -87,11 +90,14 @@ module.exports = function(RED) {
 
     RED.nodes.registerType("count-block", CountBlockNode);
 
-    // Serve dynamic config from runtime
-    RED.httpAdmin.get("/count-block/:id", RED.auth.needsPermission("count-block.read"), function(req, res) {
+    // Serve runtime state for editor
+    RED.httpAdmin.get("/count-block-runtime/:id", RED.auth.needsPermission("count-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "count-block") {
-            res.json({ name: node.name || "count" });
+            res.json({
+                name: node.runtime.name,
+                count: node.runtime.count
+            });
         } else {
             res.status(404).json({ error: "Node not found" });
         }

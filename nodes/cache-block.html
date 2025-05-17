@@ -1,8 +1,12 @@
-<!-- UI Template Section: Defines the edit dialog for the Cache Block node -->
+<!-- UI Template Section: Defines the edit dialog -->
 <script type="text/html" data-template-name="cache-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
     </div>
 </script>
 
@@ -12,30 +16,33 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "cache" }
+            name: { value: "" }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-database",
         paletteLabel: "cache",
         label: function() {
-            return this.name ? `${this.name} (1)` : `cache (1)`;
+            return this.name || "cache";
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "cache");
+            const node = this;
+            $("#node-input-name").val(node.name || "");
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/cache-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && data.name !== this.name) {
-                    $("#node-input-name").val(data.name || this.name || "cache");
+            $.getJSON(`/cache-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.cachedValue !== null) {
+                    const displayValue = typeof data.cachedValue === "number" 
+                        ? data.cachedValue.toFixed(2) 
+                        : JSON.stringify(data.cachedValue).slice(0, 20);
+                    changes.push(`cached: ${displayValue}`);
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
         oneditsave: function() {
@@ -44,40 +51,38 @@
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Cache Block node -->
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="cache-block">
-Caches a value and outputs it on request, passing the original message.
+Caches an input message and outputs a copy on request, preserving original properties.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets action ("update" to store, "execute" to output, "reset" to clear value).
-- **payload** <span class="property-type">any | boolean</span>
-  Value to store or output, boolean (true) for reset.
+: context (string) : Sets action (`"update"` to store, `"execute"` to output, `"reset"` to clear). Unmatched values trigger error.
+: payload (any | boolean) : Value to store (`update`), ignored for `execute`, boolean `true` for `reset`.
 
 ### Outputs
-- **payload** <span class="property-type">any</span>
-  Last stored value when `execute` is triggered.
-- Other properties from the input message (e.g., `msg.context`, `msg.topic`) are preserved.
+: payload (any) : Cached value when `execute` is triggered; `null` if cache is empty.
+: Other properties (e.g., `msg.context`, `msg.topic`) from the cached message are preserved.
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "cache").
 
 ### Details
-The Cache Block stores a value from `msg.payload` when `msg.context = "update"` and outputs the last stored value when `msg.context = "execute"`. The stored value is cleared to null via `msg.context = "reset"` with `msg.payload = true`. The node name is configurable in the editor, and changes require redeployment.
-
-The node outputs the original message with `msg.payload` set to the cached value when `msg.context = "execute"`. No output occurs for `update` or `reset` actions.
-
-### Examples
-- **Update Cache**: Input `{ context: "update", payload: 42 }`, no output, stores 42.
-- **Execute**: Input `{ context: "execute", payload: "any" }`, output `{ context: "execute", payload: 42 }`.
-- **Reset**: Input `{ context: "reset", payload: true }`, no output, clears cache to null.
+Stores the entire input message when `msg.context = "update"`, outputs a copy with the cached `msg.payload` when `msg.context = "execute"`, and clears the cache to `null` when `msg.context = "reset"` with `msg.payload = true`. The output preserves all original message properties (e.g., `msg.context`, `msg.topic`) except for the updated `msg.payload`. Configurable via editor (`name` only). Editor changes require redeployment; message-based actions apply immediately. Runtime values (`name`, `cachedValue`) shown in "Changed Runtime Values" if different from defaults.
 
 ### Error Handling
-- Missing `msg.context`: Shows "missing context" (red), no output.
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid reset value (non-boolean or false): Shows "invalid reset" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.context`: No output, red status (`missing context`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid `reset` (non-boolean or `false`): No output, red status (`invalid reset`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for reset (e.g., `reset`), blue for update (e.g., `update: 42.00`) or execute (e.g., `execute: 42.00`), red for errors, yellow for unknown context.
+### Status
+- Green (dot): Update or reset (e.g., `update: 42.00`, `reset`).
+- Blue (dot): Execute (e.g., `execute: 42.00` or `execute: null`).
+- Red (ring): Errors (e.g., `missing payload`, `invalid reset`).
+- Yellow (ring): Unknown context (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

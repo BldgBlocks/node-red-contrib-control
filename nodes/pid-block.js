@@ -1,73 +1,87 @@
 module.exports = function(RED) {
     function PIDBlockNode(config) {
         RED.nodes.createNode(this, config);
-        
         const node = this;
-        
-        // Initialize properties from config
-        node.name = config.name || "pid";
-        node.kp = parseFloat(config.kp) || 0;
-        node.ki = parseFloat(config.ki) || 0;
-        node.kd = parseFloat(config.kd) || 0;
-        node.setpoint = parseFloat(config.setpoint) || 0;
-        node.deadband = parseFloat(config.deadband) || 0;
-        node.dbBehavior = config.dbBehavior || "ReturnToZero";
-        node.outMin = config.outMin ? parseFloat(config.outMin) : -Infinity;
-        node.outMax = config.outMax ? parseFloat(config.outMax) : Infinity;
-        node.maxChange = parseFloat(config.maxChange) || 0;
-        node.directAction = config.directAction === true;
-        node.run = config.run !== false;
+
+        // Initialize runtime state
+        node.runtime = {
+            name: config.name || "",
+            kp: parseFloat(config.kp) || 0,
+            ki: parseFloat(config.ki) || 0,
+            kd: parseFloat(config.kd) || 0,
+            setpoint: parseFloat(config.setpoint) || 0,
+            deadband: parseFloat(config.deadband) || 0,
+            dbBehavior: config.dbBehavior || "ReturnToZero",
+            outMin: config.outMin ? parseFloat(config.outMin) : null,
+            outMax: config.outMax ? parseFloat(config.outMax) : null,
+            maxChange: parseFloat(config.maxChange) || 0,
+            directAction: !!config.directAction,
+            run: config.run !== false,
+            errorSum: 0,
+            lastError: 0,
+            lastDError: 0,
+            result: 0,
+            lastTime: Date.now(),
+            tuneMode: false,
+            tuneData: { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 }
+        };
 
         // Validate initial config
-        if (isNaN(node.kp) || isNaN(node.ki) || isNaN(node.kd) || isNaN(node.setpoint) ||
-            isNaN(node.deadband) || isNaN(node.maxChange)) {
+        if (isNaN(node.runtime.kp) || isNaN(node.runtime.ki) || isNaN(node.runtime.kd) ||
+            isNaN(node.runtime.setpoint) || isNaN(node.runtime.deadband) || isNaN(node.runtime.maxChange) ||
+            !isFinite(node.runtime.kp) || !isFinite(node.runtime.ki) || !isFinite(node.runtime.kd) ||
+            !isFinite(node.runtime.setpoint) || !isFinite(node.runtime.deadband) || !isFinite(node.runtime.maxChange)) {
             node.status({ fill: "red", shape: "ring", text: "invalid config" });
-            node.kp = node.ki = node.kd = node.setpoint = node.deadband = node.maxChange = 0;
+            node.runtime.kp = node.runtime.ki = node.runtime.kd = node.runtime.setpoint = node.runtime.deadband = node.runtime.maxChange = 0;
         }
-        if (node.deadband < 0 || node.maxChange < 0) {
+        if (node.runtime.deadband < 0 || node.runtime.maxChange < 0) {
             node.status({ fill: "red", shape: "ring", text: "invalid deadband or maxChange" });
-            node.deadband = node.maxChange = 0;
+            node.runtime.deadband = node.runtime.maxChange = 0;
         }
-        if (isFinite(node.outMin) && isFinite(node.outMax) && node.outMax <= node.outMin) {
+        if (node.runtime.outMin != null && node.runtime.outMax != null && node.runtime.outMax <= node.runtime.outMin) {
             node.status({ fill: "red", shape: "ring", text: "invalid output range" });
-            node.outMin = -Infinity;
-            node.outMax = Infinity;
+            node.runtime.outMin = node.runtime.outMax = null;
         }
-        if (node.dbBehavior !== "ReturnToZero" && node.dbBehavior !== "HoldLastResult") {
+        if (!["ReturnToZero", "HoldLastResult"].includes(node.runtime.dbBehavior)) {
             node.status({ fill: "red", shape: "ring", text: "invalid dbBehavior" });
-            node.dbBehavior = "ReturnToZero";
+            node.runtime.dbBehavior = "ReturnToZero";
         }
 
-        // Initialize state
-        let errorSum = 0;
-        let lastError = 0;
-        let lastDError = 0;
-        let result = 0;
-        let storekp = node.kp;
-        let storeki = node.ki;
-        let storemin = node.outMin;
-        let storemax = node.outMax;
-        let kpkiConst = node.kp * node.ki;
-        let minInt = kpkiConst === 0 ? 0 : node.outMin * kpkiConst;
-        let maxInt = kpkiConst === 0 ? 0 : node.outMax * kpkiConst;
-        let lastTime = Date.now();
-        let tuneMode = false;
-        let tuneData = { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 };
+        // Initialize internal variables
+        let storekp = node.runtime.kp;
+        let storeki = node.runtime.ki;
+        let storemin = node.runtime.outMin;
+        let storemax = node.runtime.outMax;
+        let kpkiConst = node.runtime.kp * node.runtime.ki;
+        let minInt = kpkiConst === 0 ? 0 : (node.runtime.outMin || -Infinity) * kpkiConst;
+        let maxInt = kpkiConst === 0 ? 0 : (node.runtime.outMax || Infinity) * kpkiConst;
         let lastOutput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
+            // Guard against invalid message
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
                     if (done) done();
                     return;
                 }
-
+                if (typeof msg.context !== "string") {
+                    node.status({ fill: "red", shape: "ring", text: "invalid context" });
+                    if (done) done();
+                    return;
+                }
                 if (["setpoint", "kp", "ki", "kd", "deadband", "outMin", "outMax", "maxChange"].includes(msg.context)) {
                     let value = parseFloat(msg.payload);
-                    if (isNaN(value)) {
+                    if (isNaN(value) || !isFinite(value)) {
                         node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
                         if (done) done();
                         return;
@@ -77,66 +91,64 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    if (msg.context === "setpoint") node.setpoint = value;
-                    else if (msg.context === "kp") node.kp = value;
-                    else if (msg.context === "ki") node.ki = value;
-                    else if (msg.context === "kd") node.kd = value;
-                    else if (msg.context === "deadband") node.deadband = value;
-                    else if (msg.context === "outMin") node.outMin = value;
-                    else if (msg.context === "outMax") node.outMax = value;
-                    else node.maxChange = value;
-
-                    if (isFinite(node.outMin) && isFinite(node.outMax) && node.outMax <= node.outMin) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid output range" });
-                        if (done) done();
-                        return;
+                    node.runtime[msg.context] = value;
+                    if (msg.context === "outMin" || msg.context === "outMax") {
+                        if (node.runtime.outMin != null && node.runtime.outMax != null && node.runtime.outMax <= node.runtime.outMin) {
+                            node.status({ fill: "red", shape: "ring", text: "invalid output range" });
+                            if (done) done();
+                            return;
+                        }
                     }
-                    node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${value}` });
+                    node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${value.toFixed(2)}` });
                 } else if (["run", "directAction"].includes(msg.context)) {
                     if (typeof msg.payload !== "boolean") {
                         node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
                         if (done) done();
                         return;
                     }
-                    if (msg.context === "run") node.run = msg.payload;
-                    else node.directAction = msg.payload;
+                    node.runtime[msg.context] = msg.payload;
                     node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${msg.payload}` });
                 } else if (msg.context === "dbBehavior") {
-                    if (msg.payload !== "ReturnToZero" && msg.payload !== "HoldLastResult") {
+                    if (!["ReturnToZero", "HoldLastResult"].includes(msg.payload)) {
                         node.status({ fill: "red", shape: "ring", text: "invalid dbBehavior" });
                         if (done) done();
                         return;
                     }
-                    node.dbBehavior = msg.payload;
+                    node.runtime.dbBehavior = msg.payload;
                     node.status({ fill: "green", shape: "dot", text: `dbBehavior: ${msg.payload}` });
                 } else if (msg.context === "reset") {
-                    errorSum = 0;
-                    lastError = 0;
-                    lastDError = 0;
-                    result = 0;
-                    tuneMode = false;
-                    tuneData = { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 };
+                    if (typeof msg.payload !== "boolean" || !msg.payload) {
+                        node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                        if (done) done();
+                        return;
+                    }
+                    node.runtime.errorSum = 0;
+                    node.runtime.lastError = 0;
+                    node.runtime.lastDError = 0;
+                    node.runtime.result = 0;
+                    node.runtime.tuneMode = false;
+                    node.runtime.tuneData = { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 };
                     node.status({ fill: "green", shape: "dot", text: "reset" });
                     if (done) done();
                     return;
                 } else if (msg.context === "tune") {
-                    let tuneKp = parseFloat(msg.payload) || 1;
-                    if (isNaN(tuneKp)) {
+                    let tuneKp = parseFloat(msg.payload);
+                    if (isNaN(tuneKp) || !isFinite(tuneKp) || tuneKp <= 0) {
                         node.status({ fill: "red", shape: "ring", text: "invalid tune kp" });
                         if (done) done();
                         return;
                     }
-                    tuneMode = true;
-                    node.kp = tuneKp;
-                    node.ki = 0;
-                    node.kd = 0;
-                    tuneData = { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 };
-                    node.status({ fill: "green", shape: "dot", text: `tune: started, kp=${tuneKp}` });
+                    node.runtime.tuneMode = true;
+                    node.runtime.kp = tuneKp;
+                    node.runtime.ki = 0;
+                    node.runtime.kd = 0;
+                    node.runtime.tuneData = { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 };
+                    node.status({ fill: "green", shape: "dot", text: `tune: started, kp=${tuneKp.toFixed(2)}` });
                     if (done) done();
                     return;
                 } else {
                     node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
-                    if (done) done();
+                    if (done) done("Unknown context");
                     return;
                 }
                 if (done) done();
@@ -150,7 +162,7 @@ module.exports = function(RED) {
             }
 
             const input = parseFloat(msg.payload);
-            if (isNaN(input)) {
+            if (isNaN(input) || !isFinite(input)) {
                 node.status({ fill: "red", shape: "ring", text: "invalid input" });
                 if (done) done();
                 return;
@@ -158,24 +170,24 @@ module.exports = function(RED) {
 
             // PID Calculation
             let currentTime = Date.now();
-            let interval = (currentTime - lastTime) / 1000; // Seconds
-            lastTime = currentTime;
+            let interval = (currentTime - node.runtime.lastTime) / 1000; // Seconds
+            node.runtime.lastTime = currentTime;
 
             let outputMsg = { payload: 0, diagnostics: {} };
-            if (!node.run || interval <= 0 || node.kp === 0) {
+            if (!node.runtime.run || interval <= 0 || node.runtime.kp === 0) {
                 if (lastOutput !== 0) {
                     lastOutput = 0;
                     node.status({
                         fill: "blue",
                         shape: "dot",
-                        text: `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.setpoint}`
+                        text: `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.runtime.setpoint.toFixed(2)}`
                     });
                     send(outputMsg);
                 } else {
                     node.status({
                         fill: "blue",
                         shape: "ring",
-                        text: `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.setpoint}`
+                        text: `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.runtime.setpoint.toFixed(2)}`
                     });
                 }
                 if (done) done();
@@ -183,22 +195,22 @@ module.exports = function(RED) {
             }
 
             // Deadband check
-            if (node.deadband !== 0 && input <= node.setpoint + node.deadband && input >= node.setpoint - node.deadband) {
-                outputMsg.payload = node.dbBehavior === "ReturnToZero" ? 0 : result;
+            if (node.runtime.deadband !== 0 && input <= node.runtime.setpoint + node.runtime.deadband && input >= node.runtime.setpoint - node.runtime.deadband) {
+                outputMsg.payload = node.runtime.dbBehavior === "ReturnToZero" ? 0 : node.runtime.result;
                 const outputChanged = !lastOutput || lastOutput !== outputMsg.payload;
                 if (outputChanged) {
                     lastOutput = outputMsg.payload;
                     node.status({
                         fill: "blue",
                         shape: "dot",
-                        text: `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.setpoint}`
+                        text: `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`
                     });
                     send(outputMsg);
                 } else {
                     node.status({
                         fill: "blue",
                         shape: "ring",
-                        text: `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.setpoint}`
+                        text: `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`
                     });
                 }
                 if (done) done();
@@ -206,53 +218,59 @@ module.exports = function(RED) {
             }
 
             // Update internal constraints
-            if (node.kp !== storekp || node.ki !== storeki || node.outMin !== storemin || node.outMax !== storemax) {
-                if (node.kp !== storekp && node.kp !== 0 && storekp !== 0) {
-                    errorSum = errorSum * storekp / node.kp;
+            if (node.runtime.kp !== storekp || node.runtime.ki !== storeki || node.runtime.outMin !== storemin || node.runtime.outMax !== storemax) {
+                if (node.runtime.kp !== storekp && node.runtime.kp !== 0 && storekp !== 0) {
+                    node.runtime.errorSum = node.runtime.errorSum * storekp / node.runtime.kp;
                 }
-                if (node.ki !== storeki && node.ki !== 0 && storeki !== 0) {
-                    errorSum = errorSum * storeki / node.ki;
+                if (node.runtime.ki !== storeki && node.runtime.ki !== 0 && storeki !== 0) {
+                    node.runtime.errorSum = node.runtime.errorSum * storeki / node.runtime.ki;
                 }
-                kpkiConst = node.kp * node.ki;
-                minInt = kpkiConst === 0 ? 0 : node.outMin * kpkiConst;
-                maxInt = kpkiConst === 0 ? 0 : node.outMax * kpkiConst;
-                storekp = node.kp;
-                storeki = node.ki;
-                storemin = node.outMin;
-                storemax = node.outMax;
+                kpkiConst = node.runtime.kp * node.runtime.ki;
+                minInt = kpkiConst === 0 ? 0 : (node.runtime.outMin || -Infinity) * kpkiConst;
+                maxInt = kpkiConst === 0 ? 0 : (node.runtime.outMax || Infinity) * kpkiConst;
+                storekp = node.runtime.kp;
+                storeki = node.runtime.ki;
+                storemin = node.runtime.outMin;
+                storemax = node.runtime.outMax;
             }
 
             // Calculate error
-            let error = node.setpoint - input;
+            let error = node.runtime.setpoint - input;
 
             // Tuning assistant (Ziegler-Nichols)
-            if (tuneMode) {
-                if (lastError > 0 && error <= 0) { // Peak detected
-                    if (tuneData.lastPeak !== null) {
-                        tuneData.oscillations.push({ time: currentTime, amplitude: tuneData.lastPeak });
+            if (node.runtime.tuneMode) {
+                if (node.runtime.lastError > 0 && error <= 0) { // Peak detected
+                    if (node.runtime.tuneData.lastPeak !== null) {
+                        node.runtime.tuneData.oscillations.push({ time: currentTime, amplitude: node.runtime.tuneData.lastPeak });
                     }
-                    tuneData.lastPeak = lastError;
-                } else if (lastError < 0 && error >= 0) { // Trough detected
-                    tuneData.lastTrough = lastError;
+                    node.runtime.tuneData.lastPeak = node.runtime.lastError;
+                } else if (node.runtime.lastError < 0 && error >= 0) { // Trough detected
+                    node.runtime.tuneData.lastTrough = node.runtime.lastError;
                 }
-                if (tuneData.oscillations.length >= 3) { // Enough data to tune
+                if (node.runtime.tuneData.oscillations.length >= 3) { // Enough data to tune
                     let periodSum = 0;
-                    for (let i = 1; i < tuneData.oscillations.length; i++) {
-                        periodSum += (tuneData.oscillations[i].time - tuneData.oscillations[i-1].time) / 1000;
+                    for (let i = 1; i < node.runtime.tuneData.oscillations.length; i++) {
+                        periodSum += (node.runtime.tuneData.oscillations[i].time - node.runtime.tuneData.oscillations[i-1].time) / 1000;
                     }
-                    tuneData.Tu = periodSum / (tuneData.oscillations.length - 1); // Average period in seconds
-                    tuneData.Ku = node.kp; // Ultimate gain
-                    node.kp = 0.6 * tuneData.Ku;
-                    node.ki = 2 * node.kp / tuneData.Tu;
-                    node.kd = node.kp * tuneData.Tu / 8;
-                    tuneMode = false;
-                    outputMsg.payload = result;
-                    outputMsg.tuneResult = { Kp: node.kp, Ki: node.ki, Kd: node.kd, Ku: tuneData.Ku, Tu: tuneData.Tu };
-                    lastOutput = { payload: outputMsg.payload, tuneResult: outputMsg.tuneResult };
+                    node.runtime.tuneData.Tu = periodSum / (node.runtime.tuneData.oscillations.length - 1); // Average period in seconds
+                    node.runtime.tuneData.Ku = node.runtime.kp; // Ultimate gain
+                    node.runtime.kp = 0.6 * node.runtime.tuneData.Ku;
+                    node.runtime.ki = 2 * node.runtime.kp / node.runtime.tuneData.Tu;
+                    node.runtime.kd = node.runtime.kp * node.runtime.tuneData.Tu / 8;
+                    node.runtime.tuneMode = false;
+                    outputMsg.payload = node.runtime.result;
+                    outputMsg.tuneResult = {
+                        Kp: node.runtime.kp,
+                        Ki: node.runtime.ki,
+                        Kd: node.runtime.kd,
+                        Ku: node.runtime.tuneData.Ku,
+                        Tu: node.runtime.tuneData.Tu
+                    };
+                    lastOutput = outputMsg.payload;
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: `tune: completed, Kp=${node.kp}, Ki=${node.ki}, Kd=${node.kd}`
+                        text: `tune: completed, Kp=${node.runtime.kp.toFixed(2)}, Ki=${node.runtime.ki.toFixed(2)}, Kd=${node.runtime.kd.toFixed(2)}`
                     });
                     send(outputMsg);
                     if (done) done();
@@ -261,60 +279,59 @@ module.exports = function(RED) {
             }
 
             // Integral term
-            if (node.ki !== 0) {
-                errorSum += interval * error;
-                if (node.directAction) {
-                    if (-errorSum > maxInt) errorSum = -maxInt;
-                    else if (-errorSum < minInt) errorSum = -minInt;
+            if (node.runtime.ki !== 0) {
+                node.runtime.errorSum += interval * error;
+                if (node.runtime.directAction) {
+                    if (-node.runtime.errorSum > maxInt) node.runtime.errorSum = -maxInt;
+                    else if (-node.runtime.errorSum < minInt) node.runtime.errorSum = -minInt;
                 } else {
-                    errorSum = Math.min(Math.max(errorSum, minInt), maxInt);
+                    node.runtime.errorSum = Math.min(Math.max(node.runtime.errorSum, minInt), maxInt);
                 }
             }
 
             // Gain calculations
-            let pGain = node.kp * error;
-            let intGain = node.ki !== 0 ? node.kp * node.ki * errorSum * interval : 0;
-            let dRaw = (error - lastError) / interval;
-            let dFiltered = node.kd !== 0 ? 0.1 * dRaw + 0.9 * lastDError : 0;
-            let dGain = node.kd !== 0 ? node.kp * node.kd * dFiltered : 0;
+            let pGain = node.runtime.kp * error;
+            let intGain = node.runtime.ki !== 0 ? node.runtime.kp * node.runtime.ki * node.runtime.errorSum * interval : 0;
+            let dRaw = (error - node.runtime.lastError) / interval;
+            let dFiltered = node.runtime.kd !== 0 ? 0.1 * dRaw + 0.9 * node.runtime.lastDError : 0;
+            let dGain = node.runtime.kd !== 0 ? node.runtime.kp * node.runtime.kd * dFiltered : 0;
 
-            lastError = error;
-            lastDError = dFiltered;
+            node.runtime.lastError = error;
+            node.runtime.lastDError = dFiltered;
 
             // Output calculation
             let pv = pGain + intGain + dGain;
-            if (node.directAction) pv = -pv;
-            pv = Math.min(Math.max(pv, node.outMin), node.outMax);
+            if (node.runtime.directAction) pv = -pv;
+            pv = Math.min(Math.max(pv, node.runtime.outMin || -Infinity), node.runtime.outMax || Infinity);
 
             // Rate of change limit
-            if (node.maxChange !== 0) {
-                if (result > pv) {
-                    result = (result - pv > node.maxChange) ? result - node.maxChange : pv;
+            if (node.runtime.maxChange !== 0) {
+                if (node.runtime.result > pv) {
+                    node.runtime.result = (node.runtime.result - pv > node.runtime.maxChange) ? node.runtime.result - node.runtime.maxChange : pv;
                 } else {
-                    result = (pv - result > node.maxChange) ? result + node.maxChange : pv;
+                    node.runtime.result = (pv - node.runtime.result > node.runtime.maxChange) ? node.runtime.result + node.runtime.maxChange : pv;
                 }
             } else {
-                result = pv;
+                node.runtime.result = pv;
             }
 
-            outputMsg.payload = result;
-            outputMsg.diagnostics = { pGain, intGain, dGain, error, errorSum };
+            outputMsg.payload = node.runtime.result;
+            outputMsg.diagnostics = { pGain, intGain, dGain, error, errorSum: node.runtime.errorSum };
 
-            const outputChanged = !lastOutput || lastOutput.payload !== outputMsg.payload ||
-                                 lastOutput.tuneResult !== outputMsg.tuneResult;
+            const outputChanged = !lastOutput || lastOutput !== outputMsg.payload;
             if (outputChanged) {
-                lastOutput = { payload: outputMsg.payload, tuneResult: outputMsg.tuneResult };
+                lastOutput = outputMsg.payload;
                 node.status({
                     fill: "blue",
                     shape: "dot",
-                    text: `in: ${input.toFixed(2)}, out: ${result.toFixed(2)}, setpoint: ${node.setpoint}`
+                    text: `in: ${input.toFixed(2)}, out: ${node.runtime.result.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`
                 });
                 send(outputMsg);
             } else {
                 node.status({
                     fill: "blue",
                     shape: "ring",
-                    text: `in: ${input.toFixed(2)}, out: ${result.toFixed(2)}, setpoint: ${node.setpoint}`
+                    text: `in: ${input.toFixed(2)}, out: ${node.runtime.result.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`
                 });
             }
 
@@ -322,22 +339,42 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            // Reset state on redeployment
-            errorSum = 0;
-            lastError = 0;
-            lastDError = 0;
-            result = 0;
-            storekp = node.kp;
-            storeki = node.ki;
-            storemin = node.outMin;
-            storemax = node.outMax;
-            kpkiConst = node.kp * node.ki;
-            minInt = kpkiConst === 0 ? 0 : node.outMin * kpkiConst;
-            maxInt = kpkiConst === 0 ? 0 : node.outMax * kpkiConst;
-            lastTime = Date.now();
-            tuneMode = false;
-            tuneData = { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 };
-            lastOutput = null;
+            node.runtime = {
+                name: config.name || "",
+                kp: parseFloat(config.kp) || 0,
+                ki: parseFloat(config.ki) || 0,
+                kd: parseFloat(config.kd) || 0,
+                setpoint: parseFloat(config.setpoint) || 0,
+                deadband: parseFloat(config.deadband) || 0,
+                dbBehavior: config.dbBehavior || "ReturnToZero",
+                outMin: config.outMin ? parseFloat(config.outMin) : null,
+                outMax: config.outMax ? parseFloat(config.outMax) : null,
+                maxChange: parseFloat(config.maxChange) || 0,
+                directAction: !!config.directAction,
+                run: config.run !== false,
+                errorSum: 0,
+                lastError: 0,
+                lastDError: 0,
+                result: 0,
+                lastTime: Date.now(),
+                tuneMode: false,
+                tuneData: { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 }
+            };
+            if (isNaN(node.runtime.kp) || isNaN(node.runtime.ki) || isNaN(node.runtime.kd) ||
+                isNaN(node.runtime.setpoint) || isNaN(node.runtime.deadband) || isNaN(node.runtime.maxChange) ||
+                !isFinite(node.runtime.kp) || !isFinite(node.runtime.ki) || !isFinite(node.runtime.kd) ||
+                !isFinite(node.runtime.setpoint) || !isFinite(node.runtime.deadband) || !isFinite(node.runtime.maxChange)) {
+                node.runtime.kp = node.runtime.ki = node.runtime.kd = node.runtime.setpoint = node.runtime.deadband = node.runtime.maxChange = 0;
+            }
+            if (node.runtime.deadband < 0 || node.runtime.maxChange < 0) {
+                node.runtime.deadband = node.runtime.maxChange = 0;
+            }
+            if (node.runtime.outMin != null && node.runtime.outMax != null && node.runtime.outMax <= node.runtime.outMin) {
+                node.runtime.outMin = node.runtime.outMax = null;
+            }
+            if (!["ReturnToZero", "HoldLastResult"].includes(node.runtime.dbBehavior)) {
+                node.runtime.dbBehavior = "ReturnToZero";
+            }
             node.status({});
             done();
         });
@@ -345,23 +382,23 @@ module.exports = function(RED) {
 
     RED.nodes.registerType("pid-block", PIDBlockNode);
 
-    // Serve dynamic config from runtime
-    RED.httpAdmin.get("/pid-block/:id", RED.auth.needsPermission("pid-block.read"), function(req, res) {
+    // Serve runtime state for editor
+    RED.httpAdmin.get("/pid-block-runtime/:id", RED.auth.needsPermission("pid-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "pid-block") {
             res.json({
-                name: node.name || "pid",
-                kp: isNaN(node.kp) ? 0 : node.kp,
-                ki: isNaN(node.ki) ? 0 : node.ki,
-                kd: isNaN(node.kd) ? 0 : node.kd,
-                setpoint: isNaN(node.setpoint) ? 0 : node.setpoint,
-                deadband: isNaN(node.deadband) ? 0 : node.deadband,
-                dbBehavior: node.dbBehavior || "ReturnToZero",
-                outMin: isNaN(node.outMin) ? null : node.outMin,
-                outMax: isNaN(node.outMax) ? null : node.outMax,
-                maxChange: isNaN(node.maxChange) ? 0 : node.maxChange,
-                directAction: !!node.directAction,
-                run: node.run !== false
+                name: node.runtime.name,
+                kp: node.runtime.kp,
+                ki: node.runtime.ki,
+                kd: node.runtime.kd,
+                setpoint: node.runtime.setpoint,
+                deadband: node.runtime.deadband,
+                dbBehavior: node.runtime.dbBehavior,
+                outMin: node.runtime.outMin,
+                outMax: node.runtime.outMax,
+                maxChange: node.runtime.maxChange,
+                directAction: node.runtime.directAction,
+                run: node.runtime.run
             });
         } else {
             res.status(404).json({ error: "Node not found" });

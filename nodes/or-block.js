@@ -4,22 +4,43 @@ module.exports = function(RED) {
         
         const node = this;
         
-        // Initialize properties from config
-        node.name = config.name || "or";
-        node.slots = parseInt(config.slots) || 2;
-        if (isNaN(node.slots) || node.slots < 2) {
-            node.slots = 2;
-            node.status({ fill: "red", shape: "ring", text: "invalid slots" });
+        // Initialize runtime state
+        node.runtime = {
+            name: config.name || "",
+            slots: parseInt(config.slots) || 2,
+            inputs: Array(parseInt(config.slots) || 2).fill(false)
+        };
+
+        // Validate initial slots
+        if (!Number.isInteger(node.runtime.slots) || node.runtime.slots < 2) {
+            node.runtime.slots = 2;
+            node.runtime.inputs = Array(2).fill(false);
+            node.status({ fill: "red", shape: "ring", text: "invalid slots, using 2" });
+        } else {
+            node.status({
+                fill: "green",
+                shape: "dot",
+                text: `slots: ${node.runtime.slots}`
+            });
         }
 
-        // Initialize inputs
-        let inputs = Array(node.slots).fill(false);
+        // Track last state for unchanged outputs
+        let lastResult = null;
+        let lastInputs = node.runtime.inputs.slice();
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
+            // Guard against invalid msg
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Check for missing context or payload
             if (!msg.hasOwnProperty("context")) {
-                node.status({ fill: "yellow", shape: "ring", text: "missing context" });
+                node.status({ fill: "red", shape: "ring", text: "missing context" });
                 if (done) done();
                 return;
             }
@@ -30,32 +51,28 @@ module.exports = function(RED) {
                 return;
             }
 
+            // Process input slot
             if (msg.context.startsWith("in")) {
                 let index = parseInt(msg.context.slice(2), 10);
-                if (!isNaN(index) && index >= 1 && index <= node.slots) {
-                    let value = Boolean(msg.payload);
-                    let store = inputs[index - 1];
-                    if (store !== value) {
-                        inputs[index - 1] = value;
-                        const result = inputs.some(v => v === true);
-                        node.status({
-                            fill: "blue",
-                            shape: "dot",
-                            text: `out: ${result}, in: [${inputs.join(", ")}]`
-                        });
-                        send({ payload: result });
-                    } else {
-                        node.status({
-                            fill: "blue",
-                            shape: "ring",
-                            text: `in: [${inputs.join(", ")}], out: ${inputs.some(v => v === true)}`
-                        });
-                    }
+                if (!isNaN(index) && index >= 1 && index <= node.runtime.slots) {
+                    node.runtime.inputs[index - 1] = Boolean(msg.payload);
+                    const result = node.runtime.inputs.some(v => v === true);
+                    const isUnchanged = result === lastResult && node.runtime.inputs.every((v, i) => v === lastInputs[i]);
+                    node.status({
+                        fill: "blue",
+                        shape: isUnchanged ? "ring" : "dot",
+                        text: `in: [${node.runtime.inputs.join(", ")}], out: ${result}`
+                    });
+                    lastResult = result;
+                    lastInputs = node.runtime.inputs.slice();
+                    send({ payload: result });
+                    if (done) done();
+                    return;
                 } else {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input slot" });
+                    node.status({ fill: "red", shape: "ring", text: `invalid input index ${index || "NaN"}` });
+                    if (done) done();
+                    return;
                 }
-                if (done) done();
-                return;
             }
 
             node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
@@ -63,7 +80,6 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            inputs = Array(node.slots).fill(false);
             node.status({});
             done();
         });
@@ -71,13 +87,14 @@ module.exports = function(RED) {
 
     RED.nodes.registerType("or-block", OrBlockNode);
 
-    // Serve dynamic config from runtime
-    RED.httpAdmin.get("/or-block/:id", RED.auth.needsPermission("or-block.read"), function(req, res) {
+    // Serve runtime state for editor
+    RED.httpAdmin.get("/or-block-runtime/:id", RED.auth.needsPermission("or-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "or-block") {
             res.json({
-                name: node.name || "or",
-                slots: !isNaN(node.slots) && node.slots >= 2 ? node.slots : 2
+                name: node.runtime.name,
+                slots: node.runtime.slots,
+                inputs: node.runtime.inputs || Array(node.runtime.slots).fill(false)
             });
         } else {
             res.status(404).json({ error: "Node not found" });

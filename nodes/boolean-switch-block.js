@@ -4,122 +4,111 @@ module.exports = function(RED) {
         const node = this;
         const context = this.context();
 
-        // Initialize properties from config
-        node.name = config.name || "boolean switch";
+        // Initialize runtime for editor display
+        node.runtime = {
+            name: config.name || ""
+        };
 
-        // Initialize state and slots
-        node.state = context.get("state") || false;
-        node.toggleCount = context.get("toggleCount") || 0;
+        // Initialize persistent state
+        node.state = context.get("state") !== undefined ? context.get("state") : false;
         node.inTrue = context.get("inTrue") !== undefined ? context.get("inTrue") : null;
         node.inFalse = context.get("inFalse") !== undefined ? context.get("inFalse") : null;
         context.set("state", node.state);
-        context.set("toggleCount", node.toggleCount);
         context.set("inTrue", node.inTrue);
         context.set("inFalse", node.inFalse);
 
         // Set initial status
+        const activeSlot = node.state ? "inTrue" : "inFalse";
+        const initialOutput = node.state ? node.inTrue : node.inFalse;
         node.status({
-            fill: node.state ? "green" : "red",
+            fill: "green",
             shape: "dot",
-            text: `state: ${node.state}, out: ${node.state ? node.inTrue : node.inFalse}`
+            text: `switch: ${activeSlot}, out: ${initialOutput === null ? "null" : initialOutput}`
         });
 
         node.on("input", function(msg, send, done) {
-            send = send || function () { node.send.apply(node, arguments); };
+            send = send || function() { node.send.apply(node, arguments); };
 
-            // Handle context updates
-            if (msg.hasOwnProperty("context")) {
+            // Require msg.context
+            if (!msg.hasOwnProperty("context")) {
+                node.status({
+                    fill: "red",
+                    shape: "ring",
+                    text: "missing context"
+                });
+                if (done) done();
+                return;
+            }
+
+            // Handle context commands
+            if (msg.context === "toggle" || msg.context === "switch") {
+                node.state = !node.state;
+                context.set("state", node.state);
+                const newActiveSlot = node.state ? "inTrue" : "inFalse";
+                const output = node.state ? node.inTrue : node.inFalse;
+                node.status({
+                    fill: "blue",
+                    shape: "dot",
+                    text: `switch: ${newActiveSlot}, out: ${output === null ? "null" : output}`
+                });
+                send({ payload: output });
+                if (done) done();
+                return;
+            } else if (msg.context === "inTrue" || msg.context === "inFalse") {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({
-                        fill: "yellow",
+                        fill: "red",
                         shape: "ring",
                         text: `missing payload for ${msg.context}`
                     });
                     if (done) done();
                     return;
                 }
-                if (msg.context === "inTrue") {
+                const payloadDisplay = msg.payload === null ? "null" : msg.payload;
+                if (msg.context === "inTrue" && node.state) {
                     node.inTrue = msg.payload;
                     context.set("inTrue", node.inTrue);
-                    if (node.state) {
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `state: true, out: ${typeof node.inTrue === "number" ? node.inTrue.toFixed(2) : node.inTrue}`
-                        });
-                        send({ payload: node.inTrue });
-                    } else {
-                        node.status({
-                            fill: "red",
-                            shape: "dot",
-                            text: `state: false, out: ${typeof node.inFalse === "number" ? node.inFalse.toFixed(2) : node.inFalse}`
-                        });
-                    }
-                    if (done) done();
-                    return;
-                } else if (msg.context === "inFalse") {
+                    node.status({
+                        fill: "blue",
+                        shape: "dot",
+                        text: `switch: inTrue, out: ${payloadDisplay}`
+                    });
+                    send({ payload: node.inTrue });
+                } else if (msg.context === "inFalse" && !node.state) {
                     node.inFalse = msg.payload;
                     context.set("inFalse", node.inFalse);
-                    if (!node.state) {
-                        node.status({
-                            fill: "red",
-                            shape: "dot",
-                            text: `state: false, out: ${typeof node.inFalse === "number" ? node.inFalse.toFixed(2) : node.inFalse}`
-                        });
-                        send({ payload: node.inFalse });
-                    } else {
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `state: true, out: ${typeof node.inTrue === "number" ? node.inTrue.toFixed(2) : node.inTrue}`
-                        });
-                    }
-                    if (done) done();
-                    return;
-                } else {
                     node.status({
-                        fill: "yellow",
-                        shape: "ring",
-                        text: "unknown context"
+                        fill: "blue",
+                        shape: "dot",
+                        text: `switch: inFalse, out: ${payloadDisplay}`
                     });
-                    if (done) done();
-                    return;
+                    send({ payload: node.inFalse });
+                } else {
+                    // Update inactive slot silently
+                    if (msg.context === "inTrue") {
+                        node.inTrue = msg.payload;
+                        context.set("inTrue", node.inTrue);
+                    } else {
+                        node.inFalse = msg.payload;
+                        context.set("inFalse", node.inFalse);
+                    }
                 }
-            }
-
-            // Handle state changes
-            let newState = node.state;
-            if (msg.payload === "toggle") {
-                newState = !node.state;
-            } else if (msg.payload === true || msg.payload === "true") {
-                newState = true;
-            } else if (msg.payload === false || msg.payload === "false") {
-                newState = false;
+                if (done) done();
+                return;
             } else {
                 node.status({
                     fill: "yellow",
                     shape: "ring",
-                    text: `invalid input`
+                    text: "unknown context"
                 });
                 if (done) done();
                 return;
             }
+        });
 
-            if (newState !== node.state) {
-                node.state = newState;
-                node.toggleCount++;
-                context.set("state", node.state);
-                context.set("toggleCount", node.toggleCount);
-                const output = node.state ? node.inTrue : node.inFalse;
-                node.status({
-                    fill: node.state ? "green" : "red",
-                    shape: "dot",
-                    text: `state: ${node.state}, out: ${typeof output === "number" ? output.toFixed(2) : output}`
-                });
-                send({ payload: output });
-            }
-
-            if (done) done();
+        node.on("close", function(done) {
+            node.status({});
+            done();
         });
 
         // Handle manual toggle via HTTP endpoint
@@ -127,17 +116,15 @@ module.exports = function(RED) {
             const node = RED.nodes.getNode(req.params.id);
             if (node && node.type === "boolean-switch-block") {
                 node.state = !node.state;
-                node.toggleCount++;
-                node.context().set("state", node.state);
-                node.context().set("toggleCount", node.toggleCount);
+                context.set("state", node.state);
+                const activeSlot = node.state ? "inTrue" : "inFalse";
                 const output = node.state ? node.inTrue : node.inFalse;
                 node.status({
-                    fill: node.state ? "green" : "red",
+                    fill: "blue",
                     shape: "dot",
-                    text: `state: ${node.state}, out: ${typeof output === "number" ? output.toFixed(2) : output}`
+                    text: `switch: ${activeSlot}, out: ${output === null ? "null" : output}`
                 });
-                console.log(`Manual toggle boolean switch node ${node.id} (${node.name}): state=${node.state}, toggles=${node.toggleCount}`);
-                send({ payload: output });
+                node.send({ payload: output });
                 res.sendStatus(200);
             } else {
                 res.sendStatus(404);
@@ -147,16 +134,13 @@ module.exports = function(RED) {
 
     RED.nodes.registerType("boolean-switch-block", BooleanSwitchBlockNode);
 
-    // Serve dynamic config from runtime
-    RED.httpAdmin.get("/boolean-switch-block/:id", RED.auth.needsPermission("boolean-switch-block.read"), function(req, res) {
+    // Serve runtime state for editor
+    RED.httpAdmin.get("/boolean-switch-block-runtime/:id", RED.auth.needsPermission("boolean-switch-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "boolean-switch-block") {
             res.json({
-                name: node.name || "boolean switch",
-                state: node.state || false,
-                toggleCount: node.toggleCount || 0,
-                inTrue: node.inTrue !== undefined ? node.inTrue : null,
-                inFalse: node.inFalse !== undefined ? node.inFalse : null
+                name: node.runtime.name,
+                state: node.state
             });
         } else {
             res.status(404).json({ error: "Node not found" });

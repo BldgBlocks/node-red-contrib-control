@@ -1,78 +1,104 @@
-<!-- UI Template Section -->
 <script type="text/html" data-template-name="contextual-label-block">
     <div class="form-row">
         <label for="node-input-contextPropertyName" title="Context property to set (e.g., priority, clear, in1)"><i class="fa fa-key"></i> Context Property</label>
         <input type="text" id="node-input-contextPropertyName" placeholder="e.g., priority">
     </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
 </script>
 
-<!-- JavaScript Section -->
 <script type="text/javascript">
     RED.nodes.registerType("contextual-label-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            contextPropertyName: { value: "context", required: true, validate: function(v) { return v && typeof v === "string" && v.trim().length > 0; } }
+            contextPropertyName: { 
+                value: "context", 
+                required: true, 
+                validate: function(v) { return v && typeof v === "string" && v.trim().length > 0; } 
+            }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-tag",
         paletteLabel: "contextual label",
         label: function() {
             return `contextual ${this.contextPropertyName || "context"}`;
         },
         oneditprepare: function() {
+            const node = this;
             const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-contextPropertyName").val(this.contextPropertyName || "context");
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/contextual-label-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && data.contextPropertyName !== this.contextPropertyName) {
-                    $("#node-input-contextPropertyName").val(data.contextPropertyName || this.contextPropertyName || "context");
+            // Initialize input
+            $("#node-input-contextPropertyName").val(node.contextPropertyName || "context");
+
+            // Validate contextPropertyName input
+            $("#node-input-contextPropertyName").on("input", function() {
+                const val = $(this).val();
+                if (!val || typeof val !== "string" || val.trim().length === 0) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+            });
+
+            // Fetch runtime changes
+            $.getJSON(`/contextual-label-block-runtime/${id}`, function(data) {
+                const runtime = data || {};
+                const changes = [];
+                if (runtime.contextPropertyName !== undefined && runtime.contextPropertyName !== node.contextPropertyName) {
+                    changes.push(`contextPropertyName: ${runtime.contextPropertyName}`);
+                }
+                const displayText = changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None";
+                $("#node-runtime-changes").text(displayText);
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: None");
             });
         },
         oneditsave: function() {
             // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const contextPropertyName = $("#node-input-contextPropertyName").val();
+            if (!contextPropertyName || typeof contextPropertyName !== "string" || contextPropertyName.trim().length === 0) {
+                $("#node-input-contextPropertyName").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
 
-<!-- Help Section -->
 <script type="text/markdown" data-help-name="contextual-label-block">
 Attaches a context property to a message, passing through the existing message.
 
 ### Inputs
-- **input** <span class="property-type">any</span>
-  The input message with an existing `msg.payload`.
+: payload (any) : Input message payload, passed through unchanged.
+: *other* (any) : Other message properties, passed through unchanged.
 
 ### Outputs
-- **output** <span class="property-type">object</span>
-  Input message with `msg.context` set to the context property and other properties unchanged.
+: context (string) : Configured context property (e.g., `priority`, `clear`, `in1`).
+: payload (any) : Original input `msg.payload`, unchanged.
+: *other* (any) : Other input message properties, unchanged.
 
 ### Details
-The Contextual Label Block attaches a context property (`msg.context`) to a message without modifying its existing `msg.payload` or other properties. A single context property (e.g., `priority`, `clear`, `in1`) is configured in the editor, setting the node’s display name as `contextual <contextProperty>`.
-
-The context property is configurable only in the editor. Editor changes require redeployment; no runtime configuration is supported.
-
-### Examples
-- **Set Priority**: Set `contextProperty = priority`, input `{ payload: 5 }`, output `{ context: "priority", payload: 5 }`.
-- **Clear Priority**: Set `contextProperty = clear`, input `{ payload: null }`, output `{ context: "clear", payload: null }`.
-- **Set Input**: Set `contextProperty = in1`, input `{ payload: 42.0, topic: "test" }`, output `{ context: "in1", payload: 42.0, topic: "test" }`.
+Sets `msg.context` to a configured context property (e.g., `priority`, `clear`, `in1`) without modifying `msg.payload` or other message properties. The context property is set via the editor and applied on redeployment, with no runtime configuration. The node’s display name is `contextual <contextProperty>`. Runtime value of `contextPropertyName` is shown in "Changed Runtime Values" if different from the editor configuration.
 
 ### Error Handling
-- Missing `msg` or invalid input (not an object): Shows "missing message" (red), no output.
-- Invalid context property (empty or non-string): Shows "invalid context property" (red), no output.
+- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
+- Invalid context property (empty or non-string): Uses default (`context`), red status (`invalid context property, using context`).
 
-Status shows blue for output (e.g., `context: priority, value: 5`), red for errors.
+### Status
+- Green (dot): Configuration updates (e.g., `contextPropertyName: priority`).
+- Blue (dot): Outputs when input changes (e.g., `in: 5, out: priority`).
+- Blue (ring): Outputs when input unchanged (e.g., `in: 5, out: priority` if same as previous).
+- Red (ring): Errors (e.g., `invalid message`, `invalid context property, using context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

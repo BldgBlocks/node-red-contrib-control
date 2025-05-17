@@ -1,3 +1,4 @@
+<!-- UI Template Section -->
 <script type="text/html" data-template-name="tick-tock-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -7,84 +8,90 @@
         <label for="node-input-period" title="Period in seconds (positive number, e.g., 10)"><i class="fa fa-clock-o"></i> Period</label>
         <input type="number" id="node-input-period" placeholder="10" min="0.001" step="any">
     </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
 </script>
 
+<!-- JavaScript Section -->
 <script type="text/javascript">
     RED.nodes.registerType("tick-tock-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "tick tock" },
-            period: {
-                value: 10,
-                required: true,
-                validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; }
-            }
+            name: { value: "" },
+            period: { value: 10, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0 && isFinite(parseFloat(v)); } }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-wave-square",
         paletteLabel: "tick tock",
         label: function() {
             return this.name || "tick tock";
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "tick tock");
-            $("#node-input-period").val(this.period || 10);
+            const node = this;
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-period").val(node.period || 10);
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/tick-tock-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.period !== this.period)) {
-                    $("#node-input-name").val(data.name || this.name || "tick tock");
-                    $("#node-input-period").val(data.period || this.period || 10);
+            $.getJSON(`/tick-tock-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.period !== undefined && !isNaN(data.period) && isFinite(data.period) && data.period !== parseFloat(node.period || 10)) {
+                    changes.push(`period: ${data.period.toFixed(2)}`);
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
         oneditsave: function() {
             // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const period = parseFloat($("#node-input-period").val());
+            return !isNaN(period) && isFinite(period) && period > 0;
         }
     });
 </script>
 
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="tick-tock-block">
 Generates a square wave output toggling between true and false.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("period", "command").
-- **payload** <span class="property-type">number | string</span>
-  Numeric value for period, string ("start" or "stop") for command.
+: context (string) : Configures settings (`"period"`, `"command"`). Unmatched values trigger error.
+: payload (number | string) : Numeric value for period, string (`"start"`, `"stop"`) for command.
 
 ### Outputs
-- **payload** <span class="property-type">boolean</span>
-  Square wave value (true or false).
+: payload (boolean) : Square wave value (`true` or `false`).
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "tick tock").
+: period (number) : Full wave period (seconds, positive). Default: 10.
 
 ### Details
-The Tick Tock Block generates a square wave output toggling between `true` and `false` every half `period` (seconds). Use `msg.context = "command"` with `"start"` to begin or `"stop"` to halt, and `msg.context = "period"` with a positive number to adjust the period. Outputs are new messages sent for each state change after a start command or period update.
-
-The period and name are configurable in the editor. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
-
-### Examples
-- **Start Wave**: Input `{ context: "command", payload: "start" }`, output `{ payload: true }`, then `{ payload: false }` after half period.
-- **Set Period**: Input `{ context: "period", payload: 5 }`, no output unless running, updates period to 5 seconds.
-- **Stop Wave**: Input `{ context: "command", payload: "stop" }`, no output, stops wave.
+Generates a square wave output toggling between `true` and `false` every half `period` (seconds), started via `msg.context = "command"` with `msg.payload = "start"`. Stops with `"stop"`. Updates period via `msg.context = "period"` with numeric `msg.payload`. Outputs `{ payload: boolean }` for each state change when running. Configurable via editor or `msg.context`. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `period`) shown in "Changed Runtime Values" if different from defaults. Ignores redundant `start`/`stop` commands.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid period (non-numeric, non-positive): Shows "invalid period" (red), no output.
-- Invalid command (not "start" or "stop"): Shows "invalid command" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload` for config: No output, red status (`missing payload for X`).
+- Invalid context (non-string): No output, red status (`invalid context`).
+- Invalid period (non-numeric, non-positive, non-finite): No output, red status (`invalid period`).
+- Invalid command (not `"start"`, `"stop"`): No output, red status (`invalid command`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for config (e.g., `period: 10.00`, `started, period: 10.00`), blue for output (e.g., `out: true`), red for stop or errors, yellow for unknown context.
+### Status
+- Green (dot): Configuration or start (e.g., `period: 10.00`, `started, period: 10.00`).
+- Blue (dot): Output (e.g., `out: true`).
+- Yellow (dot): Stopped (e.g., `stopped`).
+- Red (ring): Errors (e.g., `invalid period`, `invalid command`).
+- Yellow (ring): Unknown context (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

@@ -1,4 +1,3 @@
-<!-- UI Template Section: Defines the edit dialog for the Interpolate Block node -->
 <script type="text/html" data-template-name="interpolate-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -10,15 +9,14 @@
     </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
     RED.nodes.registerType("interpolate-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "interpolate" },
+            name: { value: "" },
             points: {
-                value: JSON.stringify([{ x: 0, y: 0 }, { x: 100, y: 100 }]),
+                value: JSON.stringify([{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2),
                 required: true,
                 validate: function(v) {
                     try {
@@ -36,53 +34,100 @@
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-line-chart",
         paletteLabel: "interpolate",
-        label: function () {
-            return this.name || "interpolate";
+        label: function() {
+            return this.name ? `${this.name} (${this.points ? JSON.parse(this.points).length : 2})` : `interpolate (${this.points ? JSON.parse(this.points).length : 2})`;
         },
-        oneditprepare: function () {
-            const id = this.id;
-            $.getJSON(`/interpolate-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "interpolate");
-                $("#node-input-points").val(JSON.stringify(data.points || [{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2));
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "interpolate");
-                $("#node-input-points").val(this.points || JSON.stringify([{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2));
+        oneditprepare: function() {
+            // Initialize inputs
+            $("#node-input-name").val(this.name || "interpolate");
+            $("#node-input-points").val(this.points || JSON.stringify([{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2));
+
+            // Validate name input
+            $("#node-input-name").on("input", function() {
+                const val = $(this).val();
+                if (!val || val.trim().length === 0) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
+                }
+            });
+
+            // Validate points input
+            $("#node-input-points").on("input", function() {
+                const val = $(this).val();
+                try {
+                    const points = JSON.parse(val);
+                    if (Array.isArray(points) && points.length >= 2 &&
+                        points.every(p => typeof p.x === "number" && !isNaN(p.x) &&
+                                          typeof p.y === "number" && !isNaN(p.y))) {
+                        $(this).removeClass("input-error");
+                    } else {
+                        $(this).addClass("input-error");
+                    }
+                } catch (e) {
+                    $(this).addClass("input-error");
+                }
             });
         },
-        oneditsave: function () {
-            // Standard config properties are automatically saved by Node-RED
+        oneditsave: function() {
+            // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const name = $("#node-input-name").val();
+            const points = $("#node-input-points").val();
+            if (!name || name.trim().length === 0) {
+                $("#node-input-name").addClass("input-error");
+                return false;
+            }
+            try {
+                const parsedPoints = JSON.parse(points);
+                if (!Array.isArray(parsedPoints) || parsedPoints.length < 2 ||
+                    !parsedPoints.every(p => typeof p.x === "number" && !isNaN(p.x) &&
+                                             typeof p.y === "number" && !isNaN(p.y))) {
+                    $("#node-input-points").addClass("input-error");
+                    return false;
+                }
+            } catch (e) {
+                $("#node-input-points").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Interpolate Block node -->
 <script type="text/markdown" data-help-name="interpolate-block">
-Linearly interpolates a number input using a configurable points table.
+Linearly interpolates a numeric input using a configurable points table.
 
 ### Inputs
-- **context** (string): Sets configuration ("points" to update {x, y} table).
-- **payload** (number): Input number to interpolate, or points array for config.
+: context (string) : Configures points table (`"points"`).
+: payload (number | array) : Number for interpolation, or array of `{x, y}` objects for points configuration.
 
 ### Outputs
-- **payload** (number): Interpolated output value.
+: payload (number) : Interpolated output value.
 
 ### Details
-The Interpolate Block is a Sedona-inspired node for control systems, interpolating `msg.payload` (a number) using a table of `{x, y}` points (default: `[{x: 0, y: 0}, {x: 100, y: 100}]`).
-
-The node name and default points are configurable in the editor. The points table can be updated via `msg.context = "points"` with `msg.payload` as an array of `{x, y}` objects (≥2 points). Editor changes require redeployment to take effect and reset the points to the editor value; message updates apply immediately and are reflected in the editor.
-
-Outputs are new messages (`{ payload: number }`), sent only when the interpolated value changes.
-
-Use in automation workflows to map input values to outputs, such as scaling sensor data or control signals.
+Interpolates a numeric `msg.payload` using a table of `{x, y}` points (default: `[{x: 0, y: 0}, {x: 100, y: 100}]`). Points are set via editor or `msg.context = "points"` with an array of ≥2 `{x, y}` objects (x and y as numbers). Outputs `{ payload: number }` only when the interpolated value changes. Input must be within the x-range of points; out-of-range inputs are rejected. Editor changes require redeployment; message updates apply immediately. Used in control systems for mapping sensor data or control signals.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid input (non-number, NaN): Shows "invalid input" (red), no output.
-- Invalid points (non-array, <2 points, invalid {x, y}): Shows "invalid points" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
-- Input out of range: Shows "input out of range" (red), no output.
+- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
+- Missing `msg.context` or `msg.payload` for config: No output, red status (`missing payload`).
+- Missing `msg.payload` for input: No output, red status (`missing payload`).
+- Invalid `msg.payload` (non-numeric for input): No output, red status (`invalid input`).
+- Invalid points (non-array, <2 points, invalid `{x, y}`): No output, red status (`invalid points`).
+- Input out of x-range: No output, red status (`input out of range`).
+- Unknown or invalid `msg.context`: No output, yellow status (`unknown context`).
 
-Status shows green for points updates (e.g., `points: 2`), blue dot for output when value changes (e.g., `in: 50.00, out: 50.00`), blue ring for unchanged inputs (same format), red/yellow for errors.
+### Status
+- Green (dot): Configuration updates (e.g., `name: interpolate, points: 2`, `points: 3`).
+- Blue (dot): Outputs when value changes (e.g., `in: 50.00, out: 50.00`).
+- Blue (ring): Outputs when value unchanged (e.g., `in: 50.00, out: 50.00`).
+- Red (ring): Errors (e.g., `invalid message`, `missing payload`, `invalid input`, `input out of range`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

@@ -1,8 +1,12 @@
-<!-- UI Template Section: Defines the edit dialog for the Count Block node -->
+<!-- UI Template Section: Defines the edit dialog -->
 <script type="text/html" data-template-name="count-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
     </div>
 </script>
 
@@ -12,56 +16,70 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "count" }
+            name: { value: "" }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["count"],
-        icon: "font-awesome/fa-sort-numeric-asc",
+        icon: "font-awesome/fa-tally",
         paletteLabel: "count",
-        label: function () {
+        label: function() {
             return this.name || "count";
         },
-        oneditprepare: function () {
-            const id = this.id;
-            $.getJSON(`/count-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "count");
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "count");
+        oneditprepare: function() {
+            const node = this;
+            $("#node-input-name").val(node.name || "");
+
+            $.getJSON(`/count-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.count !== undefined && data.count !== 0) {
+                    changes.push(`count: ${data.count}`);
+                }
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Count Block node -->
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="count-block">
 Counts boolean rising edges in the input.
 
 ### Inputs
-- **context** (string): Sets configuration ("reset" to clear count).
-- **payload** (boolean): Input boolean to detect rising edges.
+: context (string) : Resets count (`"reset"`). Unmatched values trigger error.
+: payload (boolean) : Input boolean to detect rising edges.
 
 ### Outputs
-- **payload** (number): Current count of rising edges.
+: payload (number) : Current count of rising edges.
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "count").
 
 ### Details
-The Count Block is a Sedona-inspired node for control systems, counting rising edges (false-to-true transitions) in `msg.payload` (boolean, e.g., `true` for pulse). It increments the count on each false-to-true transition.
-
-The node name is configurable in the editor. Reset the count via `msg.context = "reset"` with `msg.payload = true`. Editor changes require redeployment; reset messages apply immediately.
-
-Outputs are new messages (`{ payload: number }`) with the current count, sent only when the count changes.
-
-Use in automation to track events, such as button presses or sensor triggers.
+Counts rising edges (false-to-true transitions) in `msg.payload` (boolean), incrementing the count on each transition. Resets count to 0 via `msg.context = "reset"` with `msg.payload = true`. Outputs a new `{ payload: number }` message when the count changes (increment or reset). Configurable via editor (`name` only). Editor changes require redeployment; reset messages apply immediately. Runtime values (`name`, `count`) shown in "Changed Runtime Values" if different from defaults. Suitable for automation to track events like button presses or sensor triggers.
 
 ### Error Handling
-- Missing `msg.payload` for config: Shows "missing payload" (red), no output.
-- Invalid input (non-boolean): Shows "invalid input" (red), no output.
-- Invalid reset value (non-boolean): Shows "invalid reset" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (red), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload`: No output, red status (`missing input` or `missing payload for reset`).
+- Invalid input (non-boolean): No output, red status (`invalid input`).
+- Invalid reset value (non-boolean): No output, red status (`invalid reset`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for reset (e.g., `state reset`), blue dot for output when count changes (e.g., `out: 5`), blue ring for unchanged inputs (same format), red for errors.
+### Status
+- Green (dot): Reset (e.g., `state reset`).
+- Blue (dot): Output on count change (e.g., `out: 5`).
+- Blue (ring): Unchanged input (e.g., `out: 5`).
+- Red (ring): Errors (e.g., `invalid input`, `invalid reset`).
+- Yellow (ring): Unknown context (e.g., `unknown context`).
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

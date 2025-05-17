@@ -1,4 +1,9 @@
+<!-- UI Template Section -->
 <script type="text/html" data-template-name="on-change-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
     <div class="form-row">
         <label for="node-input-period" title="Filter period in milliseconds (non-negative number from msg, flow, global, or static value)"><i class="fa fa-clock-o"></i> Filter Period (ms)</label>
         <input type="text" id="node-input-period" placeholder="0">
@@ -10,27 +15,29 @@
     </div>
 </script>
 
+<!-- JavaScript Section -->
 <script type="text/javascript">
     RED.nodes.registerType("on-change-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            period: { value: "0" },
+            name: { value: "" },
+            period: { value: 0 },
             periodType: { value: "num" }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-filter",
         paletteLabel: "on change",
         label: function() {
-            return "on change";
+            return this.name || "on change";
         },
         oneditprepare: function() {
             const node = this;
             const periodType = node.periodType || "num";
-            const periodValue = node.period !== undefined ? node.period : "0";
+            const periodValue = node.period !== undefined ? node.period : 0;
 
             const periodInput = $("#node-input-period").typedInput({
                 default: "num",
@@ -41,59 +48,63 @@
             periodInput.typedInput("type", periodType);
             periodInput.typedInput("value", periodValue);
 
-            $.getJSON(`/on-change-block-runtime/${node.id}`, function(data) {
-                const runtime = data || {};
+            $("#node-input-name").val(node.name || "");
+
+            $.getJSON(`/on-change-block-runtime/${node.id}?t=${Date.now()}`, function(data) {
                 const changes = [];
-                if (runtime.period !== undefined && runtime.period !== Number(node.period) && runtime.periodType === node.periodType) {
-                    changes.push(`period: ${runtime.period.toFixed(0)} ms`);
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.period !== undefined && !isNaN(data.period) && data.period !== Number(node.period) && data.periodType === node.periodType) {
+                    changes.push(`period: ${data.period.toFixed(0)} ms`);
                 }
-                const displayText = changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None";
-                $("#node-runtime-changes").text(displayText);
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
             }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: None");
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
         oneditsave: function() {
             $("#node-input-periodType").val($("#node-input-period").typedInput("type"));
         },
         oneditvalidate: function() {
-            return true; // Suppress all warnings
+            const period = parseFloat($("#node-input-period").typedInput("value"));
+            return !isNaN(period) && period >= 0;
         }
     });
 </script>
 
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="on-change-block">
-    Passes the input message immediately, then blocks messages for a specified period.
+Passes the input message immediately, then blocks messages for a specified period.
 
-    ### Inputs
-    - **context** <span class="property-type">string</span>
-      Sets configuration ("period" to update filter period) or queries status ("status" to output runtime state).
-    - **payload** <span class="property-type">any</span>
-      Input value to compare, or numeric value for period config.
+### Inputs
+: context (string) : Configures period (`"period"`) or queries state (`"status"`). Unmatched values trigger error.
+: payload (any) : Input value to compare, or non-negative number for period config.
 
-    ### Outputs
-    - **payload** <span class="property-type">any</span>
-      Input payload if not blocked, or runtime state for status queries.
-    - Other properties from the input message (e.g., `msg.topic`) are preserved.
+### Outputs
+: payload (any) : Input payload if not blocked; for `msg.context = "status"`, `{ period, periodType }`.
+: Other input message properties (e.g., `msg.topic`) are preserved, except for `msg.context = "status"`.
 
-    ### Details
-    The On Change Block sends the first input message immediately, then blocks all messages for a configurable period (default: 0ms, pass only changed values). During the block period, identical messages show "uncharged", and different messages show "blocked". After the period, the next message is sent immediately, restarting the block.
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "on change").
+: period (number) : Filter period in milliseconds (≥ 0, static or from `msg`, `flow`, `global`). Default: 0.
+: periodType (string) : Source of period (`"num"`, `"msg"`, `"flow"`, `"global"`). Default: `"num"`.
 
-    The filter period is configurable in the editor (as a static number or from `msg`, `flow`, or `global` contexts) or via `msg.context = "period"` with a non-negative numeric `msg.payload` (in milliseconds). Set to 0 to pass only changed messages (deep comparison for objects/arrays). Editor defaults are preserved on startup and redeployment. Runtime changes are shown in the editor as "Changed Runtime Values".
+### Details
+Sends the first input message immediately, then blocks messages for `period` milliseconds (default: 0, pass only changed values). During block, identical messages (deep comparison) show "unchanged" status, different messages show "blocked", with no output. After period, the next message is sent immediately, restarting the block. Period configurable via editor (static or `msg`, `flow`, `global`) or `msg.context = "period"` with non-negative numeric `msg.payload` (milliseconds). Set `period = 0` to pass only changed values (deep comparison for objects/arrays). `msg.context = "status"` outputs `{ period, periodType }`. Editor changes require redeployment; message-based period updates apply immediately. Runtime values (`name`, `period`) shown in "Changed Runtime Values" if different from defaults.
 
-    Use `msg.context = "status"` to output the current runtime state (`{ period, periodType }`).
+### Error Handling
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid period (non-numeric, negative): Red status (`invalid period`), uses default (0).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-    ### Examples
-    - **Static Period**: Config `period=1000ms` (static), input `{ payload: 10, topic: "test" }` at t=0s, output immediately; input `{ payload: 10 }` at t=0.5s, shows "uncharged", no output; input `{ payload: 20 }` at t=1.5s, output immediately.
-    - **Dynamic Period**: Config `period=msg.debounce`, input `{ payload: 10, debounce: 1000 }`, output immediately, block for 1000ms.
-    - **Flow Period**: Config `period=flow.debounce` (value 1000), input `{ payload: 10 }`, output immediately, block for 1000ms.
-    - **Set Period**: Input `{ context: "period", payload: 500 }`, sets runtime period to 500ms, editor shows "Changed Values: period: 500 ms".
-    - **Status Query**: Input `{ context: "status" }`, output `{ payload: { period: 500, periodType: "num" } }`.
+### Status
+- Green (dot): Configuration (e.g., `period: 500 ms`).
+- Blue (dot): Output (e.g., `out: 10`).
+- Blue (ring): Blocked or unchanged (e.g., `blocked: 20`, `unchanged: 10`).
+- Red (ring): Errors (e.g., `missing payload`, `invalid period`).
+- Yellow (ring): Unknown context (e.g., `unknown context`).
 
-    ### Error Handling
-    - Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
-    - Invalid period: Shows "invalid period" (red) during flow, uses default (0).
-    - Unknown `msg.context`: Shows "unknown context" (yellow), no output.
-
-    Status shows green for config (e.g., `period: 500 ms`), blue for output (e.g., `out: 10`), blue ring for blocked/uncharged (e.g., `uncharged: 10`), red/yellow for errors.
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

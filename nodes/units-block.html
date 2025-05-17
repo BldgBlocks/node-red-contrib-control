@@ -1,7 +1,6 @@
-<!-- UI Template Section -->
 <script type="text/html" data-template-name="units-block">
     <div class="form-row">
-        <label for="node-input-unit" title="unit to append to msg.units"><i class="fa fa-wrench"></i> unit</label>
+        <label for="node-input-unit" title="Unit to append to msg.units"><i class="fa fa-tag"></i> Unit</label>
         <select id="node-input-unit">
             <optgroup label="Temperature">
                 <option value="°C">°C (Celsius)</option>
@@ -69,12 +68,17 @@
         </select>
     </div>
     <div class="form-row">
-        <label for="node-input-name" title="display name shown on the canvas"><i class="fa fa-tag"></i> name</label>
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row node-changed-values" style="display: none;">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <div style="margin-left: 30px;">
+            <p><strong>Unit:</strong> <span id="node-changed-unit">°F</span></p>
+        </div>
     </div>
 </script>
 
-<!-- JavaScript Section -->
 <script type="text/javascript">
     RED.nodes.registerType("units-block", {
         category: "control",
@@ -87,68 +91,103 @@
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output with units"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-tag",
         paletteLabel: "units",
-        label: function () {
+        label: function() {
             return this.name ? `Units ${this.name}` : `units ${this.unit}`;
         },
-        oneditprepare: function () {
-            const id = this.id;
-            $.getJSON(`/units-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "");
-                $("#node-input-unit").val(data.unit || "°F");
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "");
-                $("#node-input-unit").val(this.unit || "°F");
+        oneditprepare: function() {
+            // Initialize inputs
+            $("#node-input-name").val(this.name || "");
+            $("#node-input-unit").val(this.unit || "°F");
+
+            // Validate name input
+            $("#node-input-name").on("input", function() {
+                const val = $(this).val();
+                if (!val || val.trim().length === 0) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
+                }
             });
+
+            // Validate unit input
+            $("#node-input-unit").on("change", function() {
+                const val = $(this).val();
+                const validUnits = ["°C", "°F", "K", "%RH", "Pa", "kPa", "bar", "mbar", "psi", "atm", "inH₂O", "mmH₂O", "CFM", "m³/h", "L/s", "V", "mV", "A", "mA", "W", "Ω", "%", "m", "cm", "mm", "km", "ft", "in", "kg", "g", "lb", "s", "min", "h", "L", "mL", "gal", "lx", "cd", "B", "T"];
+                if (!validUnits.includes(val)) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
+                }
+            });
+
+            // Fetch runtime values for deployed nodes
+            const id = this.id;
+            $.getJSON(`/units-block/${id}?t=${Date.now()}`, function(data) {
+                if (data && (data.unit !== this.unit)) {
+                    $("#node-changed-unit").text(data.unit || "°F");
+                    $(".node-changed-values").show();
+                } else {
+                    $(".node-changed-values").hide();
+                }
+            }.bind(this)).fail(function() {
+                $(".node-changed-values").hide();
+            });
+        },
+        oneditsave: function() {
+            // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const name = $("#node-input-name").val();
+            const unit = $("#node-input-unit").val();
+            const validUnits = ["°C", "°F", "K", "%RH", "Pa", "kPa", "bar", "mbar", "psi", "atm", "inH₂O", "mmH₂O", "CFM", "m³/h", "L/s", "V", "mV", "A", "mA", "W", "Ω", "%", "m", "cm", "mm", "km", "ft", "in", "kg", "g", "lb", "s", "min", "h", "L", "mL", "gal", "lx", "cd", "B", "T"];
+            if (!name || name.trim().length === 0) {
+                $("#node-input-name").addClass("input-error");
+                return false;
+            }
+            if (!validUnits.includes(unit)) {
+                $("#node-input-unit").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
 
-<!-- Help Section -->
 <script type="text/markdown" data-help-name="units-block">
-Appends a selected unit to msg.units of any input message.
+Appends a selected unit to `msg.units` of any input message.
 
 ### Inputs
-- **payload** <span class="property-type">any</span>
-  - The input message payload to pass through unchanged.
+: context (string) : Configures unit (`"unit"`) if provided.
+: payload (any) : Input payload to pass through unchanged.
 
 ### Outputs
-- **payload** <span class="property-type">any</span>
-  - The original payload.
-- **units** <span class="property-type">string</span>
-  - The selected unit (e.g., °F, %RH, inH₂O).
+: payload (any) : Original payload.
+: units (string) : Selected unit (e.g., °F, %RH, inH₂O).
 
 ### Details
-The Units Block node appends a `msg.units` property to any input message, set to a unit selected from a dropdown menu in the editor. The original `msg.payload` and other properties are passed through unchanged. The node supports common sensor units, including HVAC-specific units like relative humidity (%RH), static pressure (inH₂O, mmH₂O), airflow (CFM, m³/h, L/s), and temperature/dew point (°C, °F, K), as well as electrical (V, A, Ω) and general units.
+Appends `msg.units` to any input message with a unit selected in the editor or set via `msg.context = "unit"` with a valid unit string. Supports units like °C, °F, %RH, inH₂O, CFM for HVAC and control systems. Outputs only when `msg.payload` or `msg.units` changes. Stores `lastUnit` and `lastPayload` in context for persistence. Editor changes require redeployment; message updates apply immediately and are shown in the "Changed Runtime Values" section. Used to label sensor data for downstream processing.
 
-The node only outputs when the payload or unit changes, reducing unnecessary messages. The last unit and payload are stored in context to maintain status across restarts. Use this node to label sensor data with appropriate units for downstream processing or display in HVAC and control systems.
-
-### Examples
-- Input: `msg.payload = 45.2`, unit set to `%RH`
-  - Output: `msg.payload = 45.2`, `msg.units = "%RH"`
-  - Status: `unit: %RH, value: 45.20`
-- Input: `msg.payload = 0.5`, unit set to `inH₂O`
-  - Output: `msg.payload = 0.5`, `msg.units = "inH₂O"`
-  - Status: `unit: inH₂O, value: 0.50`
-- Input: `msg.payload = 1200`, unit set to `CFM`
-  - Output: `msg.payload = 1200`, `msg.units = "CFM"`
-  - Status: `unit: CFM, value: 1200.00`
-- Input: `msg.payload = 70.3`, unit set to `°F`
-  - Output: `msg.payload = 70.3`, `msg.units = "°F"`
-  - Status: `unit: °F, value: 70.30`
+Configuration (set in editor):
+: unit (string) : Unit to append (default: °F).
+: name (string) : Optional display name.
 
 ### Error Handling
-- Missing message: Shows `missing message` (red).
-- Processing errors: Shows `processing error` (red).
-- Invalid configuration (e.g., invalid unit): Shows `invalid unit` (red).
+- Invalid message (e.g., `msg` undefined): No output, red status (`missing message`).
+- Invalid `msg.context` or missing `msg.payload` for config: No output, yellow status (`unknown context`).
+- Invalid unit (not in valid list): No output, red status (`invalid unit`).
+- Processing error: No output, red status (`processing error`).
+- Invalid configuration (invalid unit): No output, red status (`invalid unit, using °F`).
 
-Status shows:
-- Blue dot for new output (`unit: X, value: Y`).
-- Blue ring for unchanged output (`unit: X, value: Y`).
-- Red ring for errors (`missing message`, `invalid unit`).
+### Status
+- Green (dot): Initial configuration or unit update (e.g., `unit: °F`).
+- Blue (dot): Outputs when payload or unit changes (e.g., `in: 45.20, out: %RH`).
+- Blue (ring): Outputs when unchanged (e.g., `in: 45.20, out: %RH`).
+- Red (ring): Errors (e.g., `missing message`, `invalid unit`, `processing error`).
+- Yellow (ring): Unknown context (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

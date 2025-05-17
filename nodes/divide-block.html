@@ -1,4 +1,3 @@
-<!-- UI Template Section: Defines the edit dialog for the Divide Block node -->
 <script type="text/html" data-template-name="divide-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -10,13 +9,12 @@
     </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
     RED.nodes.registerType("divide-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "divide" },
+            name: { value: "" },
             slots: {
                 value: 2,
                 required: true,
@@ -27,70 +25,87 @@
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["quotient"],
-        icon: "font-awesome/fa-wrench",
+        icon: "split.svg",
         paletteLabel: "divide",
         label: function() {
             return this.name ? `${this.name} (${this.slots})` : `divide (${this.slots})`;
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
+            // Initialize inputs
             $("#node-input-name").val(this.name || "divide");
             $("#node-input-slots").val(this.slots || 2);
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/divide-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.slots !== this.slots)) {
-                    $("#node-input-name").val(data.name || this.name || "divide");
-                    $("#node-input-slots").val(data.slots || this.slots || 2);
+            // Validate name input
+            $("#node-input-name").on("input", function() {
+                const val = $(this).val();
+                if (!val || val.trim().length === 0) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+            });
+
+            // Validate slots input
+            $("#node-input-slots").on("input", function() {
+                const val = parseInt($(this).val(), 10);
+                if (isNaN(val) || val < 1) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
+                }
             });
         },
         oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
+            // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const name = $("#node-input-name").val();
+            const slots = parseInt($("#node-input-slots").val(), 10);
+            if (!name || name.trim().length === 0) {
+                $("#node-input-name").addClass("input-error");
+                return false;
+            }
+            if (isNaN(slots) || slots < 1) {
+                $("#node-input-slots").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Divide Block node -->
 <script type="text/markdown" data-help-name="divide-block">
-Divides multiple numeric inputs in sequence.
+Divides numeric inputs from multiple slots in sequence.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("reset" to clear inputs, "slots" to set number of slots) or identifies input slot (e.g., "in1", "in2").
-- **payload** <span class="property-type">number | boolean</span>
-  Number for input slot or slots configuration, boolean for reset.
+: context (string) : Configures reset (`"reset"`), slots (`"slots"`), or identifies input slot (e.g., `"in1"`, `"in2"`).
+: payload (number | boolean) : Number for slot input, boolean for reset, integer for slots configuration.
 
 ### Outputs
-- **payload** <span class="property-type">number</span>
-  Result of dividing input slots in sequence.
+: payload (number) : Result of dividing slots in sequence (in1 / in2 / ...).
 
 ### Details
-The Divide Block divides numeric inputs from multiple slots (`in1`, `in2`, etc.) in sequence (`in1 / in2 / ...`). The number of slots is configurable in the editor or via `msg.context = "slots"` with a positive integer. Inputs default to 1 and are updated via `msg.context = "inX"` with a numeric `msg.payload`. Inputs for `in2` onward must be non-zero to avoid division by zero. Reset all inputs to 1 via `msg.context = "reset"` with `msg.payload = true`.
-
-The node outputs a new message for every valid input slot update.
-
-### Examples
-- **Input Update**: Input `{ context: "in1", payload: 10 }` with slots=2, `in2=2`, output: `{ payload: 5 }`.
-- **Set Slots**: Input `{ context: "slots", payload: 3 }`, no output, sets slots to 3, resets inputs to `[1, 1, 1]`.
-- **Reset**: Input `{ context: "reset", payload: true }`, no output, resets inputs to `[1, 1]`.
+Divides numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`) in sequence. Slots (default: 2) are set via editor or `msg.context = "slots"` with positive integer. Inputs default to 1, updated via `msg.context = "inX"`. Inputs for `in2` onward must be non-zero to avoid division by zero. Resets inputs to 1 via `msg.context = "reset"` with `msg.payload = true`. Outputs `{ payload: number }` only when the result changes. Editor changes require redeployment; message updates apply immediately. Used in control systems for ratio calculations.
 
 ### Error Handling
-- Missing `msg.context`: Shows "missing context" (red), no output.
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid input (non-numeric, or zero for `in2` onward): Shows "invalid input" or "divide by zero" (red), no output.
-- Invalid reset value (non-boolean): Shows "invalid reset" (red), no output.
-- Invalid slots value (non-integer, <1): Shows "invalid slots" (red), no output.
-- Invalid input slot (e.g., `in5` with 3 slots): Shows "invalid input slot" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
+- Missing `msg.context`: No output, red status (`missing context`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid `msg.payload` (non-numeric for slots): No output, red status (`invalid input`).
+- Invalid `msg.payload` (zero for `in2` onward): No output, red status (`divide by zero`).
+- Invalid reset `msg.payload` (non-boolean): No output, red status (`invalid reset`).
+- Invalid slots (non-integer, <1): No output, red status (`invalid slots`).
+- Invalid input slot (e.g., `in5` for 3 slots): No output, red status (`invalid input slot X`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`).
 
-Status shows green for configuration (e.g., `reset`, `slots: 3`), blue for output (e.g., `out: 5.00, in: in2=2`), red for errors, yellow for unknown context.
+### Status
+- Green (dot): Configuration or reset (e.g., `name: divide, slots: 2`, `state reset`, `slots: 3`).
+- Blue (dot): Outputs when result changes (e.g., `in: in1=10.00, out: 5.00`).
+- Blue (ring): Outputs when result unchanged (e.g., `in: in1=10.00, out: 5.00`).
+- Red (ring): Errors (e.g., `invalid message`, `missing context`, `invalid input`, `divide by zero`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

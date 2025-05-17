@@ -1,4 +1,4 @@
-<!-- UI Template Section: Defines the edit dialog for the Call Status Block node -->
+<!-- UI Template Section: Defines the edit dialog -->
 <script type="text/html" data-template-name="call-status-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -36,6 +36,10 @@
         <label for="node-input-noStatusOnRunMessage" title="Message for no status on run alarm (string)"><i class="fa fa-comment"></i> No Status Message</label>
         <input type="text" id="node-input-noStatusOnRunMessage" placeholder="No status received during run">
     </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
 </script>
 
 <!-- JavaScript Section: Registers the node and handles editor logic -->
@@ -44,7 +48,7 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "call status" },
+            name: { value: "" },
             statusTimeout: { value: 30, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; } },
             clearDelay: { value: 10, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; } },
             normalOff: { value: false },
@@ -58,97 +62,105 @@
         outputs: 2,
         inputLabels: ["input"],
         outputLabels: ["call", "diagnostics"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-phone",
         paletteLabel: "call status",
         label: function() {
             return this.name || "call status";
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "call status");
-            $("#node-input-statusTimeout").val(this.statusTimeout || 30);
-            $("#node-input-clearDelay").val(this.clearDelay || 10);
-            $("#node-input-normalOff").prop("checked", this.normalOff === true);
-            $("#node-input-normalOn").prop("checked", this.normalOn === true);
-            $("#node-input-runLostStatus").prop("checked", this.runLostStatus === true);
-            $("#node-input-noStatusOnRun").prop("checked", this.noStatusOnRun === true);
-            $("#node-input-runLostStatusMessage").val(this.runLostStatusMessage || "Status lost during run");
-            $("#node-input-noStatusOnRunMessage").val(this.noStatusOnRunMessage || "No status received during run");
+            const node = this;
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-statusTimeout").val(node.statusTimeout || 30);
+            $("#node-input-clearDelay").val(node.clearDelay || 10);
+            $("#node-input-normalOff").prop("checked", node.normalOff === true);
+            $("#node-input-normalOn").prop("checked", node.normalOn !== false);
+            $("#node-input-runLostStatus").prop("checked", node.runLostStatus === true);
+            $("#node-input-noStatusOnRun").prop("checked", node.noStatusOnRun !== false);
+            $("#node-input-runLostStatusMessage").val(node.runLostStatusMessage || "Status lost during run");
+            $("#node-input-noStatusOnRunMessage").val(node.noStatusOnRunMessage || "No status received during run");
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/call-status-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (
-                    data.name !== this.name ||
-                    data.statusTimeout !== this.statusTimeout ||
-                    data.clearDelay !== this.clearDelay ||
-                    data.normalOff !== this.normalOff ||
-                    data.normalOn !== this.normalOn ||
-                    data.runLostStatus !== this.runLostStatus ||
-                    data.noStatusOnRun !== this.noStatusOnRun ||
-                    data.runLostStatusMessage !== this.runLostStatusMessage ||
-                    data.noStatusOnRunMessage !== this.noStatusOnRunMessage
-                )) {
-                    $("#node-input-name").val(data.name || this.name || "call status");
-                    $("#node-input-statusTimeout").val(data.statusTimeout || this.statusTimeout || 30);
-                    $("#node-input-clearDelay").val(data.clearDelay || this.clearDelay || 10);
-                    $("#node-input-normalOff").prop("checked", data.normalOff === true);
-                    $("#node-input-normalOn").prop("checked", data.normalOn === true);
-                    $("#node-input-runLostStatus").prop("checked", data.runLostStatus === true);
-                    $("#node-input-noStatusOnRun").prop("checked", data.noStatusOnRun === true);
-                    $("#node-input-runLostStatusMessage").val(data.runLostStatusMessage || this.runLostStatusMessage || "Status lost during run");
-                    $("#node-input-noStatusOnRunMessage").val(data.noStatusOnRunMessage || this.noStatusOnRunMessage || "No status received during run");
+            $.getJSON(`/call-status-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.statusTimeout !== undefined && !isNaN(data.statusTimeout) && data.statusTimeout !== parseFloat(node.statusTimeout || 30)) {
+                    changes.push(`statusTimeout: ${data.statusTimeout.toFixed(2)}`);
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+                if (data.clearDelay !== undefined && !isNaN(data.clearDelay) && data.clearDelay !== parseFloat(node.clearDelay || 10)) {
+                    changes.push(`clearDelay: ${data.clearDelay.toFixed(2)}`);
+                }
+                if (data.normalOff !== (node.normalOff === true)) changes.push(`normalOff: ${data.normalOff}`);
+                if (data.normalOn !== (node.normalOn !== false)) changes.push(`normalOn: ${data.normalOn}`);
+                if (data.runLostStatus !== (node.runLostStatus === true)) changes.push(`runLostStatus: ${data.runLostStatus}`);
+                if (data.noStatusOnRun !== (node.noStatusOnRun !== false)) changes.push(`noStatusOnRun: ${data.noStatusOnRun}`);
+                if (data.runLostStatusMessage !== (node.runLostStatusMessage || "Status lost during run")) {
+                    changes.push(`runLostStatusMessage: ${data.runLostStatusMessage}`);
+                }
+                if (data.noStatusOnRunMessage !== (node.noStatusOnRunMessage || "No status received during run")) {
+                    changes.push(`noStatusOnRunMessage: ${data.noStatusOnRunMessage}`);
+                }
+                if (data.call !== false) changes.push(`call: ${data.call}`);
+                if (data.status !== false) changes.push(`status: ${data.status}`);
+                if (data.alarm !== false) changes.push(`alarm: ${data.alarm}`);
+                if (data.alarmMessage) changes.push(`alarmMessage: ${data.alarmMessage}`);
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
         oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
+        },
+        oneditvalidate: function() {
+            const statusTimeout = parseFloat($("#node-input-statusTimeout").val());
+            const clearDelay = parseFloat($("#node-input-clearDelay").val());
+            return !isNaN(statusTimeout) && statusTimeout > 0 && !isNaN(clearDelay) && clearDelay > 0;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Call Status Block node -->
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="call-status-block">
 Issues calls to equipment with status and alarm diagnostics.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("statusTimeout", "clearDelay", "status", "normalOff", "normalOn", "runLostStatus", "noStatusOnRun", "runLostStatusMessage", "noStatusOnRunMessage").
-- **payload** <span class="property-type">boolean | number | string</span>
-  Boolean for call/status/normalOff/normalOn/runLostStatus/noStatusOnRun, number for statusTimeout/clearDelay, string for messages.
+: context (string) : Configures settings (`"statusTimeout"`, `"clearDelay"`, `"normalOff"`, `"normalOn"`, `"runLostStatus"`, `"noStatusOnRun"`, `"runLostStatusMessage"`, `"noStatusOnRunMessage"`) or sets status (`"status"`). Unmatched values trigger error.
+: payload (boolean | number | string) : Boolean for call, status, or boolean configs; number for timeouts; string for messages.
 
 ### Outputs
-1. **call** <span class="property-type">boolean</span>
-   Current call state.
-2. **diagnostics** <span class="property-type">object</span>
-   Includes call, status, alarm, alarmMessage, timeout.
+: 1. call (boolean) : Current call state.
+: 2. diagnostics (object) : `{ call: boolean, status: boolean, alarm: boolean, alarmMessage: string, timeout: boolean }`.
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "call status").
+: statusTimeout (number) : Time to wait for status response (seconds, > 0). Default: 30.
+: clearDelay (number) : Delay before clearing status and alarm after call ends (seconds, > 0). Default: 10.
+: normalOff (boolean) : Expected status when call is off. Default: `false`.
+: normalOn (boolean) : Expected status when call is on. Default: `true`.
+: runLostStatus (boolean) : Alarm if status doesn't match `normalOn` during call. Default: `false`.
+: noStatusOnRun (boolean) : Alarm if no status received during call. Default: `true`.
+: runLostStatusMessage (string) : Message for run lost status alarm. Default: "Status lost during run".
+: noStatusOnRunMessage (string) : Message for no status on run alarm. Default: "No status received during run".
 
 ### Details
-The Call Status Block issues a call (`true`) to equipment and expects a status response matching `normalOn` within `statusTimeout` seconds. It clears status and alarm after `clearDelay` seconds when call is removed (`false`), checking against `normalOff`. Alarms are set for `runLostStatus` (status mismatch during call) or `noStatusOnRun` (no status received during call) with custom messages. Status inputs are ignored without an active call.
-
-Properties (`statusTimeout`, `clearDelay`, `normalOff`, `normalOn`, `runLostStatus`, `noStatusOnRun`, `runLostStatusMessage`, `noStatusOnRunMessage`) are configurable via the editor or `msg.context`. Status is set via `msg.context = "status"`. Editor changes require redeployment; message-based changes apply immediately and are reflected in the editor.
-
-The node outputs new messages for call changes, status updates, alarm conditions, or configuration changes affecting alarms.
-
-### Examples
-- **Start Call**: Input `{ payload: true }`, output 1: `{ payload: true }`, output 2: `{ payload: { call: true, status: false, alarm: false, alarmMessage: "", timeout: true } }`.
-- **Status Update**: Input `{ context: "status", payload: true }` with call active, output 1: `{ payload: true }`, output 2: `{ payload: { call: true, status: true, alarm: false, alarmMessage: "", timeout: false } }`.
-- **Alarm**: No status within `statusTimeout`, output 2: `{ payload: { call: true, status: false, alarm: true, alarmMessage: "No status received during run", timeout: false } }`.
+Issues a call (`true`) to equipment via output 1 and expects a status response matching `normalOn` within `statusTimeout` seconds. Clears status and alarm after `clearDelay` seconds when call ends (`false`), checking against `normalOff`. Generates alarms for `runLostStatus` (status mismatch during call) or `noStatusOnRun` (no status within `statusTimeout`) with custom messages. Ignores status inputs without an active call. Configurable via editor or `msg.context`. Outputs new messages for call changes, status updates, alarm conditions, or configuration changes affecting alarms. Editor changes require redeployment; message-based updates apply immediately. Runtime values shown in "Changed Runtime Values" if different from defaults.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid call/status/normalOff/normalOn/runLostStatus/noStatusOnRun (non-boolean): Shows "invalid X" (red), no output.
-- Invalid statusTimeout/clearDelay (non-numeric, non-positive): Shows "invalid X" (red), no output.
-- Invalid messages (non-string): Shows "invalid X" (red), no output.
-- Status without active call: Shows "status ignored" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid call/status/normalOff/normalOn/runLostStatus/noStatusOnRun (non-boolean): No output, red status (`invalid X`).
+- Invalid statusTimeout/clearDelay (non-numeric, ≤ 0): No output, red status (`invalid X`).
+- Invalid messages (non-string): No output, red status (`invalid X`).
+- Status without active call: No output, red status (`status ignored`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for configuration (e.g., `statusTimeout: 45`, `normalOn: true`), blue for output (e.g., `call: true, status: true, alarm: false`), red for alarms or errors, yellow for unknown context.
+### Status
+- Green (dot): Configuration (e.g., `statusTimeout: 30.00`, `normalOn: true`).
+- Blue (dot): Output, no alarm (e.g., `call: true, status: true, alarm: false`).
+- Red (dot): Output with alarm (e.g., `run lost, alarm: true`).
+- Red (ring): Errors (e.g., `invalid call`, `status ignored`).
+- Yellow (ring): Unknown context (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

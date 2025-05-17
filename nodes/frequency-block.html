@@ -1,8 +1,12 @@
-<!-- UI Template Section: Defines the edit dialog for the Frequency Block node -->
+<!-- UI Template Section: Defines the edit dialog -->
 <script type="text/html" data-template-name="frequency-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
     </div>
 </script>
 
@@ -12,30 +16,30 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "frequency" }
+            name: { value: "" }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["stats"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-tachometer",
         paletteLabel: "frequency",
         label: function() {
             return this.name || "frequency";
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "frequency");
+            const node = this;
+            $("#node-input-name").val(node.name || "");
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/frequency-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && data.name !== this.name) {
-                    $("#node-input-name").val(data.name || this.name || "frequency");
-                }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+            $.getJSON(`/frequency-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.ppm !== 0) changes.push(`ppm: ${data.ppm.toFixed(2)}`);
+                if (data.pph !== 0) changes.push(`pph: ${data.pph.toFixed(2)}`);
+                if (data.ppd !== 0) changes.push(`ppd: ${data.ppd.toFixed(2)}`);
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
         oneditsave: function() {
@@ -44,41 +48,38 @@
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Frequency Block node -->
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="frequency-block">
 Measures pulse frequency from boolean rising edges.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("reset" to clear state).
-- **payload** <span class="property-type">boolean</span>
-  Input boolean to detect rising edges.
+: context (string) : Resets state (`"reset"`). Unmatched values trigger error.
+: payload (boolean) : Input boolean to detect rising edges (`true` for pulse).
 
 ### Outputs
-- **payload** <span class="property-type">object</span>
-  Pulse rates `{ ppm, pph, ppd }` (pulses per minute, hour, day).
+: payload (object) : Pulse rates `{ ppm, pph, ppd }` (pulses per minute, hour, day).
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "frequency").
 
 ### Details
-The Frequency Block measures pulse frequency from rising edges in `msg.payload` (boolean, `true` for pulse). It outputs an object with pulse rates: `ppm` (pulses per minute), `pph` (per hour), and `ppd` (per day).
-
-The node name is configurable in the editor. Reset state via `msg.context = "reset"` with `msg.payload = true`. Editor changes require redeployment; reset messages apply immediately.
-
-The node outputs a new message for every valid rising edge after the first complete cycle.
-
-### Examples
-- **Rising Edge**: Input `{ payload: true }` after `{ payload: false }`, 1 minute apart, output: `{ payload: { ppm: 1, pph: 60, ppd: 1440 } }`.
-- **Reset**: Input `{ context: "reset", payload: true }`, no output, clears state.
-- **Non-Rising Edge**: Input `{ payload: false }`, no output, updates state.
+Measures pulse frequency from rising edges in `msg.payload` (boolean, `true` for pulse), outputting a new message with `msg.payload = { ppm, pph, ppd }` (pulses per minute, hour, day) on the second and subsequent rising edges (first edge sets baseline). Resets state via `msg.context = "reset"` with `msg.payload = true`. Configurable via editor (`name`) or `msg.context`. Editor changes require redeployment; reset messages apply immediately. Runtime values (`name`, `ppm`, `pph`, `ppd`) are shown in "Changed Runtime Values" if non-default (e.g., `ppm ≠ 0`).
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing input" (red), no output.
-- Invalid input (non-boolean): Shows "invalid input" (red), no output.
-- Invalid reset value (non-boolean): Shows "invalid reset" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid `msg.payload` (non-boolean): No output, red status (`invalid payload`).
+- Invalid reset (non-boolean `msg.payload` with `msg.context = "reset"`): No output, red status (`invalid reset`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for configuration (e.g., `reset`), blue for output (e.g., `ppm: 1.00, pph: 60.00, ppd: 1440.00`) or input (e.g., `input: false, ppm: 1.00`), red for errors, yellow for unknown context.
+### Status
+- Green (dot): Configuration (e.g., `reset`).
+- Blue (dot): Output (e.g., `ppm: 1.00, pph: 60.00, ppd: 1440.00`).
+- Blue (ring): Non-output input (e.g., `input: false, ppm: 1.00, pph: 60.00, ppd: 1440.00`).
+- Red (ring): Errors (e.g., `missing payload`, `invalid payload`, `invalid reset`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

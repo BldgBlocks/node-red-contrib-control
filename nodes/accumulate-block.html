@@ -1,4 +1,3 @@
-<!-- UI Template Section: Defines the edit dialog for the Accumulate Block node -->
 <script type="text/html" data-template-name="accumulate-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -6,7 +5,6 @@
     </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
     RED.nodes.registerType("accumulate-block", {
         category: "control",
@@ -20,48 +18,65 @@
         outputLabels: ["count"],
         icon: "font-awesome/fa-sort-numeric-asc",
         paletteLabel: "accumulate",
-        label: function () {
+        label: function() {
             return this.name || "accumulate";
         },
-        oneditprepare: function () {
-            const id = this.id;
-            $.getJSON(`/accumulate-block/${id}?t=${Date.now()}`, function (data) {
-                $("#node-input-name").val(data.name || "accumulate");
-            }).fail(function () {
-                $("#node-input-name").val(this.name || "accumulate");
+        oneditprepare: function() {
+            // Initialize inputs
+            $("#node-input-name").val(this.name || "accumulate");
+
+            // Validate name input
+            $("#node-input-name").on("input", function() {
+                const val = $(this).val();
+                if (!val || val.trim().length === 0) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
+                }
             });
         },
-        oneditsave: function () {
-            // Standard config properties are automatically saved by Node-RED
+        oneditsave: function() {
+            // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const name = $("#node-input-name").val();
+            if (!name || name.trim().length === 0) {
+                $("#node-input-name").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Accumulate Block node -->
 <script type="text/markdown" data-help-name="accumulate-block">
-Accumulates consecutive true inputs.
+Counts consecutive true inputs, resetting on false or explicit reset.
 
 ### Inputs
-- **context** (string): Sets configuration ("reset" to clear count).
-- **payload** (boolean): Input boolean; increments count if true, resets if false.
+: context (string) : Configures reset (`"reset"` to clear count).
+: payload (boolean) : `true` increments count, `false` resets count; boolean for reset.
 
 ### Outputs
-- **payload** (number): Current count of consecutive true inputs.
+: payload (number) : Current count of consecutive `true` inputs.
 
 ### Details
-The Accumulate Block is a Sedona-inspired node for control systems, counting consecutive `true` inputs in `msg.payload` (boolean). It increments the count for each `true` input, resets to 0 on `false`, and outputs the count as `msg.payload`.
-
-The node name is configurable in the editor. Reset the count via `msg.context = "reset"` with `msg.payload = true` or by sending `msg.payload = false`. Editor changes require redeployment; reset messages apply immediately.
-
-Outputs are new messages (`{ payload: number }`) with the current count, sent only when the count changes.
-
-Use in automation to track consecutive events, such as sustained sensor triggers.
+Counts consecutive `true` `msg.payload` inputs (boolean), incrementing for each `true` and resetting to 0 for `false` or `msg.context = "reset"` with `msg.payload = true`. Outputs `{ payload: number }` only when the count changes. Configurable via editor (`name`, string). Reset applies immediately via message; editor changes require redeployment. Used in automation to track sustained events (e.g., sensor triggers).
 
 ### Error Handling
-- Missing `msg.payload` for config: Shows "missing payload" (red), no output.
-- Invalid input (non-boolean): Shows "invalid input" (red), no output.
-- Invalid reset value (non-boolean): Shows "invalid reset" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (red), no output.
+- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid `msg.payload` (non-boolean): No output, red status (`invalid input`).
+- Invalid reset `msg.payload` (non-boolean): No output, red status (`invalid reset`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`).
 
-Status shows green for reset (e.g., `state reset`), blue dot for output when count changes (e.g., `out: 5`), blue ring for unchanged inputs (same format), red for errors.
+### Status
+- Green (dot): Configuration or reset (e.g., `name: accumulate`, `state reset`).
+- Blue (dot): Outputs when count changes (e.g., `out: 5`).
+- Blue (ring): Inputs when count unchanged (e.g., `out: 5`).
+- Red (ring): Errors (e.g., `invalid message`, `missing payload`, `invalid input`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

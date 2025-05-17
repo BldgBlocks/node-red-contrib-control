@@ -1,116 +1,222 @@
-<!-- UI Template Section: Defines the edit dialog for the Tstat Block node -->
 <script type="text/html" data-template-name="tstat-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-setpoint" title="Setpoint temperature for comparison (number)"><i class="fa fa-crosshairs"></i> Setpoint</label>
-        <input type="number" id="node-input-setpoint" placeholder="70" step="any">
+        <label for="node-input-algorithm" title="Algorithm: single setpoint with diff or split setpoints"><i class="fa fa-cog"></i> Algorithm</label>
+        <select id="node-input-algorithm">
+            <option value="single">Single Setpoint</option>
+            <option value="split">Split Setpoint</option>
+        </select>
+    </div>
+    <div class="form-row single-setpoint">
+        <label for="node-input-setpoint" title="Target temperature setpoint (°F, number from num, msg, flow, or global)"><i class="fa fa-crosshairs"></i> Setpoint</label>
+        <input type="text" id="node-input-setpoint" placeholder="70">
+        <input type="hidden" id="node-input-setpointType">
+    </div>
+    <div class="form-row split-setpoint" style="display: none;">
+        <label for="node-input-heatingSetpoint" title="Target temperature for heating (°F, number from num, msg, flow, or global)"><i class="fa fa-crosshairs"></i> Heating Setpoint</label>
+        <input type="text" id="node-input-heatingSetpoint" placeholder="68">
+        <input type="hidden" id="node-input-heatingSetpointType">
+    </div>
+    <div class="form-row split-setpoint" style="display: none;">
+        <label for="node-input-coolingSetpoint" title="Target temperature for cooling (°F, number from num, msg, flow, or global)"><i class="fa fa-crosshairs"></i> Cooling Setpoint</label>
+        <input type="text" id="node-input-coolingSetpoint" placeholder="74">
+        <input type="hidden" id="node-input-coolingSetpointType">
     </div>
     <div class="form-row">
-        <label for="node-input-diff" title="Differential for hysteresis (non-negative number)"><i class="fa fa-arrows-v"></i> Differential</label>
-        <input type="number" id="node-input-diff" placeholder="2" min="0" step="any">
+        <label for="node-input-diff" title="Differential for hysteresis (°F, positive number)"><i class="fa fa-arrows-v"></i> Differential</label>
+        <input type="number" id="node-input-diff" placeholder="2" min="0.01" step="any">
     </div>
     <div class="form-row">
         <label for="node-input-isHeating" title="Heating mode (true) or cooling mode (false)"><i class="fa fa-fire"></i> Heating Mode</label>
         <input type="checkbox" id="node-input-isHeating" style="width: auto; vertical-align: middle;">
     </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
     RED.nodes.registerType("tstat-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "tstat" },
-            setpoint: { value: 70, required: true, validate: function(v) { return !isNaN(parseFloat(v)); } },
-            diff: { value: 2, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            name: { value: "" },
+            algorithm: { value: "single" },
+            setpoint: { value: "70" },
+            setpointType: { value: "num" },
+            heatingSetpoint: { value: "68" },
+            heatingSetpointType: { value: "num" },
+            coolingSetpoint: { value: "74" },
+            coolingSetpointType: { value: "num" },
+            diff: { value: 2 },
             isHeating: { value: false }
         },
         inputs: 1,
         outputs: 3,
         outputLabels: ["isHeating", "above", "below"],
         inputLabels: ["input"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-thermometer-half",
         paletteLabel: "tstat",
         label: function() {
             return this.name || "tstat";
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "tstat");
-            $("#node-input-setpoint").val(this.setpoint !== undefined ? this.setpoint : 70);
-            $("#node-input-diff").val(this.diff !== undefined ? this.diff : 2);
-            $("#node-input-isHeating").prop("checked", this.isHeating === true);
+            const node = this;
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/tstat-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (
-                    data.name !== this.name ||
-                    data.setpoint !== this.setpoint ||
-                    data.diff !== this.diff ||
-                    data.isHeating !== this.isHeating
-                )) {
-                    $("#node-input-name").val(data.name || this.name || "tstat");
-                    $("#node-input-setpoint").val(data.setpoint !== undefined ? data.setpoint : this.setpoint || 70);
-                    $("#node-input-diff").val(data.diff !== undefined ? data.diff : this.diff || 2);
-                    $("#node-input-isHeating").prop("checked", data.isHeating === true);
+            // Initialize inputs
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-algorithm").val(node.algorithm || "single");
+            $("#node-input-diff").val(node.diff !== undefined ? node.diff : 2);
+            $("#node-input-isHeating").prop("checked", node.isHeating === true);
+
+            // Initialize typedInput for setpoint
+            const setpointType = node.setpointType || "num";
+            const setpointValue = node.setpoint !== undefined ? node.setpoint : "70";
+            const setpointInput = $("#node-input-setpoint").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-setpointType"
+            });
+            setpointInput.typedInput("type", setpointType);
+            setpointInput.typedInput("value", setpointValue);
+
+            // Initialize typedInput for heatingSetpoint
+            const heatingSetpointType = node.heatingSetpointType || "num";
+            const heatingSetpointValue = node.heatingSetpoint !== undefined ? node.heatingSetpoint : "68";
+            const heatingSetpointInput = $("#node-input-heatingSetpoint").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-heatingSetpointType"
+            });
+            heatingSetpointInput.typedInput("type", heatingSetpointType);
+            heatingSetpointInput.typedInput("value", heatingSetpointValue);
+
+            // Initialize typedInput for coolingSetpoint
+            const coolingSetpointType = node.coolingSetpointType || "num";
+            const coolingSetpointValue = node.coolingSetpoint !== undefined ? node.coolingSetpoint : "74";
+            const coolingSetpointInput = $("#node-input-coolingSetpoint").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-coolingSetpointType"
+            });
+            coolingSetpointInput.typedInput("type", coolingSetpointType);
+            coolingSetpointInput.typedInput("value", coolingSetpointValue);
+
+            // Show/hide fields based on algorithm
+            function updateFields() {
+                const algorithm = $("#node-input-algorithm").val();
+                if (algorithm === "single") {
+                    $(".single-setpoint").show();
+                    $(".split-setpoint").hide();
+                } else {
+                    $(".single-setpoint").hide();
+                    $(".split-setpoint").show();
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+            }
+
+            $("#node-input-algorithm").on("change", updateFields);
+            updateFields();
+
+            // Validate non-typedInput fields
+            $("#node-input-diff").on("input", function() {
+                const val = parseFloat($(this).val());
+                if (isNaN(val) || val <= 0) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
+                }
+            });
+
+            // Fetch runtime changes
+            $.getJSON(`/tstat-block-runtime/${node.id}`, function(data) {
+                const runtime = data || {};
+                const changes = [];
+
+                if (runtime.algorithm !== undefined && runtime.algorithm !== node.algorithm) {
+                    changes.push(`algorithm: ${runtime.algorithm}`);
+                }
+
+                if (runtime.algorithm === "single") {
+                    if (runtime.setpoint !== undefined && runtime.setpoint !== Number(node.setpoint)) {
+                        changes.push(`setpoint: ${runtime.setpoint.toFixed(1)} °F`);
+                    }
+                } else {
+                    if (runtime.heatingSetpoint !== undefined && runtime.heatingSetpoint !== Number(node.heatingSetpoint)) {
+                        changes.push(`heatingSetpoint: ${runtime.heatingSetpoint.toFixed(1)} °F`);
+                    }
+                    if (runtime.coolingSetpoint !== undefined && runtime.coolingSetpoint !== Number(node.coolingSetpoint)) {
+                        changes.push(`coolingSetpoint: ${runtime.coolingSetpoint.toFixed(1)} °F`);
+                    }
+                }
+
+                if (runtime.diff !== undefined && runtime.diff !== Number(node.diff)) {
+                    changes.push(`diff: ${runtime.diff.toFixed(1)} °F`);
+                }
+                if (runtime.isHeating !== undefined && runtime.isHeating !== node.isHeating) {
+                    changes.push(`isHeating: ${runtime.isHeating}`);
+                }
+
+                const displayText = changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None";
+                $("#node-runtime-changes").text(displayText);
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: None");
             });
         },
         oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
+            $("#node-input-setpointType").val($("#node-input-setpoint").typedInput("type"));
+            $("#node-input-heatingSetpointType").val($("#node-input-heatingSetpoint").typedInput("type"));
+            $("#node-input-coolingSetpointType").val($("#node-input-coolingSetpoint").typedInput("type"));
+        },
+        oneditvalidate: function() {
+            const diff = parseFloat($("#node-input-diff").val());
+            if (isNaN(diff) || diff <= 0) {
+                $("#node-input-diff").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Tstat Block node -->
 <script type="text/markdown" data-help-name="tstat-block">
-Thermostat controller for heating/cooling with setpoint and differential.
+Thermostat controller for heating/cooling with single or split setpoint operation and hysteresis.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("setpoint", "diff", "isHeating").
-- **payload** <span class="property-type">number | boolean</span>
-  Numeric input for temperature, or config value (number for setpoint/diff, boolean for isHeating).
+: context (string) : Configures node (`"algorithm"`, `"setpoint"`, `"heatingSetpoint"`, `"coolingSetpoint"`, `"diff"`, `"isHeating"`, `"status"`).
+: payload (number | boolean | string) : Number for temperature or config values, boolean for `isHeating`, string for `algorithm` (`"single"`, `"split"`).
 
 ### Outputs
-- **isHeating** <span class="property-type">boolean</span>
-  True for heating mode, false for cooling mode.
-- **above** <span class="property-type">boolean</span>
-  True if input > setpoint + diff/2.
-- **below** <span class="property-type">boolean</span>
-  True if input < setpoint - diff/2.
+: isHeating (boolean) : `true` for heating mode, `false` for cooling mode.
+: above (boolean) : `true` if input exceeds upper threshold (single: `setpoint + diff/2`, split: `coolingSetpoint + diff/2` for cooling).
+: below (boolean) : `true` if input is below lower threshold (single: `setpoint - diff/2`, split: `heatingSetpoint - diff/2` for heating).
 
 ### Details
-The Tstat Block compares a numeric input (`msg.payload`) to a setpoint with a differential (`diff`) to control heating or cooling. It sets `above` when input > `setpoint + diff/2`, `below` when input < `setpoint - diff/2`. It clears `above` when input < `setpoint`, clears `below` when input > `setpoint` (hysteresis).
-
-The node name is configurable only in the editor. Setpoint, differential, and heating mode (`isHeating`) are configurable via the editor or `msg.context`. Editor changes require redeployment; message-based changes apply immediately and are reflected in the editor.
-
-Outputs are new messages sent to three ports (isHeating, above, below) for each valid temperature input.
-
-### Examples
-- **Temperature Input**: Config `setpoint=70`, `diff=2`, `isHeating=true`, input `{ payload: 65 }`, outputs: `{ payload: true }`, `{ payload: false }`, `{ payload: true }`.
-- **Set Setpoint**: Input `{ context: "setpoint", payload: 72 }`, no output, sets `setpoint=72`.
-- **Toggle Mode**: Input `{ context: "isHeating", payload: false }`, no output, sets cooling mode.
+Compares a numeric temperature input (`msg.payload`) against setpoints with hysteresis (`diff`) to control heating or cooling. Supports two algorithms:
+- **Single Setpoint**: Uses `setpoint` and `diff`. Sets `above` if `input > setpoint + diff/2`, clears when `input < setpoint`. Sets `below` if `input < setpoint - diff/2`, clears when `input > setpoint`.
+- **Split Setpoint**: Uses `heatingSetpoint` and `coolingSetpoint`. For `isHeating = true` (heating), sets `below` if `input < heatingSetpoint - diff/2`, clears when `input > heatingSetpoint`, `above` is `false`. For `isHeating = false` (cooling), sets `above` if `input > coolingSetpoint + diff/2`, clears when `input < coolingSetpoint`, `below` is `false`. Ensures `heatingSetpoint <= coolingSetpoint`.
+The `isHeating` flag sets output 1 and, in split mode, selects the active setpoint. Configurable via editor (`name`, `algorithm`, `setpoint`, etc.) or `msg.context` (e.g., `{ context: "setpoint", payload: 72 }`). Runtime changes appear in "Changed Runtime Values". Query runtime state with `msg.context = "status"`.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
-- Invalid input (non-numeric): Shows "invalid input" (red), no output.
-- Invalid setpoint (non-numeric): Shows "invalid setpoint" (red), no output.
-- Invalid diff (non-numeric, negative): Shows "invalid diff" (red), no output.
-- Invalid isHeating (non-boolean): Shows "invalid isHeating" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg.payload`: No output, red status (`missing payload`, `missing input`).
+- Invalid `msg.payload` (non-numeric for temperature/setpoints, non-boolean for `isHeating`, invalid string for `algorithm`): No output, red status (e.g., `invalid setpoint`, `invalid isHeating`).
+- Invalid config (e.g., `diff <= 0`): Sets default, red status (e.g., `invalid diff, using 2`).
+- Invalid setpoints (e.g., `heatingSetpoint > coolingSetpoint`): No output, red status (e.g., `invalid heatingSetpoint`).
+- Inappropriate `msg.context` (e.g., `setpoint` in split algorithm): No output, red status (e.g., `setpoint not used in split algorithm`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`).
+- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
 
-Status shows green for config (e.g., `setpoint: 72.00`, `isHeating: true`), blue for output (e.g., `mode: heating, above: false, below: true, in: 65.00`), red or yellow for errors.
+### Status
+- Green (dot): Configuration updates (e.g., `setpoint: 70.0`, `diff: 2.0`, `isHeating: true`, `algorithm: single`, `heatingSetpoint: 68.0`, `coolingSetpoint: 74.0`).
+- Blue (dot): Outputs when state changes (e.g., `in: 65.00, out: heating, above: false, below: true`, `status requested`).
+- Blue (ring): Outputs when state unchanged (e.g., `in: 66.00, out: heating, above: false, below: true` if same as previous).
+- Red (ring): Errors (e.g., `missing input`, `invalid setpoint`, `invalid message`, `invalid diff, using 2`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

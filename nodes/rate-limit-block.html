@@ -13,16 +13,20 @@
         </select>
     </div>
     <div class="form-row rate-limit-field">
-        <label for="node-input-rate" title="Rate of change (units per second)"><i class="fa fa-tachometer"></i> Rate (units/s)</label>
+        <label for="node-input-rate" title="Rate of change (units per second, > 0)"><i class="fa fa-tachometer"></i> Rate (units/s)</label>
         <input type="number" id="node-input-rate" placeholder="1" min="0.01" step="0.01">
     </div>
     <div class="form-row rate-limit-field">
-        <label for="node-input-interval" title="Update interval (ms)"><i class="fa fa-clock-o"></i> Interval (ms)</label>
+        <label for="node-input-interval" title="Update interval (milliseconds, ≥ 10, integer)"><i class="fa fa-clock-o"></i> Interval (ms)</label>
         <input type="number" id="node-input-interval" placeholder="100" min="10" step="10">
     </div>
     <div class="form-row threshold-field">
-        <label for="node-input-threshold" title="Threshold for output (units)"><i class="fa fa-filter"></i> Threshold (units)</label>
+        <label for="node-input-threshold" title="Threshold for output (units, ≥ 0)"><i class="fa fa-filter"></i> Threshold (units)</label>
         <input type="number" id="node-input-threshold" placeholder="5" min="0" step="0.01">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
     </div>
 </script>
 
@@ -32,48 +36,51 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "rate limit" },
-            mode: { value: "rate-limit", required: true },
-            rate: { value: 1, required: false, validate: function (v) { return !v || Number(v) > 0; } },
-            interval: { value: 100, required: false, validate: function (v) { return !v || (Number.isInteger(+v) && +v >= 10); } },
-            threshold: { value: 5, required: false, validate: function (v) { return !v || Number(v) >= 0; } }
+            name: { value: "" },
+            mode: { value: "rate-limit", required: true, validate: function(v) { return ["rate-limit", "threshold", "full-value"].includes(v); } },
+            rate: { value: 1, required: false, validate: function(v) { return !v || (!isNaN(parseFloat(v)) && parseFloat(v) > 0 && isFinite(parseFloat(v))); } },
+            interval: { value: 100, required: false, validate: function(v) { return !v || (Number.isInteger(parseInt(v)) && parseInt(v) >= 10); } },
+            threshold: { value: 5, required: false, validate: function(v) { return !v || (!isNaN(parseFloat(v)) && parseFloat(v) >= 0 && isFinite(parseFloat(v))); } }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["value"],
         outputLabels: ["processed value"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-tachometer-alt",
         paletteLabel: "rate limit",
-        label: function () {
-            return this.name || this.mode;
+        label: function() {
+            return this.name || this.mode || "rate limit";
         },
-        oneditprepare: function () {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "rate limit");
-            $("#node-input-mode").val(this.mode || "rate-limit");
-            $("#node-input-rate").val(this.rate || 1);
-            $("#node-input-interval").val(this.interval || 100);
-            $("#node-input-threshold").val(this.threshold || 5);
+        oneditprepare: function() {
+            const node = this;
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-mode").val(node.mode || "rate-limit");
+            $("#node-input-rate").val(node.rate || 1);
+            $("#node-input-interval").val(node.interval || 100);
+            $("#node-input-threshold").val(node.threshold || 5);
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/rate-limit-block/${id}?t=${Date.now()}`, function (data) {
-                // Only update if node is deployed and data differs
-                if (data && (
-                    data.name !== this.name ||
-                    data.mode !== this.mode ||
-                    data.rate !== this.rate ||
-                    data.interval !== this.interval ||
-                    data.threshold !== this.threshold
-                )) {
-                    $("#node-input-name").val(data.name || this.name || "rate limit");
-                    $("#node-input-mode").val(data.mode || this.mode || "rate-limit");
-                    $("#node-input-rate").val(data.rate || this.rate || 1);
-                    $("#node-input-interval").val(data.interval || this.interval || 100);
-                    $("#node-input-threshold").val(data.threshold || this.threshold || 5);
+            $.getJSON(`/rate-limit-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.mode !== (node.mode || "rate-limit")) changes.push(`mode: ${data.mode}`);
+                if (data.rate !== undefined && !isNaN(data.rate) && isFinite(data.rate) && data.rate !== parseFloat(node.rate || 1)) {
+                    changes.push(`rate: ${data.rate.toFixed(2)}`);
                 }
-            }.bind(this)).fail(function () {
-                // No server data; rely on this properties (already set)
+                if (data.interval !== undefined && Number.isInteger(data.interval) && data.interval !== parseInt(node.interval || 100)) {
+                    changes.push(`interval: ${data.interval}`);
+                }
+                if (data.threshold !== undefined && !isNaN(data.threshold) && isFinite(data.threshold) && data.threshold !== parseFloat(node.threshold || 5)) {
+                    changes.push(`threshold: ${data.threshold.toFixed(2)}`);
+                }
+                if (data.currentValue !== undefined && !isNaN(data.currentValue) && isFinite(data.currentValue) && data.currentValue !== 0) {
+                    changes.push(`currentValue: ${data.currentValue.toFixed(2)}`);
+                }
+                if (data.targetValue !== undefined && !isNaN(data.targetValue) && isFinite(data.targetValue) && data.targetValue !== 0) {
+                    changes.push(`targetValue: ${data.targetValue.toFixed(2)}`);
+                }
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
 
             // Field visibility logic
@@ -85,8 +92,17 @@
             $("#node-input-mode").on("change", updateFieldVisibility);
             updateFieldVisibility();
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
+        },
+        oneditvalidate: function() {
+            const mode = $("#node-input-mode").val();
+            const rate = parseFloat($("#node-input-rate").val());
+            const interval = parseInt($("#node-input-interval").val());
+            const threshold = parseFloat($("#node-input-threshold").val());
+            return ["rate-limit", "threshold", "full-value"].includes(mode) &&
+                   (mode !== "rate-limit" || (!isNaN(rate) && rate > 0 && isFinite(rate) && Number.isInteger(interval) && interval >= 10)) &&
+                   (mode !== "threshold" || (!isNaN(threshold) && threshold >= 0 && isFinite(threshold)));
         }
     });
 </script>
@@ -96,34 +112,45 @@
 Processes a numeric input value based on a selected mode and passes the original message.
 
 ### Inputs
-- **payload** <span class="property-type">number</span>
-  The input value to process.
+: context (string) : Configures settings (`"mode"`, `"rate"`, `"interval"`, `"threshold"`). Unmatched values trigger error.
+: payload (number | string | number) : Number to process, or value for configuration (string for mode, number for others).
 
 ### Outputs
-- **payload** <span class="property-type">number</span>
-  The processed value, depending on the mode.
-- Other properties from the input message (e.g., `msg.topic`) are preserved.
+: payload (number) : Processed value, depending on mode.
+: Other properties (e.g., `msg.topic`) from the input message are preserved.
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows mode or "rate limit").
+: mode (string) : Processing mode (`rate-limit`, `threshold`, `full-value`). Default: `rate-limit`.
+: rate (number) : Rate of change for rate-limit mode (units/s, > 0). Default: 1.
+: interval (number) : Update interval for rate-limit mode (ms, ≥ 10, integer). Default: 100.
+: threshold (number) : Threshold for output in threshold mode (units, ≥ 0). Default: 5.
 
 ### Details
-The Rate Limit Block processes numeric inputs in one of three modes, selected via the editor:
-
-- **Rate Limit**: Limits the rate of change, adjusting the output toward the input at a configurable rate (units per second) with updates at a specified interval (milliseconds).
-- **Threshold**: Outputs the input when it differs from the last processed value by more than a configurable threshold.
-- **Full Value**: Passes the input value unchanged (bypass mode).
-
-The node outputs the input message with `msg.payload` set to the processed value, preserving other properties. The current value is stored in context for persistence. Editor changes require redeployment; message-based updates apply immediately.
-
-### Examples
-- **Rate Limit**: Mode set to `rate-limit`, rate = 2, interval = 100ms, input `{ payload: 10 }`, output `{ payload: ~2 }` after 1s (ramping up).
-- **Threshold**: Mode set to `threshold`, threshold = 5, input `{ payload: 7 }`, output `{ payload: 7 }` if previous was 0.
-- **Full Value**: Mode set to `full-value`, input `{ payload: 42, topic: "test" }`, output `{ payload: 42, topic: "test" }`.
+Processes `msg.payload` (number) in one of three modes:
+- **Rate Limit**: Limits rate of change to `rate` (units/s), updating every `interval` (ms) toward the input value.
+- **Threshold**: Outputs when input differs from last output by more than `threshold` (units).
+- **Full Value**: Passes input unchanged.
+Configurable via editor or `msg.context`. Outputs the input message with `msg.payload` set to the processed value, preserving other properties. In rate-limit mode, outputs occur via timer; in threshold mode, only when threshold is exceeded; in full-value mode, on every input. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `mode`, `rate`, `interval`, `threshold`, `currentValue`, `targetValue`) shown in "Changed Runtime Values" if different from defaults.
 
 ### Error Handling
-- Non-numeric or invalid `msg.payload`: Shows "invalid input" (red), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload` for config: No output, red status (`missing payload for X`).
+- Invalid input (non-numeric, non-finite): No output, red status (`invalid input`).
+- Invalid mode (not `rate-limit`, `threshold`, `full-value`): No output, red status (`invalid mode`).
+- Invalid rate (non-numeric, ≤ 0, non-finite): No output, red status (`invalid rate`).
+- Invalid interval (non-integer, < 10): No output, red status (`invalid interval`).
+- Invalid threshold (non-numeric, < 0, non-finite): No output, red status (`invalid threshold`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for config (e.g., `mode: rate-limit, target: 10.00`), blue for output (e.g., `mode: X, out: Y`), red for errors.
+### Status
+- Green (dot): Configuration or rate-limit input (e.g., `mode: rate-limit, target: 10.00`, `rate: 1.00`).
+- Blue (dot): Output (e.g., `mode: rate-limit, out: 2.00`).
+- Blue (ring): No output in threshold mode (e.g., `mode: threshold, out: 2.00`).
+- Red (ring): Errors (e.g., `invalid input`, `invalid rate`).
+- Yellow (ring): Unknown context (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

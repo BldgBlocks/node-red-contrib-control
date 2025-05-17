@@ -1,4 +1,3 @@
-<!-- UI Template Section: Defines the edit dialog for the Average Block node -->
 <script type="text/html" data-template-name="average-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -10,13 +9,12 @@
     </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
     RED.nodes.registerType("average-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "average" },
+            name: { value: "" },
             sampleSize: {
                 value: 10,
                 required: true,
@@ -27,71 +25,84 @@
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["average"],
-        icon: "font-awesome/fa-wrench",
+        icon: "join.svg",
         paletteLabel: "average",
         label: function() {
             return this.name ? `${this.name} (${this.sampleSize})` : `average (${this.sampleSize})`;
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
+            // Initialize inputs
             $("#node-input-name").val(this.name || "average");
             $("#node-input-sampleSize").val(this.sampleSize || 10);
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/average-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.sampleSize !== this.sampleSize)) {
-                    $("#node-input-name").val(data.name || this.name || "average");
-                    $("#node-input-sampleSize").val(data.sampleSize || this.sampleSize || 10);
+            // Validate name input
+            $("#node-input-name").on("input", function() {
+                const val = $(this).val();
+                if (!val || val.trim().length === 0) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+            });
+
+            // Validate sampleSize input
+            $("#node-input-sampleSize").on("input", function() {
+                const val = parseInt($(this).val(), 10);
+                if (isNaN(val) || val < 1) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
+                }
             });
         },
         oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
+            // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const name = $("#node-input-name").val();
+            const sampleSize = parseInt($("#node-input-sampleSize").val(), 10);
+            if (!name || name.trim().length === 0) {
+                $("#node-input-name").addClass("input-error");
+                return false;
+            }
+            if (isNaN(sampleSize) || sampleSize < 1) {
+                $("#node-input-sampleSize").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Average Block node -->
 <script type="text/markdown" data-help-name="average-block">
-Computes a rolling average of numeric inputs.
+Computes a rolling average of numeric inputs within a valid range.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("reset" to clear state, "sampleSize" to set rolling window size).
-- **payload** <span class="property-type">number | boolean</span>
-  Number (1 to 150) for averaging, boolean for reset, or number for window size.
+: context (string) : Configures reset (`"reset"`) or window size (`"sampleSize"`).
+: payload (number | boolean) : Number (1 to 150) for averaging, boolean for reset, integer ≥ 1 for window size.
 
 ### Outputs
-- **payload** <span class="property-type">number | null</span>
-  Current rolling average, or null if no valid inputs.
+: payload (number | null) : Rolling average, or `null` if no valid inputs.
 
 ### Details
-The Average Block computes a rolling average of numeric `msg.payload` values within a valid range (1 to 150). It accumulates valid values in a configurable window (default: 10) and outputs the average as `msg.payload`, or null if no valid inputs.
-
-The window size is configurable in the editor or via `msg.context = "sampleSize"` with a positive integer payload. Reset the state via `msg.context = "reset"` with `msg.payload = true`, clearing sum and count. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
-
-The node outputs a new message with `msg.payload` set to the average for every valid input update.
-
-### Examples
-- **Add Input**: Input `{ payload: 100 }`, output `{ payload: 100 }` (if first input).
-- **Set Window Size**: Input `{ context: "sampleSize", payload: 5 }`, no output, sets window to 5.
-- **Reset**: Input `{ context: "reset", payload: true }`, no output, clears state.
+Averages numeric `msg.payload` values (1 to 150) over a rolling window (default: 10). Outputs `{ payload: number | null }` for each valid input. Configurable via editor (`name`, `sampleSize`) or `msg.context = "sampleSize"` with positive integer. Resets state (`sum`, `count`) via `msg.context = "reset"` with `msg.payload = true`. Editor changes require redeployment; message updates apply immediately. Used in control systems for smoothing sensor data.
 
 ### Error Handling
-- Missing `msg.payload` for config: Shows "missing payload" (red), no output.
-- Missing `msg.payload` for input: Shows "missing input" (red), no output.
-- Invalid input (non-numeric, <1, or >150): Shows "invalid input" (red), no output.
-- Invalid reset value (non-boolean): Shows "invalid reset" (red), no output.
-- Invalid window size (non-integer, <1): Shows "invalid window size" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (red), no output.
+- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid `msg.payload` (non-numeric, <1, >150): No output, red status (`invalid input`).
+- Invalid reset `msg.payload` (non-boolean): No output, red status (`invalid reset`).
+- Invalid window size (non-integer, <1): No output, red status (`invalid window size`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`).
 
-Status shows green for config (e.g., `state reset`, `window: 5`), blue for output (e.g., `window: 10, out: 12.345`), red for errors.
+### Status
+- Green (dot): Configuration or reset (e.g., `name: average, window: 10`, `state reset`, `window: 5`).
+- Blue (dot): Outputs when average changes (e.g., `out: 12.345`).
+- Blue (ring): Outputs when average unchanged (e.g., `out: 12.345`).
+- Red (ring): Errors (e.g., `invalid message`, `missing payload`, `invalid input`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

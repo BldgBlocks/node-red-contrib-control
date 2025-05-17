@@ -1,0 +1,92 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="boolean-to-number-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-nullToZero"><i class="fa fa-cog"></i> Null Mapping</label>
+        <input type="checkbox" id="node-input-nullToZero" style="width: auto; margin-left: 10px;"> Map null to 0
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("boolean-to-number-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            nullToZero: { value: false }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-calculator",
+        paletteLabel: "boolean to number",
+        label: function() {
+            return this.name || "boolean to number";
+        },
+        oneditprepare: function() {
+            const node = this;
+            const id = this.id;
+
+            // Initialize inputs
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-nullToZero").prop("checked", node.nullToZero === true);
+
+            // Fetch runtime changes
+            $.getJSON(`/boolean-to-number-block-runtime/${id}`, function(data) {
+                const runtime = data || {};
+                const changes = [];
+                if (runtime.name) {
+                    changes.push(`name: ${runtime.name}`);
+                }
+                const displayText = changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None";
+                $("#node-runtime-changes").text(displayText);
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                $("#node-runtime-changes").text("Changed Values: Unknown (failed to fetch runtime)");
+            });
+        },
+        oneditsave: function() {
+            // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            return true; // Suppress all warnings
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="boolean-to-number-block">
+Converts a boolean or null input payload to a numeric output.
+
+### Inputs
+: context (string) : Ignored unless matched. Unmatched values ignored.
+: payload (boolean | null) : Value to convert (`true`, `false`, `null`).
+
+### Outputs
+: payload (number) : Converted value: `null` to `0` (if `nullToZero`) or `-1`, `false` to `0`, `true` to `1`.
+: *other* (any) : Other input properties preserved.
+
+### Details
+Converts `msg.payload` (boolean or null) to a number: `null` maps to `0` (if `nullToZero` is `true`) or `-1` (if `false`), `false` to `0`, `true` to `1`. Preserves all other input message properties (e.g., `msg.topic`). Configurable via editor (`name`, `nullToZero`), with changes requiring redeployment. Operates statelessly, processing each input message independently without persistent storage. Unknown `msg.context` values are ignored without status change. Runtime values (`name`) are shown in "Changed Runtime Values" if non-default (e.g., `name ≠ ""`).
+
+### Error Handling
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid `msg.payload` (not boolean or null): No output, red status (`invalid payload`).
+- Unknown `msg.context`: Ignored, processes `msg.payload` if valid.
+
+### Status
+- Blue (dot): Outputs (e.g., `in: true, out: 1`, `in: null, out: 0`).
+- Red (ring): Errors (e.g., `missing payload`, `invalid payload`).
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
+</script>

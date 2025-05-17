@@ -1,4 +1,4 @@
-<!-- UI Template Section: Defines the edit dialog for the Saw Tooth Wave Block node -->
+<!-- UI Template Section -->
 <script type="text/html" data-template-name="saw-tooth-wave-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -9,7 +9,7 @@
         <input type="number" id="node-input-lowerLimit" placeholder="0" step="any">
     </div>
     <div class="form-row">
-        <label for="node-input-upperLimit" title="Maximum output value"><i class="fa fa-arrow-up"></i> Upper Limit</label>
+        <label for="node-input-upperLimit" title="Maximum output value (≥ lowerLimit)"><i class="fa fa-arrow-up"></i> Upper Limit</label>
         <input type="number" id="node-input-upperLimit" placeholder="100" step="any">
     </div>
     <div class="form-row">
@@ -21,105 +21,110 @@
             <option value="minutes">Minutes</option>
         </select>
     </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
+<!-- JavaScript Section -->
 <script type="text/javascript">
     RED.nodes.registerType("saw-tooth-wave-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "saw tooth wave" },
-            lowerLimit: { value: 0, required: true, validate: RED.validators.number() },
-            upperLimit: { value: 100, required: true, validate: RED.validators.number() },
-            period: {
-                value: 10,
-                required: true,
-                validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; }
-            },
+            name: { value: "" },
+            lowerLimit: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            upperLimit: { value: 100, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            period: { value: 10, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0 && isFinite(parseFloat(v)); } },
             periodUnits: { value: "seconds" }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-wave-square",
         paletteLabel: "saw tooth wave",
-        label: function () {
+        label: function() {
             return this.name || "saw tooth wave";
         },
-        oneditprepare: function () {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "saw tooth wave");
-            $("#node-input-lowerLimit").val(this.lowerLimit || 0);
-            $("#node-input-upperLimit").val(this.upperLimit || 100);
-            $("#node-input-period").val(this.period || 10);
-            $("#node-input-periodUnits").val(this.periodUnits || "seconds");
+        oneditprepare: function() {
+            const node = this;
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-lowerLimit").val(node.lowerLimit || 0);
+            $("#node-input-upperLimit").val(node.upperLimit || 100);
+            $("#node-input-period").val(node.period || 10);
+            $("#node-input-periodUnits").val(node.periodUnits || "seconds");
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/saw-tooth-wave-block/${id}?t=${Date.now()}`, function (data) {
-                // Only update if node is deployed and data differs
-                if (data && (
-                    data.name !== this.name ||
-                    data.lowerLimit !== this.lowerLimit ||
-                    data.upperLimit !== this.upperLimit ||
-                    data.period !== this.period ||
-                    data.periodUnits !== this.periodUnits
-                )) {
-                    $("#node-input-name").val(data.name || this.name || "saw tooth wave");
-                    $("#node-input-lowerLimit").val(data.lowerLimit || this.lowerLimit || 0);
-                    $("#node-input-upperLimit").val(data.upperLimit || this.upperLimit || 100);
-                    $("#node-input-period").val(data.period || this.period || 10);
-                    $("#node-input-periodUnits").val(data.periodUnits || this.periodUnits || "seconds");
+            $.getJSON(`/saw-tooth-wave-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.lowerLimit !== undefined && !isNaN(data.lowerLimit) && isFinite(data.lowerLimit) && data.lowerLimit !== parseFloat(node.lowerLimit || 0)) {
+                    changes.push(`lowerLimit: ${data.lowerLimit.toFixed(2)}`);
                 }
-            }.bind(this)).fail(function () {
-                // No server data; rely on this properties (already set)
+                if (data.upperLimit !== undefined && !isNaN(data.upperLimit) && isFinite(data.upperLimit) && data.upperLimit !== parseFloat(node.upperLimit || 100)) {
+                    changes.push(`upperLimit: ${data.upperLimit.toFixed(2)}`);
+                }
+                if (data.period !== undefined && !isNaN(data.period) && isFinite(data.period) && data.period !== parseFloat(node.period || 10)) {
+                    changes.push(`period: ${data.period.toFixed(2)} ${data.periodUnits}`);
+                }
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
-        oneditsave: function () {
+        oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
+        },
+        oneditvalidate: function() {
+            const lowerLimit = parseFloat($("#node-input-lowerLimit").val());
+            const upperLimit = parseFloat($("#node-input-upperLimit").val());
+            const period = parseFloat($("#node-input-period").val());
+            return !isNaN(lowerLimit) && isFinite(lowerLimit) &&
+                   !isNaN(upperLimit) && isFinite(upperLimit) && upperLimit >= lowerLimit &&
+                   !isNaN(period) && isFinite(period) && period > 0;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Saw Tooth Wave Block node -->
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="saw-tooth-wave-block">
 Generates a sawtooth wave output scaled to a configurable range.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("lowerLimit", "upperLimit", "period").
-- **payload** <span class="property-type">number</span>
-  Config value for lowerLimit, upperLimit, or period.
-- **units** <span class="property-type">string, optional</span>
-  Units for period configuration ("milliseconds", "seconds", "minutes").
+: context (string) : Configures settings (`"lowerLimit"`, `"upperLimit"`, `"period"`). Unmatched values trigger error.
+: payload (number) : Config value for lowerLimit, upperLimit, or period.
+: units (string, optional) : Units for period (`"milliseconds"`, `"seconds"`, `"minutes"`, default: `"milliseconds"`).
+: Any input triggers wave output.
 
 ### Outputs
-- **payload** <span class="property-type">number</span>
-  Sawtooth wave value scaled between lowerLimit and upperLimit.
+: payload (number) : Sawtooth wave value scaled between lowerLimit and upperLimit.
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "saw tooth wave").
+: lowerLimit (number) : Minimum output value. Default: 0.
+: upperLimit (number) : Maximum output value (≥ lowerLimit). Default: 100.
+: period (number) : Wave period (positive, in periodUnits). Default: 10.
+: periodUnits (string) : Units for period (`"milliseconds"`, `"seconds"`, `"minutes"`). Default: `"seconds"`.
 
 ### Details
-The Saw Tooth Wave Block generates a sawtooth wave output based on time, scaled between `lowerLimit` and `upperLimit` over a `period`. It produces a linear ramp from `lowerLimit` to `upperLimit` followed by a sharp drop, tracking phase (0 to 1) for continuity.
-
-The node name, limits, period, and period units are configurable in the editor or via `msg.context` with a numeric `msg.payload` and optional `msg.units`. The node ensures `upperLimit ≥ lowerLimit` by adjusting the other value if needed. If `period ≤ 0`, it outputs `lowerLimit`.
-
-Outputs are new messages with `msg.payload` set to the wave value, generated for each input trigger. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
-
-### Examples
-- **Wave Output**: Config `lowerLimit=0`, `upperLimit=100`, `period=10` seconds, input `{}`, output `{ payload: 50 }` at 5 seconds.
-- **Set Limit**: Input `{ context: "upperLimit", payload: 200 }`, no output, sets `upperLimit=200`.
-- **Set Period**: Input `{ context: "period", payload: 1, units: "minutes" }`, no output, sets `period=60000ms`.
+Generates a sawtooth wave output, linearly rising from `lowerLimit` to `upperLimit` over `period`, then dropping sharply, triggered by any input. Tracks phase (0 to 1) for continuity. Configurable via editor or `msg.context` with numeric `msg.payload` and optional `msg.units`. Ensures `upperLimit ≥ lowerLimit` by adjusting limits. Outputs `{ payload: number }` with wave value; if `period ≤ 0`, outputs `lowerLimit`. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `lowerLimit`, `upperLimit`, `period`, `periodUnits`) shown in "Changed Runtime Values" if different from defaults.
 
 ### Error Handling
-- Missing `msg.payload` for config: Shows "missing payload" (red), no output.
-- Invalid lowerLimit/upperLimit/period (non-numeric): Shows "invalid lowerLimit", "invalid upperLimit", or "invalid period" (red), no output.
-- Invalid period (non-positive): Shows "invalid period" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload` for config: No output, red status (`missing payload for X`).
+- Invalid context (non-string): No output, red status (`invalid context`).
+- Invalid lowerLimit/upperLimit/period (non-numeric, non-finite): No output, red status (`invalid X`).
+- Invalid period (non-positive): No output, red status (`invalid period`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for config (e.g., `lower: 0.00`, `period: 10000.00`), blue for output (e.g., `out: 50.00, phase: 0.50`), red or yellow for errors.
+### Status
+- Green (dot): Configuration (e.g., `lower: 0.00`, `period: 10000.00 ms`).
+- Blue (dot): Output (e.g., `out: 50.00, phase: 0.50`).
+- Red (ring): Errors (e.g., `invalid limits`, `invalid period`).
+- Yellow (ring): Unknown context (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

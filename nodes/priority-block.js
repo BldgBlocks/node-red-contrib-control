@@ -1,13 +1,14 @@
 module.exports = function(RED) {
     function PriorityBlockNode(config) {
         RED.nodes.createNode(this, config);
-        
         const node = this;
         const context = this.context();
-        
-        // Initialize properties from config
-        node.name = config.name || "priority";
-        
+
+        // Initialize runtime state
+        node.runtime = {
+            name: config.name || ""
+        };
+
         // Initialize state from context or defaults
         let priorities = context.get("priorities") || {
             priority1: null, priority2: null, priority3: null, priority4: null,
@@ -34,6 +35,14 @@ module.exports = function(RED) {
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
+            // Guard against invalid message
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Validate payload
             if (!msg.hasOwnProperty("payload")) {
                 node.status({ fill: "red", shape: "ring", text: "missing payload" });
                 if (done) done();
@@ -93,8 +102,8 @@ module.exports = function(RED) {
                 }
             } else if (msg.payload === "clear") {
                 // Handle string "clear" with msg.context
-                if (!msg.hasOwnProperty("context")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing context for clear" });
+                if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
+                    node.status({ fill: "red", shape: "ring", text: "missing or invalid context for clear" });
                     if (done) done();
                     return;
                 }
@@ -116,21 +125,22 @@ module.exports = function(RED) {
                 }
             } else {
                 // Handle non-object, non-"clear" payloads
-                if (!msg.hasOwnProperty("context")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing context" });
+                if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
+                    node.status({ fill: "red", shape: "ring", text: "missing or invalid context" });
                     if (done) done();
                     return;
                 }
 
                 const contextMsg = msg.context;
-                const value = msg.payload === null ? null : typeof msg.payload === "number" ? parseFloat(msg.payload) : msg.payload;
+                const value = msg.payload === null ? null : typeof msg.payload === "number" ? parseFloat(msg.payload) : typeof msg.payload === "boolean" ? msg.payload : null;
+
+                if (value === null && msg.payload !== null) {
+                    node.status({ fill: "red", shape: "ring", text: `invalid ${contextMsg}` });
+                    if (done) done();
+                    return;
+                }
 
                 if (/^priority([1-9]|1[0-6])$/.test(contextMsg)) {
-                    if (value !== null && typeof value !== "number" && typeof value !== "boolean") {
-                        node.status({ fill: "red", shape: "ring", text: `invalid ${contextMsg}` });
-                        if (done) done();
-                        return;
-                    }
                     priorities[contextMsg] = value;
                     messages[contextMsg] = RED.util.cloneMessage(msg);
                     context.set("priorities", priorities);
@@ -138,14 +148,9 @@ module.exports = function(RED) {
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: value === null ? `${contextMsg} relinquished` : `${contextMsg}: ${value}`
+                        text: value === null ? `${contextMsg} relinquished` : `${contextMsg}: ${typeof value === "number" ? value.toFixed(2) : value}`
                     });
                 } else if (contextMsg === "default") {
-                    if (value !== null && typeof value !== "number" && typeof value !== "boolean") {
-                        node.status({ fill: "red", shape: "ring", text: "invalid default" });
-                        if (done) done();
-                        return;
-                    }
                     defaultValue = value;
                     messages[contextMsg] = RED.util.cloneMessage(msg);
                     context.set("defaultValue", defaultValue);
@@ -153,14 +158,9 @@ module.exports = function(RED) {
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: value === null ? "default relinquished" : `default: ${value}`
+                        text: value === null ? "default relinquished" : `default: ${typeof value === "number" ? value.toFixed(2) : value}`
                     });
                 } else if (contextMsg === "fallback") {
-                    if (value !== null && typeof value !== "number" && typeof value !== "boolean") {
-                        node.status({ fill: "red", shape: "ring", text: "invalid fallback" });
-                        if (done) done();
-                        return;
-                    }
                     fallbackValue = value;
                     messages[contextMsg] = RED.util.cloneMessage(msg);
                     context.set("fallbackValue", fallbackValue);
@@ -168,26 +168,27 @@ module.exports = function(RED) {
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: value === null ? "fallback relinquished" : `fallback: ${value}`
+                        text: value === null ? "fallback relinquished" : `fallback: ${typeof value === "number" ? value.toFixed(2) : value}`
                     });
                 } else {
                     node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
-                    if (done) done();
+                    if (done) done("Unknown context");
                     return;
                 }
             }
 
+            // Output highest priority message
             const currentOutput = evaluatePriority();
             send(currentOutput);
-            const displayValue = currentOutput.payload === null ? "null" : typeof currentOutput.payload === "number" ? currentOutput.payload.toFixed(2) : currentOutput.payload;
+            const inDisplay = typeof msg.payload === "number" ? msg.payload.toFixed(2) : typeof msg.payload === "object" ? JSON.stringify(msg.payload).slice(0, 20) : msg.payload;
+            const outDisplay = currentOutput.payload === null ? "null" : typeof currentOutput.payload === "number" ? currentOutput.payload.toFixed(2) : currentOutput.payload;
             node.status({
                 fill: "blue",
                 shape: "dot",
-                text: `in: ${typeof msg.payload === "number" ? msg.payload.toFixed(2) : msg.payload}, out: ${displayValue}, slot: ${currentOutput.diagnostics.activePriority || "none"}`
+                text: `in: ${inDisplay}, out: ${outDisplay}, slot: ${currentOutput.diagnostics.activePriority || "none"}`
             });
 
             if (done) done();
-            return;
 
             function isValidSlot(slot) {
                 return /^priority([1-9]|1[0-6])$/.test(slot) || slot === "default" || slot === "fallback";
@@ -230,7 +231,6 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            // Clear status to prevent stale status after restart
             node.status({});
             done();
         });
@@ -238,16 +238,19 @@ module.exports = function(RED) {
 
     RED.nodes.registerType("priority-block", PriorityBlockNode);
 
-    // Serve dynamic config from runtime
-    RED.httpAdmin.get("/priority-block/:id", RED.auth.needsPermission("priority-block.read"), function(req, res) {
+    // Serve runtime state for editor
+    RED.httpAdmin.get("/priority-block-runtime/:id", RED.auth.needsPermission("priority-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "priority-block") {
             const context = node.context();
+            const priorities = context.get("priorities") || {};
+            const defaultValue = context.get("defaultValue") || null;
+            const fallbackValue = context.get("fallbackValue") || null;
             res.json({
-                name: node.name || "priority",
-                priorities: context.get("priorities") || {},
-                defaultValue: context.get("defaultValue") || null,
-                fallbackValue: context.get("fallbackValue") || null
+                name: node.runtime.name,
+                priorities,
+                defaultValue,
+                fallbackValue
             });
         } else {
             res.status(404).json({ error: "Node not found" });

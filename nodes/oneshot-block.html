@@ -12,6 +12,10 @@
         <label for="node-input-triggerOnTrue" title="Require msg.payload = true to trigger"><i class="fa fa-check"></i> Trigger on true</label>
         <input type="checkbox" id="node-input-triggerOnTrue" style="width: auto; vertical-align: middle;">
     </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
 </script>
 
 <!-- JavaScript Section -->
@@ -20,11 +24,11 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "oneshot" },
+            name: { value: "" },
             duration: { 
                 value: 1000, 
                 required: true, 
-                validate: function(v) { return Number.isInteger(+v) && +v >= 1; } 
+                validate: function(v) { return Number.isInteger(Number(v)) && Number(v) >= 1; } 
             },
             triggerOnTrue: { value: false }
         },
@@ -32,28 +36,30 @@
         outputs: 1,
         inputLabels: ["trigger/reset"],
         outputLabels: ["pulse"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-bolt",
         paletteLabel: "oneshot",
         label: function() {
             return this.name || `oneshot (${this.duration}ms)`;
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "oneshot");
-            $("#node-input-duration").val(this.duration || 1000);
-            $("#node-input-triggerOnTrue").prop("checked", this.triggerOnTrue || false);
+            const node = this;
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-duration").val(node.duration || 1000);
+            $("#node-input-triggerOnTrue").prop("checked", node.triggerOnTrue !== false);
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/oneshot-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.duration !== this.duration || data.triggerOnTrue !== this.triggerOnTrue)) {
-                    $("#node-input-name").val(data.name || this.name || "oneshot");
-                    $("#node-input-duration").val(data.duration || this.duration || 1000);
-                    $("#node-input-triggerOnTrue").prop("checked", data.triggerOnTrue || this.triggerOnTrue || false);
+            $.getJSON(`/oneshot-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.duration !== undefined && Number.isInteger(data.duration) && data.duration !== (Number(node.duration) || 1000)) {
+                    changes.push(`duration: ${data.duration}`);
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+                if (data.triggerOnTrue !== node.triggerOnTrue) changes.push(`triggerOnTrue: ${data.triggerOnTrue}`);
+                if (data.triggerCount !== 0) changes.push(`triggerCount: ${data.triggerCount}`);
+                if (data.locked !== false) changes.push(`locked: ${data.locked}`);
+                if (data.output !== false) changes.push(`output: ${data.output}`);
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
         oneditsave: function() {
@@ -67,36 +73,35 @@
 Outputs a true pulse for a configurable duration when triggered, then false, and locks until reset.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Set to "reset" to unlock the node.
-- **payload** <span class="property-type">any</span>
-  Triggers the pulse if not locked. If "Trigger on true" is checked, requires `msg.payload = true`.
+: context (string) : Unlocks node (`"reset"`). Unmatched values trigger error.
+: payload (any) : Triggers pulse if not locked. If `triggerOnTrue = true`, requires `msg.payload = true`.
 
 ### Outputs
-- **payload** <span class="property-type">boolean</span>
-  `true` for the configured duration on trigger, then `false`. `false` on reset or if locked/ignored.
+: payload (boolean) : `true` for `duration` on trigger, then `false`; `false` on reset or if locked/ignored.
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "oneshot (duration ms)").
+: duration (integer) : Pulse duration in milliseconds (≥ 1). Default: 1000.
+: triggerOnTrue (boolean) : Require `msg.payload = true` to trigger. Default: `false`.
 
 ### Details
-The Oneshot Block generates a single `true` pulse for a specified duration (milliseconds, default: 1000) when triggered, then outputs `false` and locks until a reset command (`msg.context = "reset"`) is received. The trigger can be any message or restricted to `msg.payload = true` via the "Trigger on true" option. The node tracks the number of triggers in its context and displays it in the status. The node label shows the duration (e.g., `oneshot (1000ms)`).
-
-Editor changes (name, duration, trigger on true) require redeployment; reset commands apply immediately.
-
-The node outputs a new message for every trigger (true pulse and false), reset, or ignored/locked input.
-
-### Examples
-- **Trigger**: Input `{ payload: "any" }` with "Trigger on true" off, outputs: `{ payload: true }`, then `{ payload: false }` after duration.
-- **Trigger on True**: Input `{ payload: true }` with "Trigger on true" on, outputs: `{ payload: true }`, then `{ payload: false }`.
-- **Reset**: Input `{ context: "reset" }`, outputs: `{ payload: false }`.
-- **Ignored**: Input `{ payload: false }` with "Trigger on true" on, outputs: `{ payload: false }`.
+Generates a `true` pulse for `duration` (milliseconds, default: 1000) when triggered, then outputs `false` and locks until `msg.context = "reset"`. Triggers on any `msg.payload` if `triggerOnTrue = false`, or only `msg.payload = true` if `triggerOnTrue = true`. Tracks `triggerCount` (number of triggers) and displays in status. Outputs new messages for every trigger (`true` then `false`), reset, or locked/ignored input. Configurable via editor (`name`, `duration`, `triggerOnTrue`). Editor changes require redeployment; reset commands apply immediately. Runtime values (`name`, `duration`, `triggerOnTrue`, `triggerCount`, `locked`, `output`) are shown in "Changed Runtime Values" if different from defaults.
 
 ### Error Handling
-- Invalid duration (non-integer, <1): Shows "invalid duration" (red), uses default (1000ms).
-- Locked input: Shows "triggers: X, locked" (red), outputs `false`.
-- Ignored input ("Trigger on true" on, `msg.payload != true`): Shows "triggers: X, ignored" (yellow), outputs `false`.
+- Missing `msg`: No output, red status (`invalid message`).
+- Invalid `duration` (non-integer, < 1): Red status (`invalid duration`), uses 1000ms.
+- Locked input: Outputs `false`, red status (`triggers: X, locked`).
+- Ignored input (`triggerOnTrue = true`, `msg.payload ≠ true`): Outputs `false`, yellow status (`triggers: X, ignored`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for trigger (e.g., `triggers: 1, out: true`), blue for reset (e.g., `triggers: 1, reset`), red for locked (e.g., `triggers: 1, locked`), yellow for ignored (e.g., `triggers: 1, ignored`).
+### Status
+- Green (dot): Trigger (e.g., `triggers: 1, out: true`).
+- Blue (dot): Reset (e.g., `triggers: 1, reset`).
+- Blue (ring): Initial (e.g., `triggers: 0, unlocked`).
+- Red (ring): Locked or error (e.g., `triggers: 1, locked`, `invalid duration`).
+- Yellow (ring): Ignored or unknown context (e.g., `triggers: 1, ignored`, `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

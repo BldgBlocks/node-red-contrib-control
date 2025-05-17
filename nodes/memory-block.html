@@ -1,0 +1,119 @@
+<script type="text/html" data-template-name="memory-block">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-writePeriod" title="Delay in milliseconds before writing to file (non-negative number from msg, flow, global, or static value)"><i class="fa fa-clock-o"></i> File Write Period (ms)</label>
+        <input type="text" id="node-input-writePeriod" placeholder="60000">
+        <input type="hidden" id="node-input-writePeriodType">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("memory-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            writePeriod: { value: "60000" },
+            writePeriodType: { value: "num" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-wrench",
+        paletteLabel: "memory",
+        label: function() {
+            return this.name || "memory";
+        },
+        oneditprepare: function() {
+            const node = this;
+            const writePeriodType = node.writePeriodType || "num";
+            const writePeriodValue = node.writePeriod !== undefined ? node.writePeriod : "60000";
+
+            const periodInput = $("#node-input-writePeriod").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-writePeriodType"
+            });
+
+            periodInput.typedInput("type", writePeriodType);
+            periodInput.typedInput("value", writePeriodValue);
+
+            // Workaround to suppress typedInput warnings
+            periodInput.on("change", function() {
+                setTimeout(() => {
+                    periodInput.typedInput("validate");
+                    periodInput.removeClass("input-error");
+                }, 0);
+            });
+
+            // Fetch runtime changes
+            $.getJSON(`/memory-block-runtime/${node.id}`, function(data) {
+                const runtime = data || {};
+                const changes = [];
+                if (runtime.writePeriod !== undefined && runtime.writePeriod !== Number(node.writePeriod) && runtime.writePeriodType === node.writePeriodType) {
+                    changes.push(`writePeriod: ${runtime.writePeriod.toFixed(0)} ms`);
+                }
+                if (runtime.storedMsg !== undefined) {
+                    changes.push(`stored: ${JSON.stringify(runtime.storedMsg.payload)}`);
+                }
+                const displayText = changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None";
+                $("#node-runtime-changes").text(displayText);
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: None");
+            });
+        },
+        oneditsave: function() {
+            $("#node-input-writePeriodType").val($("#node-input-writePeriod").typedInput("type"));
+        },
+        oneditvalidate: function() {
+            return true; // Suppress all warnings
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="memory-block">
+    Stores a message persistently across reboots and re-deployments, with delayed file writes.
+
+    ### Inputs
+    - **context** <span class="property-type">string</span>
+      Specifies the action: "update" to store the message, "execute" to output the stored message.
+    - **payload** <span class="property-type">any</span>
+      The value to store (for "update") or pass through (no context).
+
+    ### Outputs
+    - **payload** <span class="property-type">any</span>
+      For "execute": the stored message. For no context: the input message unchanged.
+    - Other properties from the input message (e.g., `msg.topic`) are preserved.
+
+    ### Details
+    The Memory Block acts as a persistent cache, storing a single message across Node-RED reboots and re-deployments. It uses a file to ensure persistence, with writes delayed to minimize file I/O.
+
+    - **msg.context = "update"**: Stores the input `msg`, schedules a file write after the configured `writePeriod` (default 60000ms). Only the last update within the period is written. No output.
+    - **msg.context = "execute"**: Outputs the stored message, if any. No file write.
+    - **No msg.context**: Passes the input `msg` unchanged, without modifying the stored message or file.
+
+    The `writePeriod` can be set in the editor as a static number or from `msg`, `flow`, or `global` contexts. Invalid periods default to 60000ms. Runtime changes to `writePeriod` and the stored message are shown in the editor as "Changed Runtime Values".
+
+    ### Examples
+    - Input: `{ context: "update", payload: 42 }` → No output, stores `{ payload: 42 }`, Status: `updated: 42`.
+    - Input: `{ context: "execute" }` → Output: `{ payload: 42 }`, Status: `out: 42`.
+    - Input: `{ payload: "test" }` → Output: `{ payload: "test" }`, Status: `pass: test`.
+    - Input: `{ context: "update" }` → No output, Status: `missing payload`.
+    - Input: `{ context: "invalid" }` → No output, Status: `unknown context`.
+
+    ### Error Handling
+    - Missing `msg.payload` for "update": Shows "missing payload" (red), no update or output.
+    - Invalid `msg.context`: Shows "unknown context" (yellow), no output.
+    - Invalid `writePeriod`: Shows "invalid write period" (red), defaults to 60000ms.
+    - File I/O errors: Shows "file error" (red), continues in-memory operation.
+
+    Status shows green for updates (e.g., `updated: 42`), blue for output or pass-through (e.g., `out: 42`, `pass: test`), red/yellow for errors.
+</script>

@@ -1,53 +1,49 @@
 module.exports = function(RED) {
-    const utils = require('./utils');
-
     function OnChangeBlockNode(config) {
         RED.nodes.createNode(this, config);
-        
         const node = this;
-        
-        node.config = {
-            period: config.period,
-            periodType: config.periodType || "num"
-        };
 
+        // Initialize runtime state
         node.runtime = {
-            period: node.config.period,
-            periodType: node.config.periodType
+            name: config.name || "",
+            period: Number(config.period) || 0,
+            periodType: config.periodType || "num",
+            lastValue: null,
+            blockTimer: null
         };
 
-        let lastValue = null;
-        let blockTimer = null;
-
-        function isEqual(a, b) {
-            if (a === b) return true;
-            if (typeof a !== typeof b) return false;
-            if (Array.isArray(a) && Array.isArray(b)) {
-                if (a.length !== b.length) return false;
-                return a.every((item, i) => isEqual(item, b[i]));
-            }
-            if (typeof a === 'object' && a !== null && b !== null) {
-                const keysA = Object.keys(a);
-                const keysB = Object.keys(b);
-                if (keysA.length !== keysB.length) return false;
-                return keysA.every(key => isEqual(a[key], b[key]));
-            }
-            return false;
+        // Validate initial config
+        if (isNaN(node.runtime.period) || node.runtime.period < 0) {
+            node.runtime.period = 0;
+            node.status({ fill: "red", shape: "ring", text: "invalid period" });
         }
 
         node.on("input", function(msg, send, done) {
-            send = send || function () { node.send.apply(node, arguments); };
+            send = send || function() { node.send.apply(node, arguments); };
 
+            // Guard against invalid message
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Handle context updates
             if (msg.hasOwnProperty("context")) {
-                if (!msg.hasOwnProperty("payload") && msg.context !== "status") {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
-                    if (done) done();
-                    return;
-                }
-
                 const contextLower = (msg.context || "").toLowerCase();
                 if (contextLower === "period") {
-                    node.runtime.period = utils.validateProperty(msg.payload, "num", 0, { min: 0, name: "period" }, msg, node);
+                    if (!msg.hasOwnProperty("payload")) {
+                        node.status({ fill: "red", shape: "ring", text: "missing payload for period" });
+                        if (done) done();
+                        return;
+                    }
+                    const newPeriod = parseFloat(msg.payload);
+                    if (isNaN(newPeriod) || newPeriod < 0) {
+                        node.status({ fill: "red", shape: "ring", text: "invalid period" });
+                        if (done) done();
+                        return;
+                    }
+                    node.runtime.period = newPeriod;
                     node.runtime.periodType = "num";
                     node.status({
                         fill: "green",
@@ -55,27 +51,66 @@ module.exports = function(RED) {
                         text: `period: ${node.runtime.period.toFixed(0)} ms`
                     });
                 } else if (contextLower === "status") {
-                    send({ payload: node.runtime });
+                    send({ payload: {
+                        period: node.runtime.period,
+                        periodType: node.runtime.periodType
+                    } });
                 } else {
                     node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    if (done) done("Unknown context");
+                    return;
                 }
                 if (done) done();
                 return;
             }
 
+            // Validate input payload
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing input" });
+                node.status({ fill: "red", shape: "ring", text: "missing payload" });
                 if (done) done();
                 return;
             }
 
-            let period = utils.validateProperty(node.runtime.period, node.runtime.periodType, 0, { min: 0, name: "period" }, msg, node);
+            // Get period
+            let period;
+            try {
+                period = RED.util.evaluateNodeProperty(
+                    node.runtime.period,
+                    node.runtime.periodType,
+                    node,
+                    msg
+                );
+                if (isNaN(period) || period < 0) {
+                    throw new Error("invalid period");
+                }
+            } catch (err) {
+                node.status({ fill: "red", shape: "ring", text: "invalid period" });
+                if (done) done();
+                return;
+            }
 
             const currentValue = msg.payload;
 
+            // Deep comparison function
+            function isEqual(a, b) {
+                if (a === b) return true;
+                if (typeof a !== typeof b) return false;
+                if (Array.isArray(a) && Array.isArray(b)) {
+                    if (a.length !== b.length) return false;
+                    return a.every((item, i) => isEqual(item, b[i]));
+                }
+                if (typeof a === "object" && a !== null && b !== null) {
+                    const keysA = Object.keys(a);
+                    const keysB = Object.keys(b);
+                    if (keysA.length !== keysB.length) return false;
+                    return keysA.every(key => isEqual(a[key], b[key]));
+                }
+                return false;
+            }
+
             if (period > 0) {
-                if (blockTimer) {
-                    const statusText = isEqual(currentValue, lastValue)
+                if (node.runtime.blockTimer) {
+                    const statusText = isEqual(currentValue, node.runtime.lastValue)
                         ? `unchanged: ${JSON.stringify(currentValue).slice(0, 20)}`
                         : `blocked: ${JSON.stringify(currentValue).slice(0, 20)}`;
                     node.status({
@@ -91,23 +126,23 @@ module.exports = function(RED) {
                     shape: "dot",
                     text: `out: ${JSON.stringify(currentValue).slice(0, 20)}`
                 });
-                lastValue = RED.util.cloneMessage(currentValue);
+                node.runtime.lastValue = RED.util.cloneMessage(currentValue);
                 send(msg);
-                blockTimer = setTimeout(() => {
-                    blockTimer = null;
+                node.runtime.blockTimer = setTimeout(() => {
+                    node.runtime.blockTimer = null;
                     node.status({});
                 }, period);
                 if (done) done();
                 return;
             }
 
-            if (!isEqual(currentValue, lastValue)) {
+            if (!isEqual(currentValue, node.runtime.lastValue)) {
                 node.status({
                     fill: "blue",
                     shape: "dot",
                     text: `out: ${JSON.stringify(currentValue).slice(0, 20)}`
                 });
-                lastValue = RED.util.cloneMessage(currentValue);
+                node.runtime.lastValue = RED.util.cloneMessage(currentValue);
                 send(msg);
             } else {
                 node.status({
@@ -121,17 +156,13 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            if (blockTimer) {
-                clearTimeout(blockTimer);
-                blockTimer = null;
+            if (node.runtime.blockTimer) {
+                clearTimeout(node.runtime.blockTimer);
+                node.runtime.blockTimer = null;
             }
-
-            lastValue = null;
-            node.runtime = {
-                period: node.config.period,
-                periodType: node.config.periodType
-            };
-
+            node.runtime.lastValue = null;
+            node.runtime.period = Number(config.period) || 0;
+            node.runtime.periodType = config.periodType || "num";
             node.status({});
             done();
         });
@@ -142,7 +173,10 @@ module.exports = function(RED) {
     RED.httpAdmin.get("/on-change-block-runtime/:id", RED.auth.needsPermission("on-change-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "on-change-block") {
-            res.json(node.runtime);
+            res.json({
+                period: node.runtime.period,
+                periodType: node.runtime.periodType
+            });
         } else {
             res.status(404).json({ error: "Node not found" });
         }

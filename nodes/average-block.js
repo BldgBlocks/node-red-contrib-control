@@ -4,27 +4,41 @@ module.exports = function(RED) {
         
         const node = this;
         
-        // Initialize properties from config
-        node.name = config.name || "average";
-        node.maxValues = parseInt(config.sampleSize) || 10;
-        
-        // Validate initial config
-        if (isNaN(node.maxValues) || node.maxValues < 1) {
-            node.status({ fill: "red", shape: "ring", text: "invalid window size" });
-            node.maxValues = 10;
-        }
+        // Initialize runtime state
+        node.runtime = {
+            name: config.name || "average",
+            maxValues: parseInt(config.sampleSize) || 10,
+            values: [], // Queue for rolling window
+            lastAvg: null
+        };
 
-        // Initialize state
-        let sum = 0;
-        let count = 0;
+        // Validate initial config
+        if (isNaN(node.runtime.maxValues) || node.runtime.maxValues < 1) {
+            node.runtime.maxValues = 10;
+            node.status({ fill: "red", shape: "ring", text: "invalid window size, using 10" });
+        } else {
+            node.status({
+                fill: "green",
+                shape: "dot",
+                text: `name: ${node.runtime.name}, window: ${node.runtime.maxValues}`
+            });
+        }
 
         // Valid range
         const minValid = 1;
         const maxValid = 150;
 
         node.on("input", function(msg, send, done) {
-            send = send || function () { node.send.apply(node, arguments); };
+            send = send || function() { node.send.apply(node, arguments); };
 
+            // Guard against invalid msg
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Handle configuration messages
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
                     node.status({ fill: "red", shape: "ring", text: "missing payload" });
@@ -38,8 +52,8 @@ module.exports = function(RED) {
                         return;
                     }
                     if (msg.payload === true) {
-                        sum = 0;
-                        count = 0;
+                        node.runtime.values = [];
+                        node.runtime.lastAvg = null;
                         node.status({ fill: "green", shape: "dot", text: "state reset" });
                     }
                     if (done) done();
@@ -51,23 +65,29 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.maxValues = newMaxValues;
+                    node.runtime.maxValues = newMaxValues;
+                    // Trim values if new window is smaller
+                    if (node.runtime.values.length > newMaxValues) {
+                        node.runtime.values = node.runtime.values.slice(-newMaxValues);
+                    }
                     node.status({ fill: "green", shape: "dot", text: `window: ${newMaxValues}` });
                     if (done) done();
                     return;
                 } else {
-                    node.status({ fill: "red", shape: "ring", text: "unknown context" });
+                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
                     if (done) done();
                     return;
                 }
             }
 
+            // Check for missing payload
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing input" });
+                node.status({ fill: "red", shape: "ring", text: "missing payload" });
                 if (done) done();
                 return;
             }
 
+            // Process input
             const inputValue = parseFloat(msg.payload);
             if (isNaN(inputValue) || inputValue < minValid || inputValue > maxValid) {
                 node.status({ fill: "red", shape: "ring", text: "invalid input" });
@@ -75,26 +95,23 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Update sum and count
-            sum += inputValue;
-            count++;
-
-            // Adjust for rolling window
-            if (count > node.maxValues) {
-                let avg = sum / count;
-                sum -= avg;
-                count--;
+            // Update rolling window
+            node.runtime.values.push(inputValue);
+            if (node.runtime.values.length > node.runtime.maxValues) {
+                node.runtime.values.shift();
             }
 
             // Calculate average
-            const avg = count ? sum / count : null;
+            const avg = node.runtime.values.length ? node.runtime.values.reduce((a, b) => a + b, 0) / node.runtime.values.length : null;
+            const isUnchanged = avg === node.runtime.lastAvg;
 
             // Send new message
             node.status({
                 fill: "blue",
-                shape: "dot",
-                text: `window: ${node.maxValues}, out: ${avg !== null ? avg : "null"}`
+                shape: isUnchanged ? "ring" : "dot",
+                text: `out: ${avg !== null ? avg.toFixed(3) : "null"}`
             });
+            node.runtime.lastAvg = avg;
             send({ payload: avg });
 
             if (done) done();
@@ -102,29 +119,16 @@ module.exports = function(RED) {
 
         node.on("close", function(done) {
             // Reset state on redeployment
-            sum = 0;
-            count = 0;
-            node.maxValues = parseInt(config.sampleSize) || 10;
-            if (isNaN(node.maxValues) || node.maxValues < 1) {
-                node.maxValues = 10;
+            node.runtime.maxValues = parseInt(config.sampleSize) || 10;
+            if (isNaN(node.runtime.maxValues) || node.runtime.maxValues < 1) {
+                node.runtime.maxValues = 10;
             }
+            node.runtime.values = [];
+            node.runtime.lastAvg = null;
             node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("average-block", AverageBlockNode);
-
-    // Serve dynamic config from runtime
-    RED.httpAdmin.get("/average-block/:id", RED.auth.needsPermission("average-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "average-block") {
-            res.json({
-                name: node.name || "average",
-                sampleSize: node.maxValues || 10
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

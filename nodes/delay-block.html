@@ -1,11 +1,11 @@
-<!-- UI Template Section: Defines the edit dialog for the Delay Block node -->
+<!-- UI Template Section: Defines the edit dialog -->
 <script type="text/html" data-template-name="delay-block">
     <div class="form-row">
-        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-delayOn" title="Delay for true output (non-negative number, e.g., 1000)"><i class="fa fa-clock-o"></i> On Delay</label>
+        <label for="node-input-delayOn"><i class="fa fa-clock-o"></i> On Delay</label>
         <input type="number" id="node-input-delayOn" placeholder="1000" min="0" step="any">
         <select id="node-input-delayOnUnits">
             <option value="milliseconds">Milliseconds</option>
@@ -14,13 +14,17 @@
         </select>
     </div>
     <div class="form-row">
-        <label for="node-input-delayOff" title="Delay for false output (non-negative number, e.g., 1000)"><i class="fa fa-clock-o"></i> Off Delay</label>
+        <label for="node-input-delayOff"><i class="fa fa-clock-o"></i> Off Delay</label>
         <input type="number" id="node-input-delayOff" placeholder="1000" min="0" step="any">
         <select id="node-input-delayOffUnits">
             <option value="milliseconds">Milliseconds</option>
             <option value="seconds">Seconds</option>
             <option value="minutes">Minutes</option>
         </select>
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
     </div>
 </script>
 
@@ -30,132 +34,76 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "delay" },
-            delayOn: {
-                value: 1000,
-                required: true,
-                validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; }
-            },
-            delayOnUnits: { value: "milliseconds" },
-            delayOff: {
-                value: 1000,
-                required: true,
-                validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; }
-            },
-            delayOffUnits: { value: "milliseconds" }
+            name: { value: "" },
+            delayOn: { value: 1000, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            delayOnUnits: { value: "seconds" },
+            delayOff: { value: 1000, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            delayOffUnits: { value: "seconds" }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-clock-o",
         paletteLabel: "delay",
         label: function() {
             return this.name || "delay";
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            let delayOn = this.delayOn || 1000;
-            let delayOnUnits = this.delayOnUnits || "milliseconds";
-            if (delayOn >= 60000 && delayOn % 60000 === 0) {
-                delayOn = delayOn / 60000;
-                delayOnUnits = "minutes";
-            } else if (delayOn >= 1000 && delayOn % 1000 === 0) {
-                delayOn = delayOn / 1000;
-                delayOnUnits = "seconds";
-            }
-            let delayOff = this.delayOff || 1000;
-            let delayOffUnits = this.delayOffUnits || "milliseconds";
-            if (delayOff >= 60000 && delayOff % 60000 === 0) {
-                delayOff = delayOff / 60000;
-                delayOffUnits = "minutes";
-            } else if (delayOff >= 1000 && delayOff % 1000 === 0) {
-                delayOff = delayOff / 1000;
-                delayOffUnits = "seconds";
-            }
+            const node = this;
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-delayOn").val(node.delayOn || 1000);
+            $("#node-input-delayOnUnits").val(node.delayOnUnits || "milliseconds");
+            $("#node-input-delayOff").val(node.delayOff || 1000);
+            $("#node-input-delayOffUnits").val(node.delayOffUnits || "milliseconds");
 
-            $("#node-input-name").val(this.name || "delay");
-            $("#node-input-delayOn").val(delayOn);
-            $("#node-input-delayOnUnits").val(delayOnUnits);
-            $("#node-input-delayOff").val(delayOff);
-            $("#node-input-delayOffUnits").val(delayOffUnits);
-
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/delay-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.delayOn !== this.delayOn || data.delayOff !== this.delayOff)) {
-                    let serverDelayOn = data.delayOn || 1000;
-                    let serverDelayOnUnits = this.delayOnUnits || "milliseconds";
-                    if (serverDelayOn >= 60000 && serverDelayOn % 60000 === 0) {
-                        serverDelayOn = serverDelayOn / 60000;
-                        serverDelayOnUnits = "minutes";
-                    } else if (serverDelayOn >= 1000 && serverDelayOn % 1000 === 0) {
-                        serverDelayOn = serverDelayOn / 1000;
-                        serverDelayOnUnits = "seconds";
-                    }
-                    let serverDelayOff = data.delayOff || 1000;
-                    let serverDelayOffUnits = this.delayOffUnits || "milliseconds";
-                    if (serverDelayOff >= 60000 && serverDelayOff % 60000 === 0) {
-                        serverDelayOff = serverDelayOff / 60000;
-                        serverDelayOffUnits = "minutes";
-                    } else if (serverDelayOff >= 1000 && serverDelayOff % 1000 === 0) {
-                        serverDelayOff = serverDelayOff / 1000;
-                        serverDelayOffUnits = "seconds";
-                    }
-                    $("#node-input-name").val(data.name || this.name || "delay");
-                    $("#node-input-delayOn").val(serverDelayOn);
-                    $("#node-input-delayOnUnits").val(serverDelayOnUnits);
-                    $("#node-input-delayOff").val(serverDelayOff);
-                    $("#node-input-delayOffUnits").val(serverDelayOffUnits);
-                }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+            $.getJSON(`/delay-block/${this.id}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.delayOn !== 1000) changes.push(`delayOn: ${data.delayOn} ms`);
+                if (data.delayOff !== 1000) changes.push(`delayOff: ${data.delayOff} ms`);
+                if (data.state) changes.push(`state: ${data.state}`);
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
-        oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
+        oneditvalidate: function() {
+            return true;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Delay Block node -->
+<!-- Help Section: -->
 <script type="text/markdown" data-help-name="delay-block">
-Delays boolean input with configurable on/off delays, passing the original message.
+Delays boolean state transitions with configurable on/off delays.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("reset" to clear state, "delayOn" to set on delay, "delayOff" to set off delay).
-- **payload** <span class="property-type">boolean | number</span>
-  Boolean for state change, number for delay configuration.
-- **units** <span class="property-type">string, optional</span>
-  Units for delay configuration ("milliseconds", "seconds", "minutes").
+: context (string) : Configures node (`"reset"`, `"delayOn"`, `"delayOff"`). Unmatched values ignored silently.
+: payload (boolean | number) : Boolean for state change; number for delay config with `msg.context`.
+: *units* (string) : Units for delay config (`"milliseconds"`, `"seconds"`, `"minutes"`).
 
 ### Outputs
-- **payload** <span class="property-type">boolean</span>
-  `true` after `delayOn` ms on false-to-true transition, `false` after `delayOff` ms on true-to-false transition.
-- Other properties from the input message (e.g., `msg.topic`, `msg.context`) are preserved.
+: payload (boolean) : `true` after `delayOn` ms or `false` after `delayOff` ms if state persists.
+: *other* (any) : Other input properties preserved, except `msg.context`.
 
 ### Details
-The Delay Block delays `msg.payload` (boolean) transitions, outputting `true` after `delayOn` ms on a false-to-true transition and `false` after `delayOff` ms on a true-to-false transition. It passes the original input message with `msg.payload` updated to the delayed boolean value.
-
-The node name and delay settings (`delayOn`, `delayOff`) are configurable in the editor with selectable units (milliseconds, seconds, minutes). Delays can also be set via `msg.context = "delayOn"` or `"delayOff"` with a non-negative number in `msg.payload`, optionally specifying `msg.units`. Reset the state via `msg.context = "reset"` with `msg.payload = true`, clearing pending delays.
-
-### Examples
-- **True Input**: Input `{ payload: true }` with `delayOn: 1000`, after 1s, output: `{ payload: true, ...original }`.
-- **Set Delay**: Input `{ context: "delayOn", payload: 2, units: "seconds" }`, no output, sets `delayOn` to 2000 ms.
-- **Reset**: Input `{ context: "reset", payload: true }`, no output, clears pending delays.
+Delays `msg.payload` boolean transitions, outputting `true` after `delayOn` ms for false-to-true or `false` after `delayOff` ms for true-to-false, if the input state persists. Forwards the input message with updated `msg.payload`, removing `msg.context`. Configurable via editor (`name`, `delayOn`, `delayOff`, units) or `msg.context` (`"delayOn"`, `"delayOff"`, `"reset"`). Non-transition inputs (e.g., `true` when `state=true`) or state reversions cancel pending delays without output. Runtime values (`name`, `delayOn`, `delayOff`, `state`) are shown in "Changed Runtime Values" if non-default (e.g., `delayOn ≠ 1000ms`, `state ≠ false`).
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
-- Invalid input (non-boolean): Shows "invalid input" (red), no output.
-- Invalid reset value (non-boolean): Shows "invalid reset" (red), no output.
-- Invalid delayOn or delayOff (non-numeric, negative): Shows "invalid X" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid `msg.payload` (non-boolean for state): No output, red status (`invalid payload`).
+- Invalid `delayOn`/`delayOff` (non-numeric, negative): No output, red status (`invalid X`), uses 1000ms.
+- Invalid reset (non-boolean `msg.payload` with `msg.context = "reset"`): No output, red status (`invalid reset`).
+- Unknown `msg.context`: Ignored, processes `msg.payload` if valid.
 
-Status shows green for configuration (e.g., `reset`, `delayOn: 1000`), blue for input (e.g., `awaiting true`) or output (e.g., `out: true`), red for errors, yellow for unknown context.
+### Status
+- Green (dot): Configuration (e.g., `reset`, `delayOn: 5000 ms`, `delayOff: 5000 ms`).
+- Blue (dot): Outputs (e.g., `in: true, out: true`, `in: false, out: false`).
+- Blue (ring): Awaiting or canceled (e.g., `awaiting true`, `canceled awaiting true`).
+- Red (ring): Errors (e.g., `missing payload`, `invalid payload`, `invalid delayOn`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

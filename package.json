@@ -46,7 +46,9 @@
       "thermistor-block": "nodes/thermistor-block.js",
       "units-block": "nodes/units-block.js",
       "debounce-block": "nodes/debounce-block.js",
-      "on-change-block": "nodes/on-change-block.js"
+      "on-change-block": "nodes/on-change-block.js",
+      "boolean-to-number-block": "nodes/boolean-to-number-block.js",
+      "memory-block": "nodes/memory-block.js"
     }
   },
   "author": "buildingblocks",

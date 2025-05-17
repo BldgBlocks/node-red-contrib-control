@@ -1,4 +1,3 @@
-<!-- UI Template Section: Defines the edit dialog for the Subtract Block node -->
 <script type="text/html" data-template-name="subtract-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -10,13 +9,12 @@
     </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
     RED.nodes.registerType("subtract-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "subtract" },
+            name: { value: "" },
             slots: {
                 value: 2,
                 required: true,
@@ -27,72 +25,87 @@
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["difference"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-minus",
         paletteLabel: "subtract",
-        label: function () {
-            return this.name || "subtract";
+        label: function() {
+            return this.name ? `${this.name} (${this.slots})` : `subtract (${this.slots})`;
         },
-        oneditprepare: function () {
-            const id = this.id;
-            // Initialize with pending client-side values
+        oneditprepare: function() {
+            // Initialize inputs
             $("#node-input-name").val(this.name || "subtract");
             $("#node-input-slots").val(this.slots || 2);
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/subtract-block/${id}?t=${Date.now()}`, function (data) {
-                // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.slots !== this.slots)) {
-                    $("#node-input-name").val(data.name || this.name || "subtract");
-                    $("#node-input-slots").val(data.slots || this.slots || 2);
+            // Validate name input
+            $("#node-input-name").on("input", function() {
+                const val = $(this).val();
+                if (!val || val.trim().length === 0) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
                 }
-            }.bind(this)).fail(function () {
-                // No server data; rely on this properties (already set)
+            });
+
+            // Validate slots input
+            $("#node-input-slots").on("input", function() {
+                const val = parseInt($(this).val(), 10);
+                if (isNaN(val) || val < 1) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
+                }
             });
         },
-        oneditsave: function () {
-            // Standard config properties are automatically saved by Node-RED
+        oneditsave: function() {
+            // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const name = $("#node-input-name").val();
+            const slots = parseInt($("#node-input-slots").val(), 10);
+            if (!name || name.trim().length === 0) {
+                $("#node-input-name").addClass("input-error");
+                return false;
+            }
+            if (isNaN(slots) || slots < 1) {
+                $("#node-input-slots").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Subtract Block node -->
 <script type="text/markdown" data-help-name="subtract-block">
-Subtracts multiple numeric inputs in sequence and passes the original message.
+Subtracts numeric inputs from multiple slots in sequence, preserving the input message.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("reset" to clear inputs, "slots" to set number of slots) or identifies input slot (e.g., "in1", "in2").
-- **payload** <span class="property-type">number | boolean</span>
-  Number for input slot or slots configuration, boolean for reset.
+: context (string) : Configures reset (`"reset"`), slots (`"slots"`), or identifies input slot (e.g., `"in1"`, `"in2"`).
+: payload (number | boolean) : Number for slot input or slots configuration, boolean for reset.
 
 ### Outputs
-- **payload** <span class="property-type">number</span>
-  Result of subtracting input slots in sequence.
-- Other properties from the input message (e.g., `msg.context`, `msg.topic`) are preserved.
+: payload (number) : Result of subtracting slots in sequence (in1 - in2 - ...).
+: *other* (any) : Other input message properties (e.g., `msg.context`, `msg.topic`) preserved.
 
 ### Details
-The Subtract Block subtracts numeric inputs from multiple slots, identified by `msg.context` (e.g., `in1`, `in2`) in sequence (`in1 - in2 - ...`). The number of slots is configurable in the editor or via `msg.context = "slots"` with a positive integer payload. Inputs default to 0 and are updated via `msg.context = "inX"` with a numeric `msg.payload`. Reset all inputs to 0 via `msg.context = "reset"` with `msg.payload = true`.
-
-The node outputs the input message with `msg.payload` set to the subtraction result, preserving other properties. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
-
-### Examples
-- **Update Input**: Input `{ context: "in1", payload: 10 }`, output `{ context: "in1", payload: 10 }` (if `in2 = 0`).
-- **Subtract Inputs**: Input `{ context: "in2", payload: 3 }` after `in1 = 10`, output `{ context: "in2", payload: 7 }`.
-- **Set Slots**: Input `{ context: "slots", payload: 3 }`, no output, sets 3 slots.
-- **Reset**: Input `{ context: "reset", payload: true }`, no output, clears inputs to 0.
+Subtracts numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`) in sequence. Slots (default: 2) are set via editor or `msg.context = "slots"` with positive integer. Inputs default to 0, updated via `msg.context = "inX"`. Resets inputs to 0 via `msg.context = "reset"` with `msg.payload = true`. Outputs input message with `msg.payload` as result for valid slot updates. Editor changes require redeployment; message updates apply immediately. Used in control systems for differential calculations.
 
 ### Error Handling
-- Missing `msg.context`: Shows "missing context" (red), no output.
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid input (non-numeric): Shows "invalid input" (red), no output.
-- Invalid reset value (non-boolean): Shows "invalid reset" (red), no output.
-- Invalid slots value (non-integer, <1): Shows "invalid slots" (red), no output.
-- Invalid input slot (e.g., `in5` with 3 slots): Shows "invalid input slot" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (red), no output.
+- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
+- Missing `msg.context`: No output, red status (`missing context`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid `msg.payload` (non-numeric for slots): No output, red status (`invalid input`).
+- Invalid reset `msg.payload` (non-boolean): No output, red status (`invalid reset`).
+- Invalid slots (non-integer, <1): No output, red status (`invalid slots`).
+- Invalid input slot (e.g., `in5` for 3 slots): No output, red status (`invalid input slot X`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`).
 
-Status shows green for config (e.g., `state reset`, `slots: 3`, `in1: 5.00`), blue for output (e.g., `slots: 2, diff: 7`), red for errors.
+### Status
+- Green (dot): Configuration or reset (e.g., `name: subtract, slots: 2`, `state reset`, `slots: 3`).
+- Blue (dot): Outputs when result changes (e.g., `in1: 10.00, diff: 7.00`).
+- Blue (ring): Outputs when result unchanged (e.g., `in1: 10.00, diff: 7.00`).
+- Red (ring): Errors (e.g., `invalid message`, `missing context`, `invalid input`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

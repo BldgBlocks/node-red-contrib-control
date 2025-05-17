@@ -3,78 +3,93 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        // Initialize from editor config
-        node.name = config.name || "tick tock";
-        node.period = parseFloat(config.period) || 10;
+        // Initialize runtime state
+        node.runtime = {
+            name: config.name || "",
+            period: parseFloat(config.period) || 10,
+            state: true
+        };
 
-        // Validate period
-        if (isNaN(node.period) || node.period <= 0) {
+        // Validate initial config
+        if (isNaN(node.runtime.period) || node.runtime.period <= 0 || !isFinite(node.runtime.period)) {
+            node.runtime.period = 10;
             node.status({ fill: "red", shape: "ring", text: "invalid period" });
-            node.period = 10;
         }
 
-        // State variables
         let intervalId = null;
-        let state = true;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
-            if (msg.context) {
+            // Guard against invalid message
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Handle context updates
+            if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
                     if (done) done();
                     return;
                 }
-
-                if (msg.context === "period") {
-                    const value = parseFloat(msg.payload);
-                    if (isNaN(value) || value <= 0) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid period" });
-                        if (done) done();
+                if (typeof msg.context !== "string") {
+                    node.status({ fill: "red", shape: "ring", text: "invalid context" });
+                    if (done) done();
+                    return;
+                }
+                switch (msg.context) {
+                    case "period":
+                        const value = parseFloat(msg.payload);
+                        if (isNaN(value) || value <= 0 || !isFinite(value)) {
+                            node.status({ fill: "red", shape: "ring", text: "invalid period" });
+                            if (done) done();
+                            return;
+                        }
+                        node.runtime.period = value;
+                        node.status({ fill: "green", shape: "dot", text: `period: ${node.runtime.period.toFixed(2)}` });
+                        if (intervalId) {
+                            clearInterval(intervalId);
+                            node.runtime.state = true;
+                            const halfPeriodMs = (node.runtime.period * 1000) / 2;
+                            send({ payload: node.runtime.state });
+                            node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.state}` });
+                            intervalId = setInterval(() => {
+                                node.runtime.state = !node.runtime.state;
+                                send({ payload: node.runtime.state });
+                                node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.state}` });
+                            }, halfPeriodMs);
+                        }
+                        break;
+                    case "command":
+                        if (typeof msg.payload !== "string" || !["start", "stop"].includes(msg.payload)) {
+                            node.status({ fill: "red", shape: "ring", text: "invalid command" });
+                            if (done) done();
+                            return;
+                        }
+                        if (msg.payload === "start" && !intervalId) {
+                            node.runtime.state = true;
+                            const halfPeriodMs = (node.runtime.period * 1000) / 2;
+                            send({ payload: node.runtime.state });
+                            node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.state}` });
+                            intervalId = setInterval(() => {
+                                node.runtime.state = !node.runtime.state;
+                                send({ payload: node.runtime.state });
+                                node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.state}` });
+                            }, halfPeriodMs);
+                            node.status({ fill: "green", shape: "dot", text: `started, period: ${node.runtime.period.toFixed(2)}` });
+                        } else if (msg.payload === "stop" && intervalId) {
+                            clearInterval(intervalId);
+                            intervalId = null;
+                            node.status({ fill: "yellow", shape: "dot", text: "stopped" });
+                        }
+                        break;
+                    default:
+                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        if (done) done("Unknown context");
                         return;
-                    }
-                    node.period = value;
-                    node.status({ fill: "green", shape: "dot", text: `period: ${node.period.toFixed(2)}` });
-
-                    if (intervalId) {
-                        clearInterval(intervalId);
-                        state = true;
-                        const halfPeriodMs = (node.period * 1000) / 2;
-                        send({ payload: state });
-                        node.status({ fill: "blue", shape: "dot", text: `out: ${state}` });
-                        intervalId = setInterval(() => {
-                            state = !state;
-                            send({ payload: state });
-                            node.status({ fill: "blue", shape: "dot", text: `out: ${state}` });
-                        }, halfPeriodMs);
-                    }
-                } else if (msg.context === "command") {
-                    if (typeof msg.payload !== "string") {
-                        node.status({ fill: "red", shape: "ring", text: "invalid command" });
-                        if (done) done();
-                        return;
-                    }
-                    if (msg.payload === "start" && !intervalId) {
-                        state = true;
-                        const halfPeriodMs = (node.period * 1000) / 2;
-                        send({ payload: state });
-                        node.status({ fill: "blue", shape: "dot", text: `out: ${state}` });
-                        intervalId = setInterval(() => {
-                            state = !state;
-                            send({ payload: state });
-                            node.status({ fill: "blue", shape: "dot", text: `out: ${state}` });
-                        }, halfPeriodMs);
-                        node.status({ fill: "green", shape: "dot", text: `started, period: ${node.period.toFixed(2)}` });
-                    } else if (msg.payload === "stop" && intervalId) {
-                        clearInterval(intervalId);
-                        intervalId = null;
-                        node.status({ fill: "red", shape: "dot", text: "stopped" });
-                    } else {
-                        node.status({ fill: "red", shape: "ring", text: "invalid command" });
-                    }
-                } else {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
                 }
                 if (done) done();
                 return;
@@ -87,7 +102,14 @@ module.exports = function(RED) {
                 clearInterval(intervalId);
                 intervalId = null;
             }
-            state = true;
+            node.runtime = {
+                name: config.name || "",
+                period: parseFloat(config.period) || 10,
+                state: true
+            };
+            if (isNaN(node.runtime.period) || node.runtime.period <= 0 || !isFinite(node.runtime.period)) {
+                node.runtime.period = 10;
+            }
             node.status({});
             done();
         });
@@ -95,13 +117,13 @@ module.exports = function(RED) {
 
     RED.nodes.registerType("tick-tock-block", TickTockBlockNode);
 
-    // HTTP endpoint for editor reflection
-    RED.httpAdmin.get("/tick-tock-block/:id", RED.auth.needsPermission("tick-tock-block.read"), function(req, res) {
+    // Serve runtime state for editor
+    RED.httpAdmin.get("/tick-tock-block-runtime/:id", RED.auth.needsPermission("tick-tock-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "tick-tock-block") {
             res.json({
-                name: node.name || "tick tock",
-                period: node.period || 10
+                name: node.runtime.name,
+                period: node.runtime.period
             });
         } else {
             res.status(404).json({ error: "Node not found" });

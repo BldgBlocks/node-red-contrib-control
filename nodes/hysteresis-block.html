@@ -1,16 +1,20 @@
-<!-- UI Template Section: Defines the edit dialog for the Hysteresis Block node -->
+<!-- UI Template Section: Defines the edit dialog -->
 <script type="text/html" data-template-name="hysteresis-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-upperLimit" title="Upper threshold for evaluation (number)"><i class="fa fa-arrow-up"></i> Upper Limit</label>
-        <input type="number" id="node-input-upperLimit" placeholder="50" step="any">
+        <label for="node-input-upperLimit" title="Upper threshold for switching to above state (number)"><i class="fa fa-arrow-up"></i> Upper Limit</label>
+        <input type="number" id="node-input-upperLimit" placeholder="50" min="0" step="any">
     </div>
     <div class="form-row">
-        <label for="node-input-lowerLimit" title="Lower threshold for evaluation (number)"><i class="fa fa-arrow-down"></i> Lower Limit</label>
-        <input type="number" id="node-input-lowerLimit" placeholder="30" step="any">
+        <label for="node-input-lowerLimit" title="Lower threshold for switching to below state (number)"><i class="fa fa-arrow-down"></i> Lower Limit</label>
+        <input type="number" id="node-input-lowerLimit" placeholder="30" min="0" step="any">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
     </div>
 </script>
 
@@ -20,84 +24,89 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "hysteresis" },
-            upperLimit: { value: 50, required: true, validate: function(v) { return !isNaN(parseFloat(v)); } },
-            lowerLimit: { value: 30, required: true, validate: function(v) { return !isNaN(parseFloat(v)); } }
+            name: { value: "" },
+            upperLimit: { value: 50, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            lowerLimit: { value: 30, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } }
         },
         inputs: 1,
         outputs: 3,
         inputLabels: ["input"],
         outputLabels: ["above", "within", "below"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-toggle-on",
         paletteLabel: "hysteresis",
         label: function() {
             return this.name || "hysteresis";
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "hysteresis");
-            $("#node-input-upperLimit").val(this.upperLimit || 50);
-            $("#node-input-lowerLimit").val(this.lowerLimit || 30);
+            const node = this;
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-upperLimit").val(node.upperLimit || 50);
+            $("#node-input-lowerLimit").val(node.lowerLimit || 30);
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/hysteresis-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.upperLimit !== this.upperLimit || data.lowerLimit !== this.lowerLimit)) {
-                    $("#node-input-name").val(data.name || this.name || "hysteresis");
-                    $("#node-input-upperLimit").val(data.upperLimit || this.upperLimit || 50);
-                    $("#node-input-lowerLimit").val(data.lowerLimit || this.lowerLimit || 30);
+            // Ensure limits are numbers for comparison
+            const editorUpperLimit = parseFloat(node.upperLimit) || 50;
+            const editorLowerLimit = parseFloat(node.lowerLimit) || 30;
+
+            $.getJSON(`/hysteresis-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                if (data.upperLimit !== undefined && !isNaN(data.upperLimit) && parseFloat(data.upperLimit) !== parseFloat(editorUpperLimit)) {
+                    changes.push(`upperLimit: ${data.upperLimit}`);
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+                if (data.lowerLimit !== undefined && !isNaN(data.lowerLimit) && parseFloat(data.lowerLimit) !== parseFloat(editorLowerLimit)) {
+                    changes.push(`lowerLimit: ${data.lowerLimit}`);
+                }
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
         oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
+        },
+        oneditvalidate: function() {
+            const upper = parseFloat($("#node-input-upperLimit").val());
+            const lower = parseFloat($("#node-input-lowerLimit").val());
+            return !isNaN(upper) && !isNaN(lower) && upper > lower && upper >= 0 && lower >= 0;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Hysteresis Block node -->
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="hysteresis-block">
 Evaluates numeric input against limits with hysteresis.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets configuration ("upperLimit" or "lowerLimit").
-- **payload** <span class="property-type">number</span>
-  Number for evaluation or configuration value.
+: context (string) : Configures thresholds (`"upperLimit"`, `"lowerLimit"`). Unmatched values trigger error.
+: payload (number) : Input number for evaluation or new threshold value with `msg.context`.
 
 ### Outputs
-1. **above** <span class="property-type">boolean</span>
-   True when above upper limit, else false.
-2. **within** <span class="property-type">boolean</span>
-   True when within limits, else false.
-3. **below** <span class="property-type">boolean</span>
-   True when below lower limit, else false.
+: 1. above (boolean) : `true` if input is in above state, else `false`.
+: 2. within (boolean) : `true` if input is in within state, else `false`.
+: 3. below (boolean) : `true` if input is in below state, else `false`.
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "hysteresis").
+: upperLimit (number) : Upper threshold for switching to above state (≥ 0, > lowerLimit). Default: 50.
+: lowerLimit (number) : Lower threshold for switching to below state (≥ 0, < upperLimit). Default: 30.
 
 ### Details
-The Hysteresis Block evaluates `msg.payload` (number) against `upperLimit` and `lowerLimit` with hysteresis, outputting `true` to one port (above, within, or below) and `false` to others. Configure limits via the editor or `msg.context = "upperLimit"` or `"lowerLimit"` with a numeric `msg.payload`.
-
-Editor changes require redeployment; message-based changes apply immediately and are reflected in the editor.
-
-The node outputs new messages for every valid input.
-
-### Examples
-- **Input Above**: Input `{ payload: 55 }` with `upperLimit=50`, `lowerLimit=30`, output: `[ { payload: true }, { payload: false }, { payload: false } ]`.
-- **Set Limit**: Input `{ context: "upperLimit", payload: 60 }`, no output, sets `upperLimit` to 60.
-- **Input Within**: Input `{ payload: 40 }` with `upperLimit=50`, `lowerLimit=30`, output: `[ { payload: false }, { payload: true }, { payload: false } ]`.
+Evaluates `msg.payload` (number) against `upperLimit` and `lowerLimit` with hysteresis, outputting new messages with `true` on one port (above, within, or below) and `false` on others. Uses hysteresis: remains in "above" state until `msg.payload < lowerLimit`, "below" until `msg.payload > upperLimit`, or "within" until crossing a threshold. Configurable via editor (`name`, `upperLimit`, `lowerLimit`) or `msg.context` (`"upperLimit"`, `"lowerLimit"`) with numeric `msg.payload`. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `upperLimit`, `lowerLimit`) are shown in "Changed Runtime Values" if different from editor defaults (e.g., `upperLimit ≠ 50`). Outputs on every valid input.
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing input" or "missing payload" (red), no output.
-- Invalid input or limit (non-numeric): Shows "invalid input" or "invalid X" (red), no output.
-- Invalid upperLimit (≤ lowerLimit): Shows "invalid upperLimit" (red), no output.
-- Invalid lowerLimit (≥ upperLimit): Shows "invalid lowerLimit" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid `msg.payload` (non-numeric): No output, red status (`invalid payload`).
+- Invalid `upperLimit`/`lowerLimit` (non-numeric, negative, `upperLimit ≤ lowerLimit`): No output, red status (`invalid upperLimit`/`lowerLimit`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for configuration (e.g., `upperLimit: 50`), blue for output (e.g., `out: within, in: 40.00`), red for errors, yellow for unknown context.
+### Status
+- Green (dot): Configuration (e.g., `upperLimit: 50`, `lowerLimit: 30`).
+- Blue (dot): Output (e.g., `out: within, in: 40.00`).
+- Red (ring): Errors (e.g., `missing payload`, `invalid payload`, `invalid upperLimit`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

@@ -10,22 +10,41 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "negate" }
+            name: { value: "" }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-minus",
         paletteLabel: "negate",
         label: function() {
             return this.name || "negate";
         },
         oneditprepare: function() {
+            // Initialize inputs
             $("#node-input-name").val(this.name || "negate");
+
+            // Validate name input
+            $("#node-input-name").on("input", function() {
+                const val = $(this).val();
+                if (!val || val.trim().length === 0) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
+                }
+            });
         },
         oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
+            // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const name = $("#node-input-name").val();
+            if (!name || name.trim().length === 0) {
+                $("#node-input-name").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
@@ -34,37 +53,29 @@
 Negates a number or boolean input value.
 
 ### Inputs
-- **payload** <span class="property-type">number | boolean</span>
-  Value to negate (number or boolean).
+: payload (number | boolean) : Value to negate (number or boolean).
 
 ### Outputs
-- **payload** <span class="property-type">number | boolean</span>
-  Negated value (-number or !boolean).
-- Other properties from the input message (e.g., `msg.topic`, `msg.context`) are preserved.
+: payload (number | boolean) : Negated value (-number or !boolean).
 
 ### Details
-The Negate Block negates `msg.payload`. For numbers, it outputs the negative (e.g., `5` → `-5`). For booleans, it outputs the inverse (e.g., `true` → `false`). The node passes the original input message with `msg.payload` updated to the negated value.
+Negates `msg.payload` in a passthrough manner, updating the original message. For numbers, outputs the negative (e.g., 5 becomes -5). For booleans, outputs the inverse (e.g., true becomes false). Preserves other message properties (e.g., `msg.topic`, `msg.context`). Outputs only when the negated value changes. Configuration is set in the editor (name only) and requires redeployment. As a passthrough node, it ignores and preserves `msg.context` without generating unknown context errors. Used in control systems for inverting signals or values.
 
-The node name is configurable only in the editor. Changes require redeployment. Unlike other control nodes, it does not support `msg.context` for runtime configuration.
-
-The node outputs the message for every valid input.
-
-### Examples
-- **Negate Number**: Input `{ payload: 5 }`, output: `{ payload: -5, ...original }`.
-- **Negate Boolean**: Input `{ payload: true }`, output: `{ payload: false, ...original }`.
-- **Invalid Input**: Input `{ payload: "text" }`, no output, shows "invalid input: string".
+Configuration (set in editor):
+: name (string) : Optional display name (default: negate).
 
 ### Error Handling
-- Missing `msg.payload`: Shows "missing input" (red), no output.
-- Invalid input (null): Shows "invalid input: null" (red), no output.
-- Invalid input (array): Shows "invalid input: array" (red), no output.
-- Invalid input (string): Shows "invalid input: string" (red), no output.
-- Invalid input (NaN): Shows "invalid input: NaN" (red), no output.
-- Invalid input (other types): Shows "invalid input type" (red), no output.
+- Invalid message (e.g., `msg` undefined): No output, red status (`missing message`).
+- Missing `msg.payload`: No output, red status (`missing input`).
+- Invalid input (null, array, string, other types, NaN): No output, red status (`invalid input: null`, `invalid input: array`, `invalid input: string`, `invalid input: NaN`, `invalid input type`).
 
-Status shows blue for output (e.g., `in: 5.00, out: -5.00` or `in: true, out: false`), red for errors.
+### Status
+- Green (dot): Initial configuration (e.g., `name: negate`).
+- Blue (dot): Outputs when value changes (e.g., `in: 5.00, out: -5.00`, `in: true, out: false`).
+- Blue (ring): Outputs when value unchanged (e.g., `in: 5.00, out: -5.00`).
+- Red (ring): Errors (e.g., `missing message`, `invalid input: string`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

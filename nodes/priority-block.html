@@ -1,8 +1,12 @@
-<!-- UI Template Section: Defines the edit dialog for the Priority Block node -->
+<!-- UI Template Section: Defines the edit dialog -->
 <script type="text/html" data-template-name="priority-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
     </div>
 </script>
 
@@ -12,30 +16,45 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "priority" }
+            name: { value: "" }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-list-ol",
         paletteLabel: "priority",
         label: function() {
             return this.name || "priority";
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "priority");
+            const node = this;
+            $("#node-input-name").val(node.name || "");
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/priority-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if data differs from pending values
-                if (data && data.name !== this.name) {
-                    $("#node-input-name").val(data.name || this.name || "priority");
+            $.getJSON(`/priority-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
+                const changes = [];
+                if (data.name) changes.push(`name: ${data.name}`);
+                Object.keys(data.priorities || {}).forEach(key => {
+                    if (data.priorities[key] !== null) {
+                        const displayValue = data.priorities[key] === null ? "null" : 
+                            typeof data.priorities[key] === "number" ? data.priorities[key].toFixed(2) : 
+                            JSON.stringify(data.priorities[key]).slice(0, 20);
+                        changes.push(`${key}: ${displayValue}`);
+                    }
+                });
+                if (data.defaultValue !== null) {
+                    const displayValue = typeof data.defaultValue === "number" ? data.defaultValue.toFixed(2) : 
+                        JSON.stringify(data.defaultValue).slice(0, 20);
+                    changes.push(`default: ${displayValue}`);
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+                if (data.fallbackValue !== null) {
+                    const displayValue = typeof data.fallbackValue === "number" ? data.fallbackValue.toFixed(2) : 
+                        JSON.stringify(data.fallbackValue).slice(0, 20);
+                    changes.push(`fallback: ${displayValue}`);
+                }
+                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: Unknown");
             });
         },
         oneditsave: function() {
@@ -44,46 +63,46 @@
     });
 </script>
 
-<!-- Help Section: Provides documentation for the Priority Block node -->
+<!-- Help Section -->
 <script type="text/markdown" data-help-name="priority-block">
 Implements a priority array with 16 levels, default, and fallback.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Identifies input slot ("priority1" to "priority16", "default", "fallback"). Ignored if `msg.payload` is an object with `clear` key.
-- **payload** <span class="property-type">any | object | string</span>
-  - Non-object, non-"clear" (number, boolean, null): Value for the slot specified by `msg.context` (number parsed as float, null to relinquish, booleans as-is).
-  - String "clear": Relinquish the slot specified by `msg.context` (e.g., `{ context: "priority8", payload: "clear" }`).
-  - Object with `clear` key:
-    - `{ clear: "priority8" }`: Relinquish `priority8`.
-    - `{ clear: ["priority1", "priority8"] }`: Relinquish multiple slots.
+: context (string) : Identifies slot (`"priority1"` to `"priority16"`, `"default"`, `"fallback"`) for setting or clearing. Ignored if `msg.payload` is an object with `clear` key.
+: payload (any | object | string) : 
+  - Non-object, non-"clear" (number, boolean, null): Value for slot specified by `msg.context` (numbers parsed as float, null to relinquish).
+  - String `"clear"`: Relinquish slot specified by `msg.context`.
+  - Object with `clear`:
+    - `{ clear: "priorityX" }`: Relinquish single slot.
+    - `{ clear: ["priorityX", ...] }`: Relinquish multiple slots.
     - `{ clear: "all" }`: Relinquish all slots.
 
 ### Outputs
-- Original message from the highest non-null priority slot (`priority1` to `fallback`), with `diagnostics.activePriority` (string) added ("priority1" to "priority16", "default", "fallback", or null).
-- If no slots are set, outputs `{ payload: null, diagnostics: { activePriority: null } }`.
+: payload (any) : Value from highest non-null slot (`priority1` to `fallback`), or `null` if none set.
+: diagnostics.activePriority (string) : Active slot (`"priority1"` to `"priority16"`, `"default"`, `"fallback"`, or `null`).
+: Other properties (e.g., `msg.context`, `msg.topic`) from the original message are preserved.
+
+### Properties
+: name (string) : Display name in editor. Default: "" (shows "priority").
 
 ### Details
-The Priority Block manages a priority array with 16 slots (`priority1` to `priority16`), `default`, and `fallback`. It forwards the original message from the highest non-null slot, prioritizing `priority1` (highest) to `fallback` (lowest). If no slots are set, it outputs a new message with `payload: null`.
-
-Inputs set slots via `msg.context` (e.g., `{ context: "priority1", payload: true }`) or clear slots via `msg.payload` (e.g., `{ payload: { clear: "priority8" } }` or `{ context: "priority8", payload: "clear" }`). The node name is editor-only. Editor changes require redeployment; message-based changes apply immediately.
-
-### Examples
-- **Set Priority**: `{ context: "priority1", payload: true }`, outputs original message with `diagnostics: { activePriority: "priority1" }`.
-- **Clear Slot**: `{ context: "priority1", payload: "clear" }`, may output message from next highest slot (e.g., `priority2`) or `{ payload: null, diagnostics: { activePriority: null } }`.
-- **Clear Multiple**: `{ payload: { clear: ["priority1", "priority2"] } }`, outputs message from next highest slot.
-- **Clear All**: `{ payload: { clear: "all" } }`, outputs `{ payload: null, diagnostics: { activePriority: null } }`.
+Manages a priority array with 16 slots (`priority1` to `priority16`), `default`, and `fallback`. Forwards the original message from the highest non-null slot (`priority1` highest, `fallback` lowest), adding `msg.diagnostics.activePriority`. If no slots are set, outputs `{ payload: null, diagnostics: { activePriority: null } }`. Set slots via `msg.context` with `msg.payload` (number, boolean, null) or clear via `msg.payload.clear` or `msg.payload = "clear"`. Configurable via editor (`name` only). Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, non-null slots) shown in "Changed Runtime Values".
 
 ### Error Handling
-- Missing `msg.context` (for non-object, non-"clear" payload): Shows "missing context" (red), no output.
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid slot value (non-numeric, not null, not boolean): Shows "invalid [slot]" (red), no output.
-- Invalid `clear` payload (e.g., `{ clear: "invalid" }` or `"clear"` with invalid `context`): Shows "invalid clear" or "invalid clear context" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Missing `msg`: No output, red status (`invalid message`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Missing `msg.context` (for non-object, non-"clear" payload): No output, red status (`missing or invalid context`).
+- Invalid slot value (not number, boolean, null): No output, red status (`invalid [slot]`).
+- Invalid `clear` payload or context: No output, red status (`invalid clear` or `invalid clear context`).
+- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
-Status shows green for updates (e.g., `priority1: true`, `priority8 cleared`), blue for output (e.g., `in: true, out: true, slot: priority1`), red for errors, yellow for unknown context.
+### Status
+- Green (dot): Updates or clears (e.g., `priority1: 42.00`, `priority8 cleared`).
+- Blue (dot): Output (e.g., `in: true, out: true, slot: priority1`).
+- Red (ring): Errors (e.g., `invalid priority1`, `invalid clear`).
+- Yellow (ring): Unknown context (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>

@@ -1,40 +1,48 @@
-module.exports = function (RED) {
+module.exports = function(RED) {
     function CommentBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
-        const context = this.context();
 
         // Initialize properties
         node.name = config.name || "comment";
-        node.comment = context.get("comment") || config.comment || "";
-        node.statusDisplay = context.get("statusDisplay") || config.statusDisplay || "default";
+        node.comment = config.comment || "";
+        node.statusDisplay = config.statusDisplay || "default";
 
         // Ensure comment is within 100 characters
         if (node.comment.length > 100) {
             node.comment = node.comment.substring(0, 100);
         }
-        context.set("comment", node.comment);
-        context.set("statusDisplay", node.statusDisplay);
 
         // Set initial status
         let status = {};
         if (node.statusDisplay === "default") {
-            status = { fill: "blue", shape: "dot", text: node.comment || "No comment set" };
+            status = { fill: "green", shape: "dot", text: node.comment || "No comment set" };
         } else if (node.statusDisplay === "name") {
-            status = { fill: "blue", shape: "dot", text: node.name || "comment" };
+            status = { fill: "green", shape: "dot", text: node.name || "comment" };
         } // "none" leaves status empty
         node.status(status);
 
-        node.on("input", function (msg, send, done) {
-            send = send || function () { node.send.apply(node, arguments); };
+        // Track last status for unchanged state
+        let lastStatusText = status.text || "";
+
+        node.on("input", function(msg, send, done) {
+            send = send || function() { node.send.apply(node, arguments); };
+
+            // Guard against invalid msg
+            if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
 
             // Update status
             let status = {};
             if (node.statusDisplay === "default") {
-                status = { fill: "blue", shape: "dot", text: node.comment || "No comment set" };
+                status = { fill: "blue", shape: lastStatusText === (node.comment || "No comment set") ? "ring" : "dot", text: node.comment || "No comment set" };
             } else if (node.statusDisplay === "name") {
-                status = { fill: "blue", shape: "dot", text: node.name || "comment" };
+                status = { fill: "blue", shape: lastStatusText === (node.name || "comment") ? "ring" : "dot", text: node.name || "comment" };
             } // "none" leaves status empty
+            lastStatusText = status.text || "";
             node.status(status);
 
             // Pass message unchanged
@@ -43,23 +51,11 @@ module.exports = function (RED) {
             if (done) done();
         });
 
-        node.on("close", function (done) {
+        node.on("close", function(done) {
+            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("comment-block", CommentBlockNode);
-
-    // Serve comment and statusDisplay for editor
-    RED.httpAdmin.get("/comment-block/:id", RED.auth.needsPermission("comment-block.read"), function (req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "comment-block") {
-            const context = node.context();
-            const comment = context.get("comment") || "";
-            const statusDisplay = context.get("statusDisplay") || "default";
-            res.json({ comment, statusDisplay });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

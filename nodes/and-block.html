@@ -1,4 +1,3 @@
-<!-- UI Template Section: Defines the edit dialog for the AND Block node -->
 <script type="text/html" data-template-name="and-block">
     <div class="form-row">
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
@@ -8,83 +7,116 @@
         <label for="node-input-slots" title="Number of boolean inputs (integer ≥ 2)"><i class="fa fa-list"></i> Slots</label>
         <input type="number" id="node-input-slots" placeholder="2" min="2" step="1">
     </div>
+    <div class="form-row">
+        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
+        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+    </div>
 </script>
 
-<!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
     RED.nodes.registerType("and-block", {
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "and" },
-            slots: { value: 2, required: true, validate: function(v) { return Number.isInteger(+v) && +v >= 2; } }
+            name: { value: "" },
+            slots: { 
+                value: 2, 
+                required: true, 
+                validate: function(v) { return Number.isInteger(+v) && +v >= 2; } 
+            }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-wrench",
+        icon: "font-awesome/fa-check-square-o",
         paletteLabel: "and",
         label: function() {
             return this.name ? `${this.name} (${this.slots})` : `and (${this.slots})`;
         },
         oneditprepare: function() {
-            const id = this.id;
-            // Initialize with pending client-side values
-            $("#node-input-name").val(this.name || "and");
-            $("#node-input-slots").val(this.slots || 2);
+            const node = this;
 
-            // Fetch server data only for deployed nodes
-            $.getJSON(`/and-block/${id}?t=${Date.now()}`, function(data) {
-                // Only update if node is deployed and data differs
-                if (data && (data.name !== this.name || data.slots !== this.slots)) {
-                    $("#node-input-name").val(data.name || this.name || "and");
-                    $("#node-input-slots").val(data.slots || this.slots || 2);
+            // Initialize inputs
+            $("#node-input-name").val(node.name || "");
+            $("#node-input-slots").val(node.slots || 2);
+
+            // Validate slots input
+            $("#node-input-slots").on("input", function() {
+                const val = parseInt($(this).val(), 10);
+                if (!Number.isInteger(val) || val < 2) {
+                    $(this).addClass("input-error");
+                } else {
+                    $(this).removeClass("input-error");
                 }
-            }.bind(this)).fail(function() {
-                // No server data; rely on this properties (already set)
+            });
+
+            // Fetch runtime changes
+            $.getJSON(`/and-block-runtime/${node.id}`, function(data) {
+                const runtime = data || {};
+                const changes = [];
+                if (runtime.name !== undefined && runtime.name !== node.name) {
+                    changes.push(`name: ${runtime.name}`);
+                }
+                if (runtime.slots !== undefined && runtime.slots !== Number(node.slots)) {
+                    changes.push(`slots: ${runtime.slots}`);
+                }
+                if (runtime.inputs && Array.isArray(runtime.inputs)) {
+                    runtime.inputs.forEach((value, index) => {
+                        if (value !== false) { // Only show non-default values
+                            changes.push(`in${index + 1}: ${value}`);
+                        }
+                    });
+                }
+                const displayText = changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None";
+                $("#node-runtime-changes").text(displayText);
+            }).fail(function() {
+                $("#node-runtime-changes").text("Changed Values: None");
             });
         },
         oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
+            // Standard config properties are automatically saved
+        },
+        oneditvalidate: function() {
+            const slots = parseInt($("#node-input-slots").val(), 10);
+            if (!Number.isInteger(slots) || slots < 2) {
+                $("#node-input-slots").addClass("input-error");
+                return false;
+            }
+            return true;
         }
     });
 </script>
 
-<!-- Help Section: Provides documentation for the AND Block node -->
 <script type="text/markdown" data-help-name="and-block">
-Evaluates multiple boolean inputs, outputting true if all are true, and passes the original message.
+Computes the logical AND of multiple boolean inputs, outputting a new message with the result.
 
 ### Inputs
-- **context** <span class="property-type">string</span>
-  Sets input values ("inX" for input X, e.g., "in1").
-- **payload** <span class="property-type">any</span>
-  Input value, converted to boolean.
+: context (string) : Identifies the input slot (e.g., `"in1"`, `"in2"`).
+: payload (any) : Value for the slot, converted to boolean (`true`, `1` → `true`; `false`, `0`, `null` → `false`).
 
 ### Outputs
-- **payload** <span class="property-type">boolean</span>
-  True if all inputs are true, false otherwise.
-- Other properties from the input message (e.g., `msg.context`, `msg.topic`) are preserved.
+: payload (boolean) : `true` if all slots are `true`, `false` otherwise.
 
 ### Details
-The AND Block processes multiple boolean inputs, identified by `msg.context` (e.g., `in1`, `in2`), and computes a logical AND. The number of inputs (slots, default: 2) is configurable in the editor. Inputs default to false and are updated via `msg.context = "inX"` with a `msg.payload` that is converted to boolean (e.g., `1`, `"true"` → `true`; `0`, `null` → `false`).
-
-The node outputs the original message with `msg.payload` set to the AND result for every valid input update. Editor changes require redeployment; message-based updates apply immediately and are reflected in the editor.
-
-### Examples
-- **Update Input**: Input `{ context: "in1", payload: true }`, output `{ context: "in1", payload: false }` (if `in2 = false`).
-- **All True**: Input `{ context: "in2", payload: true }` with `in1 = true`, output `{ context: "in2", payload: true }`.
-- **Invalid Index**: Input `{ context: "in3", payload: true }` with 2 slots, no output, status: `invalid input index 3`.
+Evaluates the logical AND of a fixed number of boolean inputs (`slots` ≥ 2, set in editor). Each slot is updated via `msg.context = "inX"` (e.g., `"in1"`, `"in2"`) with `msg.payload` converted to boolean. Outputs `{ payload: boolean }` with the AND result whenever a valid input updates a slot. Slots persist their state, shown in "Changed Runtime Values" if non-default (`true`). The original message is not passed through.
 
 ### Error Handling
-- Missing `msg.context`: Shows "missing context" (red), no output.
-- Missing `msg.payload`: Shows "missing payload" (red), no output.
-- Invalid input index (e.g., `in3` for 2 slots): Shows "invalid input index X" (red), no output.
-- Unknown `msg.context`: Shows "unknown context" (yellow), no output.
+- Invalid `slots` (non-integer, <2): Defaults to 2, red status (`invalid slots, using 2`).
+- Missing `msg.context`: No output, red status (`missing context`).
+- Missing `msg.payload`: No output, red status (`missing payload`).
+- Invalid input index (e.g., `in3` for 2 slots): No output, red status (`invalid input index X`).
+- Unknown `msg.context` (not `inX`): No output, yellow status (`unknown context`).
+- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
 
-Status shows blue for output (e.g., `slots: 2, out: true`), red for errors, yellow for unknown context.
+### Status
+- Green (dot): Configuration updates (e.g., `slots: 2`).
+- Blue (dot): Outputs when state changes (e.g., `in: [true, false], out: false`).
+- Blue (ring): Outputs when state unchanged (e.g., `in: [true, false], out: false`).
+- Red (ring): Errors (e.g., `invalid slots, using 2`, `missing context`, `invalid message`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/) - official Node-RED documentation
-- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control) - source code and additional help
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)
 </script>
