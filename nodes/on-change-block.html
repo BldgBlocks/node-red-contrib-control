@@ -81,13 +81,13 @@ Filters redundant messages based on value changes and a configurable period.
 : payload (number | any, for `context`) : Non-negative number for `"period"` (ms), any for `"status"`.
 
 ### Outputs
-: msg : Input message if value changed and not filtered.
+: msg (any) : Input message if value changed and not filtered.
 : payload (object, for `msg.context = "status"`) : `{ period, periodType }`.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "on change").
-: period (number) : Filter period in milliseconds (≥ 0, static or from `msg`, `flow`, `global`). Default: 0.
-: periodType (string) : Source of period (`"num"`, `"msg"`, `"flow"`, `"global"`). Default: `"num"`.
+: name (string) : Display name in editor. Default "" (shows "on change").
+: period (number) : Filter period in milliseconds (≥ 0, static or from `msg`, `flow`, `global`). Default 0.
+: periodType (string) : Source of period (`"num"`, `"msg"`, `"flow"`, `"global"`). Default `"num"`.
 
 ### Details
 Filters messages based on value changes (deep comparison) and a filter period. When `period = 0`, outputs the input message only if `msg.payload` differs from the last output value. When `period > 0`, outputs the first message, suppresses all messages during the period (including blips), and after the period, outputs only if the value differs from the last output. Supports complex payloads (objects, arrays) via deep comparison. Configuration:
