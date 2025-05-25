@@ -1,4 +1,3 @@
-// nodes/utils.js
 module.exports = {
     getTypedValue: function(node, type, value, msg) {
         if (type === "msg") {
@@ -35,7 +34,7 @@ module.exports = {
         } else {
             parsed = type === "num" ? parseFloat(value) : type === "bool" ? !!value : value;
         }
-        if (parsed === undefined || parsed === null) {
+        if (parsed === undefined || parsed === null || isNaN(parsed)) {
             if (Object.keys(msg).length > 0) {
                 node.status({ fill: "red", shape: "ring", text: `invalid ${constraints.name || "value"}` });
             }

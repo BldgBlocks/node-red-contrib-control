@@ -1,41 +1,50 @@
 module.exports = function(RED) {
     function TstatBlockNode(config) {
         RED.nodes.createNode(this, config);
-        
         const node = this;
         const utils = require("./utils");
-        
-        // Initialize runtime state
+
         node.runtime = {
             name: config.name || "tstat",
             algorithm: config.algorithm || "single",
-            setpoint: config.setpoint || "70",
+            setpoint: parseFloat(config.setpoint) || 70,
             setpointType: config.setpointType || "num",
-            heatingSetpoint: config.heatingSetpoint || "68",
+            heatingSetpoint: parseFloat(config.heatingSetpoint) || 68,
             heatingSetpointType: config.heatingSetpointType || "num",
-            coolingSetpoint: config.coolingSetpoint || "74",
+            coolingSetpoint: parseFloat(config.coolingSetpoint) || 74,
             coolingSetpointType: config.coolingSetpointType || "num",
-            coolingOff: config.coolingOff || "72",
+            coolingOff: parseFloat(config.coolingOff) || 72,
             coolingOffType: config.coolingOffType || "num",
-            coolingOn: config.coolingOn || "74",
+            coolingOn: parseFloat(config.coolingOn) || 74,
             coolingOnType: config.coolingOnType || "num",
-            heatingOff: config.heatingOff || "68",
+            heatingOff: parseFloat(config.heatingOff) || 68,
             heatingOffType: config.heatingOffType || "num",
-            heatingOn: config.heatingOn || "66",
+            heatingOn: parseFloat(config.heatingOn) || 66,
             heatingOnType: config.heatingOnType || "num",
             diff: parseFloat(config.diff) || 2,
+            diffType: config.diffType || "num",
             anticipator: parseFloat(config.anticipator) || 0.5,
+            anticipatorType: config.anticipatorType || "num",
+            ignoreAnticipatorCycles: parseInt(config.ignoreAnticipatorCycles) || 1,
+            ignoreAnticipatorCyclesType: config.ignoreAnticipatorCyclesType || "num",
             isHeating: config.isHeating === true
         };
 
-        // Validate non-typedInput fields at startup
+        console.log("TstatBlockNode init anticipator:", node.runtime.anticipator, "config:", config.anticipator);
+
+        let above = false;
+        let below = false;
+        let lastAbove = false;
+        let lastBelow = false;
+        let lastIsHeating = null;
+        let cyclesSinceModeChange = 0;
+        let modeChanged = false;
+
         if (node.runtime.diff <= 0) {
-            node.runtime.diff = 2;
-            node.status({ fill: "red", shape: "ring", text: "invalid diff, using 2" });
+            node.status({ fill: "red", shape: "ring", text: "invalid diff (must be positive)" });
         }
-        if (node.runtime.anticipator < 0) {
-            node.runtime.anticipator = 0.5;
-            node.status({ fill: "red", shape: "ring", text: "invalid anticipator, using 0.5" });
+        if (node.runtime.ignoreAnticipatorCycles < 0) {
+            node.status({ fill: "red", shape: "ring", text: "invalid ignoreAnticipatorCycles (must be non-negative)" });
         }
         if (node.runtime.algorithm === "specified") {
             const coolingOn = parseFloat(node.runtime.coolingOn);
@@ -44,80 +53,24 @@ module.exports = function(RED) {
             const heatingOn = parseFloat(node.runtime.heatingOn);
             if (isNaN(coolingOn) || isNaN(coolingOff) || isNaN(heatingOff) || isNaN(heatingOn) ||
                 coolingOn < coolingOff || coolingOff < heatingOff || heatingOff < heatingOn) {
-                node.runtime.coolingOn = "74";
-                node.runtime.coolingOff = "72";
-                node.runtime.heatingOff = "68";
-                node.runtime.heatingOn = "66";
-                node.status({ fill: "red", shape: "ring", text: "invalid specified setpoints, using defaults" });
+                node.status({ fill: "red", shape: "ring", text: "invalid specified setpoints (coolingOn >= coolingOff >= heatingOff >= heatingOn)" });
             }
         }
-
-        // Initialize state
-        let above = false;
-        let below = false;
-        let lastAbove = false;
-        let lastBelow = false;
+        if (node.runtime.algorithm === "split") {
+            const heatingSetpoint = parseFloat(node.runtime.heatingSetpoint);
+            const coolingSetpoint = parseFloat(node.runtime.coolingSetpoint);
+            if (isNaN(heatingSetpoint) || isNaN(coolingSetpoint) || coolingSetpoint <= heatingSetpoint) {
+                node.status({ fill: "red", shape: "ring", text: "invalid split setpoints (coolingSetpoint > heatingSetpoint)" });
+            }
+        }
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
-            // Guard against invalid msg
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
                 return;
-            }
-
-            // Resolve typed inputs
-            if (node.runtime.algorithm === "single") {
-                node.runtime.setpoint = utils.getTypedValue(
-                    node, node.runtime.setpointType, node.runtime.setpoint, msg,
-                    { name: "setpoint" }, 70
-                ).toString();
-                node.runtime.setpointType = "num";
-            } else if (node.runtime.algorithm === "split") {
-                node.runtime.heatingSetpoint = utils.getTypedValue(
-                    node, node.runtime.heatingSetpointType, node.runtime.heatingSetpoint, msg,
-                    { name: "heatingSetpoint" }, 68
-                ).toString();
-                node.runtime.heatingSetpointType = "num";
-                node.runtime.coolingSetpoint = utils.getTypedValue(
-                    node, node.runtime.coolingSetpointType, node.runtime.coolingSetpoint, msg,
-                    { name: "coolingSetpoint" }, 74
-                ).toString();
-                node.runtime.coolingSetpointType = "num";
-                if (parseFloat(node.runtime.coolingSetpoint) < parseFloat(node.runtime.heatingSetpoint)) {
-                    node.runtime.coolingSetpoint = node.runtime.heatingSetpoint;
-                }
-            } else if (node.runtime.algorithm === "specified") {
-                node.runtime.coolingOn = utils.getTypedValue(
-                    node, node.runtime.coolingOnType, node.runtime.coolingOn, msg,
-                    { name: "coolingOn" }, 74
-                ).toString();
-                node.runtime.coolingOnType = "num";
-                node.runtime.coolingOff = utils.getTypedValue(
-                    node, node.runtime.coolingOffType, node.runtime.coolingOff, msg,
-                    { name: "coolingOff" }, 72
-                ).toString();
-                node.runtime.coolingOffType = "num";
-                node.runtime.heatingOff = utils.getTypedValue(
-                    node, node.runtime.heatingOffType, node.runtime.heatingOff, msg,
-                    { name: "heatingOff" }, 68
-                ).toString();
-                node.runtime.heatingOffType = "num";
-                node.runtime.heatingOn = utils.getTypedValue(
-                    node, node.runtime.heatingOnType, node.runtime.heatingOn, msg,
-                    { name: "heatingOn" }, 66
-                ).toString();
-                node.runtime.heatingOnType = "num";
-                // Validate specified setpoints
-                const coolingOn = parseFloat(node.runtime.coolingOn);
-                const coolingOff = parseFloat(node.runtime.coolingOff);
-                const heatingOff = parseFloat(node.runtime.heatingOff);
-                const heatingOn = parseFloat(node.runtime.heatingOn);
-                if (coolingOn < coolingOff) node.runtime.coolingOn = node.runtime.coolingOff;
-                if (coolingOff < heatingOff) node.runtime.coolingOff = node.runtime.heatingOff;
-                if (heatingOff < heatingOn) node.runtime.heatingOff = node.runtime.heatingOn;
             }
 
             if (msg.hasOwnProperty("context")) {
@@ -131,25 +84,29 @@ module.exports = function(RED) {
                     const statusPayload = {
                         algorithm: node.runtime.algorithm,
                         diff: node.runtime.diff,
+                        diffType: node.runtime.diffType,
                         anticipator: node.runtime.anticipator,
+                        anticipatorType: node.runtime.anticipatorType,
+                        ignoreAnticipatorCycles: node.runtime.ignoreAnticipatorCycles,
+                        ignoreAnticipatorCyclesType: node.runtime.ignoreAnticipatorCyclesType,
                         isHeating: node.runtime.isHeating
                     };
                     if (node.runtime.algorithm === "single") {
-                        statusPayload.setpoint = parseFloat(node.runtime.setpoint);
+                        statusPayload.setpoint = node.runtime.setpoint;
                         statusPayload.setpointType = node.runtime.setpointType;
                     } else if (node.runtime.algorithm === "split") {
-                        statusPayload.heatingSetpoint = parseFloat(node.runtime.heatingSetpoint);
+                        statusPayload.heatingSetpoint = node.runtime.heatingSetpoint;
                         statusPayload.heatingSetpointType = node.runtime.heatingSetpointType;
-                        statusPayload.coolingSetpoint = parseFloat(node.runtime.coolingSetpoint);
+                        statusPayload.coolingSetpoint = node.runtime.coolingSetpoint;
                         statusPayload.coolingSetpointType = node.runtime.coolingSetpointType;
                     } else {
-                        statusPayload.coolingOn = parseFloat(node.runtime.coolingOn);
+                        statusPayload.coolingOn = node.runtime.coolingOn;
                         statusPayload.coolingOnType = node.runtime.coolingOnType;
-                        statusPayload.coolingOff = parseFloat(node.runtime.coolingOff);
+                        statusPayload.coolingOff = node.runtime.coolingOff;
                         statusPayload.coolingOffType = node.runtime.coolingOffType;
-                        statusPayload.heatingOff = parseFloat(node.runtime.heatingOff);
+                        statusPayload.heatingOff = node.runtime.heatingOff;
                         statusPayload.heatingOffType = node.runtime.heatingOffType;
-                        statusPayload.heatingOn = parseFloat(node.runtime.heatingOn);
+                        statusPayload.heatingOn = node.runtime.heatingOn;
                         statusPayload.heatingOnType = node.runtime.heatingOnType;
                     }
                     send([null, null, { payload: statusPayload }]);
@@ -179,7 +136,7 @@ module.exports = function(RED) {
                         }
                         const spValue = parseFloat(msg.payload);
                         if (!isNaN(spValue)) {
-                            node.runtime.setpoint = spValue.toString();
+                            node.runtime.setpoint = spValue;
                             node.runtime.setpointType = "num";
                             node.status({
                                 fill: "green",
@@ -197,8 +154,8 @@ module.exports = function(RED) {
                             return;
                         }
                         const hspValue = parseFloat(msg.payload);
-                        if (!isNaN(hspValue) && hspValue <= parseFloat(node.runtime.coolingSetpoint)) {
-                            node.runtime.heatingSetpoint = hspValue.toString();
+                        if (!isNaN(hspValue) && hspValue < node.runtime.coolingSetpoint) {
+                            node.runtime.heatingSetpoint = hspValue;
                             node.runtime.heatingSetpointType = "num";
                             node.status({
                                 fill: "green",
@@ -216,8 +173,8 @@ module.exports = function(RED) {
                             return;
                         }
                         const cspValue = parseFloat(msg.payload);
-                        if (!isNaN(cspValue) && cspValue >= parseFloat(node.runtime.heatingSetpoint)) {
-                            node.runtime.coolingSetpoint = cspValue.toString();
+                        if (!isNaN(cspValue) && cspValue > node.runtime.heatingSetpoint) {
+                            node.runtime.coolingSetpoint = cspValue;
                             node.runtime.coolingSetpointType = "num";
                             node.status({
                                 fill: "green",
@@ -235,8 +192,8 @@ module.exports = function(RED) {
                             return;
                         }
                         const conValue = parseFloat(msg.payload);
-                        if (!isNaN(conValue) && conValue >= parseFloat(node.runtime.coolingOff)) {
-                            node.runtime.coolingOn = conValue.toString();
+                        if (!isNaN(conValue) && conValue >= node.runtime.coolingOff) {
+                            node.runtime.coolingOn = conValue;
                             node.runtime.coolingOnType = "num";
                             node.status({
                                 fill: "green",
@@ -254,8 +211,8 @@ module.exports = function(RED) {
                             return;
                         }
                         const coffValue = parseFloat(msg.payload);
-                        if (!isNaN(coffValue) && coffValue <= parseFloat(node.runtime.coolingOn) && coffValue >= parseFloat(node.runtime.heatingOff)) {
-                            node.runtime.coolingOff = coffValue.toString();
+                        if (!isNaN(coffValue) && coffValue <= node.runtime.coolingOn && coffValue >= node.runtime.heatingOff) {
+                            node.runtime.coolingOff = coffValue;
                             node.runtime.coolingOffType = "num";
                             node.status({
                                 fill: "green",
@@ -273,8 +230,8 @@ module.exports = function(RED) {
                             return;
                         }
                         const hoffValue = parseFloat(msg.payload);
-                        if (!isNaN(hoffValue) && hoffValue <= parseFloat(node.runtime.coolingOff) && hoffValue >= parseFloat(node.runtime.heatingOn)) {
-                            node.runtime.heatingOff = hoffValue.toString();
+                        if (!isNaN(hoffValue) && hoffValue <= node.runtime.coolingOff && hoffValue >= node.runtime.heatingOn) {
+                            node.runtime.heatingOff = hoffValue;
                             node.runtime.heatingOffType = "num";
                             node.status({
                                 fill: "green",
@@ -292,8 +249,8 @@ module.exports = function(RED) {
                             return;
                         }
                         const honValue = parseFloat(msg.payload);
-                        if (!isNaN(honValue) && honValue <= parseFloat(node.runtime.heatingOff)) {
-                            node.runtime.heatingOn = honValue.toString();
+                        if (!isNaN(honValue) && honValue <= node.runtime.heatingOff) {
+                            node.runtime.heatingOn = honValue;
                             node.runtime.heatingOnType = "num";
                             node.status({
                                 fill: "green",
@@ -305,30 +262,40 @@ module.exports = function(RED) {
                         }
                         break;
                     case "diff":
-                        const diffValue = parseFloat(msg.payload);
-                        if (!isNaN(diffValue) && diffValue >= 0) {
-                            node.runtime.diff = diffValue;
-                            node.status({
-                                fill: "green",
-                                shape: "dot",
-                                text: `diff: ${diffValue.toFixed(2)}`
-                            });
-                        } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid diff" });
-                        }
+                        const diffValue = utils.validateProperty(
+                            msg.payload, "num", 2, { name: "diff", min: 0.01 }, msg, node
+                        );
+                        node.runtime.diff = diffValue;
+                        node.runtime.diffType = "num";
+                        node.status({
+                            fill: "green",
+                            shape: "dot",
+                            text: `diff: ${diffValue.toFixed(2)}`
+                        });
                         break;
                     case "anticipator":
-                        const antValue = parseFloat(msg.payload);
-                        if (!isNaN(antValue) && antValue >= 0) {
-                            node.runtime.anticipator = antValue;
-                            node.status({
-                                fill: "green",
-                                shape: "dot",
-                                text: `anticipator: ${antValue.toFixed(2)}`
-                            });
-                        } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid anticipator" });
-                        }
+                        const antValue = utils.validateProperty(
+                            msg.payload, "num", 0.5, { name: "anticipator", min: -2 }, msg, node
+                        );
+                        node.runtime.anticipator = antValue;
+                        node.runtime.anticipatorType = "num";
+                        node.status({
+                            fill: "green",
+                            shape: "dot",
+                            text: `anticipator: ${antValue.toFixed(2)}`
+                        });
+                        break;
+                    case "ignoreAnticipatorCycles":
+                        const cyclesValue = utils.validateProperty(
+                            msg.payload, "num", 1, { name: "ignoreAnticipatorCycles", min: 0 }, msg, node
+                        );
+                        node.runtime.ignoreAnticipatorCycles = Math.floor(cyclesValue);
+                        node.runtime.ignoreAnticipatorCyclesType = "num";
+                        node.status({
+                            fill: "green",
+                            shape: "dot",
+                            text: `ignoreAnticipatorCycles: ${cyclesValue}`
+                        });
                         break;
                     case "isHeating":
                         if (typeof msg.payload === "boolean") {
@@ -363,18 +330,106 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Store previous state for unchanged check
+            const isHeating = msg.hasOwnProperty("isHeating") && typeof msg.isHeating === "boolean" ? msg.isHeating : node.runtime.isHeating;
+            if (msg.hasOwnProperty("isHeating") && typeof msg.isHeating !== "boolean") {
+                node.status({ fill: "red", shape: "ring", text: "invalid isHeating (must be boolean)" });
+                if (done) done();
+                return;
+            }
+
+            console.log("TstatBlockNode input:", { input, isHeating, anticipator: node.runtime.anticipator });
+
+            if (node.runtime.algorithm === "single") {
+                node.runtime.setpoint = utils.validateProperty(
+                    node.runtime.setpoint, node.runtime.setpointType, 70, { name: "setpoint" }, msg, node
+                );
+                node.runtime.setpointType = "num";
+                node.runtime.diff = utils.validateProperty(
+                    node.runtime.diff, node.runtime.diffType, 2, { name: "diff", min: 0.01 }, msg, node
+                );
+                node.runtime.diffType = "num";
+            } else if (node.runtime.algorithm === "split") {
+                node.runtime.heatingSetpoint = utils.validateProperty(
+                    node.runtime.heatingSetpoint, node.runtime.heatingSetpointType, 68, { name: "heatingSetpoint" }, msg, node
+                );
+                node.runtime.heatingSetpointType = "num";
+                node.runtime.coolingSetpoint = utils.validateProperty(
+                    node.runtime.coolingSetpoint, node.runtime.coolingSetpointType, 74, { name: "coolingSetpoint" }, msg, node
+                );
+                node.runtime.coolingSetpointType = "num";
+                const heatingSetpoint = node.runtime.heatingSetpoint;
+                const coolingSetpoint = node.runtime.coolingSetpoint;
+                if (isNaN(heatingSetpoint) || isNaN(coolingSetpoint) || coolingSetpoint <= heatingSetpoint) {
+                    node.status({ fill: "red", shape: "ring", text: "invalid split setpoints (coolingSetpoint > heatingSetpoint)" });
+                    if (done) done();
+                    return;
+                }
+            } else if (node.runtime.algorithm === "specified") {
+                node.runtime.coolingOn = utils.validateProperty(
+                    node.runtime.coolingOn, node.runtime.coolingOnType, 74, { name: "coolingOn" }, msg, node
+                );
+                node.runtime.coolingOnType = "num";
+                node.runtime.coolingOff = utils.validateProperty(
+                    node.runtime.coolingOff, node.runtime.coolingOffType, 72, { name: "coolingOff" }, msg, node
+                );
+                node.runtime.coolingOffType = "num";
+                node.runtime.heatingOff = utils.validateProperty(
+                    node.runtime.heatingOff, node.runtime.heatingOffType, 68, { name: "heatingOff" }, msg, node
+                );
+                node.runtime.heatingOffType = "num";
+                node.runtime.heatingOn = utils.validateProperty(
+                    node.runtime.heatingOn, node.runtime.heatingOnType, 66, { name: "heatingOn" }, msg, node
+                );
+                node.runtime.heatingOnType = "num";
+                const coolingOn = node.runtime.coolingOn;
+                const coolingOff = node.runtime.coolingOff;
+                const heatingOff = node.runtime.heatingOff;
+                const heatingOn = node.runtime.heatingOn;
+                if (isNaN(coolingOn) || isNaN(coolingOff) || isNaN(heatingOff) || isNaN(heatingOn) ||
+                    coolingOn < coolingOff || coolingOff < heatingOff || heatingOff < heatingOn) {
+                    node.status({ fill: "red", shape: "ring", text: "invalid specified setpoints (coolingOn >= coolingOff >= heatingOff >= heatingOn)" });
+                    if (done) done();
+                    return;
+                }
+            }
+
+            node.runtime.anticipator = utils.validateProperty(
+                node.runtime.anticipator, node.runtime.anticipatorType, 0.5, { name: "anticipator", min: -2 }, msg, node
+            );
+            node.runtime.anticipatorType = "num";
+            node.runtime.ignoreAnticipatorCycles = Math.floor(utils.validateProperty(
+                node.runtime.ignoreAnticipatorCycles, node.runtime.ignoreAnticipatorCyclesType, 1, { name: "ignoreAnticipatorCycles", min: 0 }, msg, node
+            ));
+            node.runtime.ignoreAnticipatorCyclesType = "num";
+
+            if (lastIsHeating !== null && isHeating !== lastIsHeating) {
+                modeChanged = true;
+                cyclesSinceModeChange = 0;
+            }
+            lastIsHeating = isHeating;
+
+            if ((below && !lastBelow) || (above && !lastAbove)) {
+                cyclesSinceModeChange++;
+            }
+
+            let effectiveAnticipator = node.runtime.anticipator;
+            if (modeChanged && node.runtime.ignoreAnticipatorCycles > 0 && cyclesSinceModeChange <= node.runtime.ignoreAnticipatorCycles) {
+                effectiveAnticipator = 0;
+            }
+            if (cyclesSinceModeChange > node.runtime.ignoreAnticipatorCycles) {
+                modeChanged = false;
+            }
+
             lastAbove = above;
             lastBelow = below;
 
-            // Thermostat logic
             if (node.runtime.algorithm === "single") {
-                const setpoint = parseFloat(node.runtime.setpoint);
+                const setpoint = node.runtime.setpoint;
                 const delta = node.runtime.diff / 2;
                 const hiValue = setpoint + delta;
                 const loValue = setpoint - delta;
-                const hiOffValue = setpoint + delta - node.runtime.anticipator;
-                const loOffValue = setpoint - delta + node.runtime.anticipator;
+                const hiOffValue = setpoint + effectiveAnticipator;
+                const loOffValue = setpoint - effectiveAnticipator;
 
                 if (input > hiValue) {
                     above = true;
@@ -389,10 +444,10 @@ module.exports = function(RED) {
                 }
             } else if (node.runtime.algorithm === "split") {
                 if (node.runtime.isHeating) {
-                    const heatingSetpoint = parseFloat(node.runtime.heatingSetpoint);
+                    const heatingSetpoint = node.runtime.heatingSetpoint;
                     const delta = node.runtime.diff / 2;
                     const loValue = heatingSetpoint - delta;
-                    const loOffValue = heatingSetpoint + node.runtime.anticipator;
+                    const loOffValue = heatingSetpoint - effectiveAnticipator;
 
                     if (input < loValue) {
                         below = true;
@@ -401,10 +456,10 @@ module.exports = function(RED) {
                     }
                     above = false;
                 } else {
-                    const coolingSetpoint = parseFloat(node.runtime.coolingSetpoint);
+                    const coolingSetpoint = node.runtime.coolingSetpoint;
                     const delta = node.runtime.diff / 2;
                     const hiValue = coolingSetpoint + delta;
-                    const hiOffValue = coolingSetpoint - node.runtime.anticipator;
+                    const hiOffValue = coolingSetpoint + effectiveAnticipator;
 
                     if (input > hiValue) {
                         above = true;
@@ -415,9 +470,9 @@ module.exports = function(RED) {
                 }
             } else if (node.runtime.algorithm === "specified") {
                 if (node.runtime.isHeating) {
-                    const heatingOn = parseFloat(node.runtime.heatingOn);
-                    const heatingOff = parseFloat(node.runtime.heatingOff);
-                    const heatingOffValue = heatingOff + node.runtime.anticipator;
+                    const heatingOn = node.runtime.heatingOn;
+                    const heatingOff = node.runtime.heatingOff;
+                    const heatingOffValue = heatingOff - effectiveAnticipator;
                     if (input < heatingOn) {
                         below = true;
                     } else if (below && input > heatingOffValue) {
@@ -425,9 +480,9 @@ module.exports = function(RED) {
                     }
                     above = false;
                 } else {
-                    const coolingOn = parseFloat(node.runtime.coolingOn);
-                    const coolingOff = parseFloat(node.runtime.coolingOff);
-                    const coolingOffValue = coolingOff - node.runtime.anticipator;
+                    const coolingOn = node.runtime.coolingOn;
+                    const coolingOff = node.runtime.coolingOff;
+                    const coolingOffValue = coolingOff + effectiveAnticipator;
                     if (input > coolingOn) {
                         above = true;
                     } else if (above && input < coolingOffValue) {
@@ -437,7 +492,6 @@ module.exports = function(RED) {
                 }
             }
 
-            // Send outputs
             const outputs = [
                 { payload: node.runtime.isHeating, context: "isHeating" },
                 { payload: above },
@@ -445,7 +499,6 @@ module.exports = function(RED) {
             ];
             send(outputs);
 
-            // Update status
             if (above === lastAbove && below === lastBelow) {
                 node.status({
                     fill: "blue",
@@ -471,38 +524,38 @@ module.exports = function(RED) {
 
     RED.nodes.registerType("tstat-block", TstatBlockNode);
 
-    // Serve runtime state for editor
     RED.httpAdmin.get("/tstat-block-runtime/:id", RED.auth.needsPermission("tstat-block.read"), function(req, res) {
         const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "tstat-block") {
-            const runtime = {
-                name: node.runtime.name,
-                algorithm: node.runtime.algorithm,
-                diff: node.runtime.diff,
-                anticipator: node.runtime.anticipator,
-                isHeating: node.runtime.isHeating
-            };
-            if (node.runtime.algorithm === "single") {
-                runtime.setpoint = parseFloat(node.runtime.setpoint);
-                runtime.setpointType = node.runtime.setpointType;
-            } else if (node.runtime.algorithm === "split") {
-                runtime.heatingSetpoint = parseFloat(node.runtime.heatingSetpoint);
-                runtime.heatingSetpointType = node.runtime.heatingSetpointType;
-                runtime.coolingSetpoint = parseFloat(node.runtime.coolingSetpoint);
-                runtime.coolingSetpointType = node.runtime.coolingSetpointType;
-            } else {
-                runtime.coolingOn = parseFloat(node.runtime.coolingOn);
-                runtime.coolingOnType = node.runtime.coolingOnType;
-                runtime.coolingOff = parseFloat(node.runtime.coolingOff);
-                runtime.coolingOffType = node.runtime.coolingOffType;
-                runtime.heatingOff = parseFloat(node.runtime.heatingOff);
-                runtime.heatingOffType = node.runtime.heatingOffType;
-                runtime.heatingOn = parseFloat(node.runtime.heatingOn);
-                runtime.heatingOnType = node.runtime.heatingOnType;
-            }
-            res.json(runtime);
+        const runtime = {
+            name: node?.runtime?.name || "tstat",
+            algorithm: node?.runtime?.algorithm || node?.algorithm || "single",
+            diff: node?.runtime?.diff !== undefined ? node.runtime.diff : parseFloat(node?.diff) || 2,
+            diffType: node?.runtime?.diffType || node?.diffType || "num",
+            anticipator: node?.runtime?.anticipator !== undefined ? node.runtime.anticipator : parseFloat(node?.anticipator) || 0.5,
+            anticipatorType: node?.runtime?.anticipatorType || node?.anticipatorType || "num",
+            ignoreAnticipatorCycles: node?.runtime?.ignoreAnticipatorCycles !== undefined ? node.runtime.ignoreAnticipatorCycles : parseInt(node?.ignoreAnticipatorCycles) || 1,
+            ignoreAnticipatorCyclesType: node?.runtime?.ignoreAnticipatorCyclesType || node?.ignoreAnticipatorCyclesType || "num",
+            isHeating: node?.runtime?.isHeating !== undefined ? node.runtime.isHeating : node?.isHeating || false
+        };
+        if (runtime.algorithm === "single") {
+            runtime.setpoint = node?.runtime?.setpoint !== undefined ? node.runtime.setpoint : parseFloat(node?.setpoint) || 70;
+            runtime.setpointType = node?.runtime?.setpointType || node?.setpointType || "num";
+        } else if (runtime.algorithm === "split") {
+            runtime.heatingSetpoint = node?.runtime?.heatingSetpoint !== undefined ? node.runtime.heatingSetpoint : parseFloat(node?.heatingSetpoint) || 68;
+            runtime.heatingSetpointType = node?.runtime?.heatingSetpointType || node?.heatingSetpointType || "num";
+            runtime.coolingSetpoint = node?.runtime?.coolingSetpoint !== undefined ? node.runtime.coolingSetpoint : parseFloat(node?.coolingSetpoint) || 74;
+            runtime.coolingSetpointType = node?.runtime?.coolingSetpointType || node?.coolingSetpointType || "num";
         } else {
-            res.status(404).json({ error: "Node not found" });
+            runtime.coolingOn = node?.runtime?.coolingOn !== undefined ? node.runtime.coolingOn : parseFloat(node?.coolingOn) || 74;
+            runtime.coolingOnType = node?.runtime?.coolingOnType || node?.coolingOnType || "num";
+            runtime.coolingOff = node?.runtime?.coolingOff !== undefined ? node.runtime.coolingOff : parseFloat(node?.coolingOff) || 72;
+            runtime.coolingOffType = node?.runtime?.coolingOffType || node?.coolingOffType || "num";
+            runtime.heatingOff = node?.runtime?.heatingOff !== undefined ? node.runtime.heatingOff : parseFloat(node?.heatingOff) || 68;
+            runtime.heatingOffType = node?.runtime?.heatingOffType || node?.heatingOffType || "num";
+            runtime.heatingOn = node?.runtime?.heatingOn !== undefined ? node.runtime.heatingOn : parseFloat(node?.heatingOn) || 66;
+            runtime.heatingOnType = node?.runtime?.heatingOnType || node?.heatingOnType || "num";
         }
+        console.log("Runtime endpoint anticipator:", runtime.anticipator);
+        res.json(runtime);
     });
 };
