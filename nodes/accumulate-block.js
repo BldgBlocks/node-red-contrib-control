@@ -85,6 +85,10 @@ module.exports = function(RED) {
                     return;
                 }
 
+                if (node.runtime.count > 9999) {
+                    node.runtime.count = 0;
+                }
+
                 // Accumulate or reset count
                 if (node.runtime.mode === "true") {
                     if (inputValue === true) {

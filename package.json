@@ -53,7 +53,10 @@
         "time-sequence-block": "nodes/time-sequence-block.js",
         "triangle-wave-block": "nodes/triangle-wave-block.js",
         "tstat-block": "nodes/tstat-block.js",
-        "units-block": "nodes/units-block.js"
+        "units-block": "nodes/units-block.js",
+        "chart-config": "nodes/chart-config.js",
+        "chart-data-receiver": "nodes/chart-data-receiver.js",
+        "history-template": "nodes/history-template.js"
       }
   },
   "author": "buildingblocks",

@@ -1,0 +1,27 @@
+<script type="text/html" data-template-name="history-template">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-chartConfig"><i class="fa fa-book"></i> Chart Config</label>
+        <input type="text" id="node-input-chartConfig" style="width:70%;">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('history-template', {
+        category: 'output',
+        color: '#a6bbcf',
+        defaults: {
+            chartConfig: { value: "", type: "chart-config", required: true },
+            name: { value: "" }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "template.png",
+        label: function() {
+            return this.name || "history-template";
+        }
+    });
+</script>
