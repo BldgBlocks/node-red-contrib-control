@@ -59,7 +59,8 @@
         "history-template": "nodes/history-template.js",
         "influxdb-config": "nodes/influxdb-config.js",
         "influxdb-output-http-write": "nodes/influxdb-output-http-write.js",
-        "influxdb-query": "nodes/influxdb-query.js"
+        "influxdb-query": "nodes/influxdb-query.js",
+        "chart-data-query": "nodes/chart-data-query.js"
       }
   },
   "author": "buildingblocks",

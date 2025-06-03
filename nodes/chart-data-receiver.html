@@ -15,7 +15,7 @@
         <label for="node-input-storageType"><i class="fa fa-database"></i> Storage Type</label>
         <select id="node-input-storageType">
             <option value="memory">Memory (Flow Context)</option>
-            <option value="influxdb">InfluxDB</option>
+            <option value="passthrough">Passthrough</option>
             <option value="custom">Custom</option>
         </select>
     </div>
@@ -42,7 +42,6 @@
             const seriesInput = $("#node-input-seriesName");
             const storageType = $("#node-input-storageType");
 
-            // Series selection
             seriesInput.typedInput({
                 types: [{
                     value: "series",
@@ -74,7 +73,6 @@
                 updateSeriesOptions(node.chartConfig);
             }
 
-            // Storage type handling
             storageType.val(node.storageType || 'memory');
         },
         oneditsave: function() {
