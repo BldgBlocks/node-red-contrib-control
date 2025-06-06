@@ -53,14 +53,7 @@
         "time-sequence-block": "nodes/time-sequence-block.js",
         "triangle-wave-block": "nodes/triangle-wave-block.js",
         "tstat-block": "nodes/tstat-block.js",
-        "units-block": "nodes/units-block.js",
-        "chart-config": "nodes/chart-config.js",
-        "chart-data-receiver": "nodes/chart-data-receiver.js",
-        "history-template": "nodes/history-template.js",
-        "influxdb-config": "nodes/influxdb-config.js",
-        "influxdb-output-http-write": "nodes/influxdb-output-http-write.js",
-        "influxdb-query": "nodes/influxdb-query.js",
-        "chart-data-query": "nodes/chart-data-query.js"
+        "units-block": "nodes/units-block.js"
       }
   },
   "author": "buildingblocks",
