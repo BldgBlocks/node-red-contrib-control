@@ -24,7 +24,7 @@
         defaults: {
             name: { value: "" },
             contextPropertyName: { 
-                value: "context", 
+                value: "label", 
                 required: true, 
                 validate: function(v) { return v && typeof v === "string" && v.trim().length > 0; } 
             },
@@ -46,7 +46,7 @@
 
             // Initialize inputs
             $("#node-input-name").val(node.name || "");
-            $("#node-input-contextPropertyName").val(node.contextPropertyName || "context");
+            $("#node-input-contextPropertyName").val(node.contextPropertyName || "label");
             $("#node-input-removeLabel").prop("checked", node.removeLabel || false);
 
             // Validate contextPropertyName input

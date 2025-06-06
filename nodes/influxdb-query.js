@@ -75,7 +75,7 @@ module.exports = function (RED) {
 
         node.send(msg);
       } catch (e) {
-        node.error(`Failed to build query or prepare request: ${e.message}`, msg);
+        node.error(`Failed to prepare request: ${e.message}`, msg);
       }
     });
   }

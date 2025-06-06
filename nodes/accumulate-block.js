@@ -58,11 +58,6 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                } else {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
-                    node.warn(`Unknown context: ${msg.context}`);
-                    if (done) done();
-                    return;
                 }
             }
 

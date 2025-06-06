@@ -5,9 +5,17 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-writePeriod" title="Delay in milliseconds before writing to file (non-negative number from msg, flow, global, or static value)"><i class="fa fa-clock-o"></i> File Write Period (ms)</label>
+        <label for="node-input-writePeriod" title="Delay in milliseconds before writing to file (non-negative number from msg, flow, global, or static value). Ignored if Write On Update is enabled."><i class="fa fa-clock-o"></i> File Write Period (ms)</label>
         <input type="text" id="node-input-writePeriod" placeholder="60000">
         <input type="hidden" id="node-input-writePeriodType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-transferProperty" title="Property to transfer from stored message to output message"><i class="fa fa-exchange"></i> Transfer Property</label>
+        <input type="text" id="node-input-transferProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
+        <label for="node-input-writeOnUpdate" title="If checked, updates write directly to file without storing in memory. Execute reads from file."><i class="fa fa-save"></i> Write On Update</label>
+        <input type="checkbox" id="node-input-writeOnUpdate" style="width: auto;">
     </div>
     <div class="form-row">
         <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
@@ -22,8 +30,10 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            writePeriod: { value: "60000" },
-            writePeriodType: { value: "num" }
+            writePeriod: { value: "60000", validate: function(v) { return RED.validators.number(true)(v) && parseFloat(v) >= 0; } },
+            writePeriodType: { value: "num" },
+            transferProperty: { value: "payload", required: true, validate: RED.validators.regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/) },
+            writeOnUpdate: { value: false } // New boolean
         },
         inputs: 1,
         outputs: 2,
@@ -38,8 +48,12 @@
             const node = this;
             const writePeriodType = node.writePeriodType || "num";
             const writePeriodValue = node.writePeriod || "60000";
+            const transferProperty = node.transferProperty || "payload";
+            const writeOnUpdate = node.writeOnUpdate || false;
 
             $("#node-input-name").val(node.name || "");
+            $("#node-input-transferProperty").val(transferProperty);
+            $("#node-input-writeOnUpdate").prop("checked", writeOnUpdate);
 
             const periodInput = $("#node-input-writePeriod").typedInput({
                 default: "num",
@@ -54,10 +68,16 @@
                 const changes = [];
                 if (data.name) changes.push(`name: ${data.name}`);
                 if (data.writePeriod !== undefined && data.writePeriodType === "num" && Number(data.writePeriod) !== Number(node.writePeriod || 60000)) {
-                    changes.push(`writePeriod: ${Number(data.writePeriod).toFixed(0)} ms`);
+                    changes.push(`writePeriod: ${Number(data.writePeriod)} ms`);
                 }
-                if (data.storedMsg && data.storedMsg.payload != null) {
-                    const payloadStr = String(data.storedMsg.payload).substring(0, 20);
+                if (data.transferProperty && data.transferProperty !== node.transferProperty) {
+                    changes.push(`transferProperty: ${data.transferProperty}`);
+                }
+                if (data.writeOnUpdate !== node.writeOnUpdate) {
+                    changes.push(`writeOnUpdate: ${data.writeOnUpdate}`);
+                }
+                if (data.storedMsg && data.storedMsg[data.transferProperty] != null) {
+                    const payloadStr = String(data.storedMsg[data.transferProperty]).substring(0, 20);
                     changes.push(`stored: ${payloadStr}`);
                 }
                 $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
@@ -67,56 +87,43 @@
         },
         oneditsave: function() {
             $("#node-input-writePeriodType").val($("#node-input-writePeriod").typedInput("type"));
-        },
-        oneditvalidate: function() {
-            const writePeriod = $("#node-input-writePeriod").typedInput("value");
-            const writePeriodType = $("#node-input-writePeriod").typedInput("type");
-            if (writePeriodType === "num") {
-                const value = parseFloat(writePeriod);
-                return !isNaN(value) && isFinite(value) && value >= 0;
-            }
-            return true;
         }
     });
 </script>
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="memory-block">
-Stores a message persistently across reboots and redeployments, with delayed file writes.
+Stores a message property persistently across reboots and redeployments, with configurable property transfer and optional direct file writes.
 
 ### Inputs
-: context (string) : Action (`"update"` to store message, `"execute"` to output stored message, `"executeWithFallback"` to output stored message or store and output fallback, `"query"` to check stored value existence).
-: payload (any) : Value to store (`"update"`, `"executeWithFallback"`) or pass through (no `context`).
+: context (string) : Action (`"update"` to store message property, `"execute"` to output stored property, `"executeWithFallback"` to output stored property or store and output fallback, `"query"` to check stored value existence).
+: [transferProperty] (any) : Property to store (`"update"`, `"executeWithFallback"`) or pass through (no `context`).
 
 ### Outputs
 : Output 1 (query) : For `context = "query"`: `{ payload: boolean }` (`true` if stored value exists, `false` if none).
-: Output 2 (value) : For no `context`: Input `msg` unchanged. For `context = "execute"`: Stored `msg` or `{ payload: null }` if none. For `context = "executeWithFallback"`: Stored `msg` or `{ payload: msg.payload }` if none (stores `msg.payload`). For `context = "update"`: No output.
+: Output 2 (value) : For no `context`: Input `msg` unchanged. For `context = "execute"`: Input `msg` with `transferProperty` from stored message, or `{ payload: null }` if none. For `context = "executeWithFallback"`: Input `msg` with `transferProperty` from stored message, or stores and outputs `msg[transferProperty]`. For `context = "update"`: No output.
 
 ### Properties
 : name (string) : Display name in editor. Default: "" (shows "memory").
-: writePeriod (string) : Delay in milliseconds before writing to file (non-negative, from `msg`, `flow`, `global`, or static). Default: "60000".
+: writePeriod (string) : Delay in milliseconds before writing to file (non-negative, from `msg`, `flow`, `global`, or static). Ignored if Write On Update is enabled. Default: "60000".
 : writePeriodType (string) : Source of `writePeriod` (`"num"`, `"msg"`, `"flow"`, `"global"`). Default: `"num"`.
+: transferProperty (string) : Property to transfer from stored message to output message (valid JavaScript property name). Default: "payload".
+: writeOnUpdate (boolean) : If true, `update` writes directly to file without in-memory storage; `execute` and `executeWithFallback` read from file. Default: false.
 
 ### Details
-Stores a single message persistently in a JSON file, surviving Node-RED reboots and redeployments. Uses delayed file writes to minimize I/O. Actions:
-- `msg.context = "update"`: Stores `msg`, schedules file write after `writePeriod` (ms, default 60000). Only the last update within the period is written. No output.
-- `msg.context = "execute"`: Outputs stored `msg` to Output 2 if available, or `{ payload: null }` if none. No file write.
-- `msg.context = "executeWithFallback"`: Outputs stored `msg` to Output 2 if available; if none, stores `msg.payload` as new message, schedules file write, and outputs `{ payload: msg.payload }`.
-- `msg.context = "query"`: Outputs `{ payload: true }` to Output 1 if a stored value exists, `{ payload: false }` if none. No file write or Output 2 message.
-- No `msg.context`: Passes input `msg` unchanged to Output 2, no effect on stored `msg` or file.
-Configurable via editor (`name`, `writePeriod`). `writePeriod` resolved dynamically, defaults to 60000ms if invalid. Runtime values (`name`, `writePeriod`, `storedMsg.payload`) shown in "Changed Runtime Values" if non-default.
-
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload` for `"update"`, `"executeWithFallback"`: No output, red status (`missing payload`).
-- Invalid `msg.context` (non-string, not `"update"`, `"execute"`, `"executeWithFallback"`, `"query"`): No output, yellow status (`unknown context`), errors with message.
-- Invalid `writePeriod` (non-numeric, non-finite, negative): Red status (`invalid write period`), defaults to 60000ms.
-- File I/O errors: Red status (`file error`), continues in-memory operation.
+Stores a single message property persistently in a JSON file, surviving Node-RED reboots and redeployments. Actions:
+- `msg.context = "update"`: Stores `msg[transferProperty]`. If Write On Update is enabled, writes directly to file without in-memory storage; otherwise, stores in memory and context, schedules file write after `writePeriod` (ms, default 60000). No output.
+- `msg.context = "execute"`: Outputs input `msg` with `transferProperty` from stored message to Output 2 if available, or `{ payload: null }` if none. Reads from file if Write On Update is enabled, else uses in-memory value. No file write.
+- `msg.context = "executeWithFallback"`: Outputs input `msg` with `transferProperty` from stored message to Output 2 if available; if none, stores `msg[transferProperty]`, schedules file write (or writes directly if Write On Update is enabled), and outputs `msg[transferProperty]`.
+- `msg.context = "query"`: Outputs `{ payload: true }` to Output 1 if a stored value exists, `{ payload: false }` if none. Checks file existence if Write On Update is enabled. No file write or Output 2 message.
+- No `msg.context`: Passes input `msg` unchanged to Output 2, no effect on stored message or file.
+Configurable via editor (`name`, `writePeriod`, `transferProperty`, `writeOnUpdate`). `writePeriod` resolved dynamically, defaults to 60000ms if invalid. Runtime values (`name`, `writePeriod`, `transferProperty`, `writeOnUpdate`, stored property) shown in "Changed Runtime Values" if non-default.
 
 ### Status
 - Green (dot): Load or update (e.g., `loaded: 42`, `updated: 42`).
 - Blue (dot): Pass-through, execute, executeWithFallback, or query (e.g., `in: test, out2: test`, `in: execute, out2: 42`, `in: executeWithFallback, out2: 42`, `in: query, out1: true`).
-- Red (ring): Errors (e.g., `missing payload`, `invalid write period`, `file error`).
+- Blue (ring): Execute with no stored value (e.g., `in: execute, out2: null`).
+- Red (ring): Errors (e.g., `missing payload`, `invalid write period`, `file error`, `file read error`).
 - Yellow (ring): Unknown context (e.g., `unknown context`).
 
 ### References

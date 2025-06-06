@@ -60,7 +60,7 @@ module.exports = function(RED) {
 
                 node.context().flow.set(contextKey, bucketData);
             } else if (node.storageType === 'passthrough') {
-                msg.payload = [line];
+                msg.payload = line;
                 msg.bucket = bucket;
                 node.send(msg);
             } else if (node.storageType === 'custom') {

@@ -12,9 +12,9 @@ module.exports = function(RED) {
 
         // Validate initial config
         if (!node.runtime.contextPropertyName || typeof node.runtime.contextPropertyName !== "string" || node.runtime.contextPropertyName.trim() === "") {
-            node.runtime.contextPropertyName = "context";
-            node.status({ fill: "red", shape: "ring", text: "invalid context property, using context" });
-            node.warn(`Invalid contextPropertyName: ${config.contextPropertyName}, using context`);
+            node.runtime.contextPropertyName = "label";
+            node.status({ fill: "red", shape: "ring", text: "invalid context property, using label" });
+            node.warn(`Invalid contextPropertyName: ${config.contextPropertyName}, using label`);
         } else {
             node.status({
                 fill: "green",
@@ -68,12 +68,12 @@ module.exports = function(RED) {
             // Reset runtime state on redeployment
             node.runtime = {
                 name: config.name || "",
-                contextPropertyName: config.contextPropertyName || "context",
+                contextPropertyName: config.contextPropertyName || "label",
                 removeLabel: config.removeLabel || false
             };
             if (!node.runtime.contextPropertyName || typeof node.runtime.contextPropertyName !== "string" || node.runtime.contextPropertyName.trim() === "") {
-                node.runtime.contextPropertyName = "context";
-                node.status({ fill: "red", shape: "ring", text: "invalid context property, using context" });
+                node.runtime.contextPropertyName = "label";
+                node.status({ fill: "red", shape: "ring", text: "invalid context property, using label" });
             } else {
                 node.status({
                     fill: "green",

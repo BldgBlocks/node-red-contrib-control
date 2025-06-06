@@ -72,14 +72,65 @@ module.exports = function(RED) {
             let series = [{}];
             let data = [[]];
 
+            // Function to convert hex to RGB
+            const hexToRgb = (hex) => {
+                const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+                hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : null;
+            };
+
             for (let seriesName in chartData) {
                 let seriesData = chartData[seriesName] || [];
 
                 const seriesConfig = node.chartConfig.series.find(s => s.seriesName === seriesName) || {};
+                const baseColor = seriesConfig.seriesColor || '#be1313';
+                let gradientColors;
+
+                // Convert baseColor to rgba for gradient
+                if (baseColor.startsWith('#')) {
+                    const rgb = hexToRgb(baseColor);
+                    if (rgb) {
+                        gradientColors = [
+                            { offset: 0, color: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.5)` },
+                            { offset: 1, color: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.125)` }
+                        ];
+                    } else {
+                        gradientColors = [
+                            { offset: 0, color: 'rgba(190, 19, 19, 0.5)' },
+                            { offset: 1, color: 'rgba(190, 19, 19, 0.125)' }
+                        ];
+                    }
+                } else if (baseColor.startsWith('rgb')) {
+                    const rgbMatch = baseColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (rgbMatch) {
+                        const [, r, g, b] = rgbMatch;
+                        gradientColors = [
+                            { offset: 0, color: `rgba(${r}, ${g}, ${b}, 0.5)` },
+                            { offset: 1, color: `rgba(${r}, ${g}, ${b}, 0.125)` }
+                        ];
+                    } else {
+                        gradientColors = [
+                            { offset: 0, color: 'rgba(190, 19, 19, 0.5)' },
+                            { offset: 1, color: 'rgba(190, 19, 19, 0.125)' }
+                        ];
+                    }
+                } else {
+                    gradientColors = [
+                        { offset: 0, color: 'rgba(190, 19, 19, 0.5)' },
+                        { offset: 1, color: 'rgba(190, 19, 19, 0.125)' }
+                    ];
+                }
+
                 series.push({ 
                     label: seriesName,
                     units: seriesConfig.seriesUnits || '',
-                    color: seriesConfig.seriesColor || '#be1313'
+                    color: baseColor,
+                    gradientColors: gradientColors // Store gradient colors
                 });
                 let values = [];
 
@@ -159,9 +210,14 @@ module.exports = function(RED) {
       type: 'line',
       smooth: true,
       symbol: 'none',
-      data: timestamps.map((t, j) => [t, values[j]]), // Use ms directly
+      data: timestamps.map((t, j) => [t, values[j]]),
       lineStyle: { color: data.series[i + 1].color },
-      itemStyle: { color: data.series[i + 1].color }
+      itemStyle: { color: data.series[i + 1].color },
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, data.series[i + 1].gradientColors),
+        opacity: 0.7
+      },
+      z: i + 1
     }));
 
     let dataMin = Infinity, dataMax = -Infinity;
@@ -184,19 +240,15 @@ module.exports = function(RED) {
 
     const chart = echarts.init(document.getElementById('main'), null, { renderer: 'svg' });
     chart.setOption({
-      animation: true,
-      animationDuration: 1000,
-      animationEasing: 'exponential',
+      animation: false, // Disable animations to prevent flickering
       title: { text: '${bucket}', left: 'center' },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'cross' },
+        axisPointer: { type: 'cross', snap: true },
         formatter: function(params) {
-          const timestamp = params[0].value[0]; // ms (UTC)
+          const timestamp = params[0].value[0];
           const date = new Date(timestamp);
-          let result = date.toLocaleString('en-US', {
-            hour12: true
-          });
+          let result = date.toLocaleString('en-US', { hour12: true });
           params.forEach(p => {
             const series = data.series[p.seriesIndex + 1];
             const value = p.value[1];
