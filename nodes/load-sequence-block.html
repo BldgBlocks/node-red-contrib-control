@@ -150,10 +150,10 @@ Sequences four boolean outputs based on input thresholds with feedback and hyste
 : payload (number | string | boolean) : Number for input, `"kill"` to shut down, boolean for `enable`/`feedback1-4`, number for `hysteresis`/`threshold1-4`.
 
 ### Outputs
-: 1. load1 (boolean) : `true` when active, else `false` or `null`.
-: 2. load2 (boolean) : `true` when active, else `false` or `null`.
-: 3. load3 (boolean) : `true` when active, else `false` or `null`.
-: 4. load4 (boolean) : `true` when active, else `false` or `null`.
+: load1 (boolean) : `true` when active, else `false` or `null`.
+: load2 (boolean) : `true` when active, else `false` or `null`.
+: load3 (boolean) : `true` when active, else `false` or `null`.
+: load4 (boolean) : `true` when active, else `false` or `null`.
 
 ### Properties
 : name (string) : Display name in editor. Default: "" (shows "load sequence").
@@ -169,17 +169,14 @@ Sequences four boolean outputs based on input thresholds with feedback and hyste
 : feedback4 (boolean) : Feedback for load 4. Default: `true`.
 
 ### Details
-Sequences four boolean outputs (`load1` to `load4`) based on `msg.payload` (number) crossing `threshold1` to `threshold4` with `hysteresis` and `feedback1-4`. Outputs turn on when input exceeds a threshold and prior feedback is `true` (e.g., `load2` requires `feedback1`). Outputs turn off when input falls below `thresholdX - hysteresis` and higher-stage feedback allows. Configurable via editor or `msg.context`. `msg.payload = "kill"` shuts down all outputs. `enable = false` disables outputs sequentially (highest to lowest). Tracks active stages (`dOn`). Outputs new messages only when a state changes, sending a single non-null message for the lowest stage that changed. Editor changes require redeployment; message-based updates apply immediately. Runtime values are shown in "Changed Runtime Values" if different from defaults.
+Sequences four boolean outputs (`load1` to `load4`) based on `msg.payload` (number) crossing `threshold1` to `threshold4` with `hysteresis` 
+and `feedback1-4`. Outputs turn on when input exceeds a threshold and prior feedback is `true` (e.g., `load2` requires `feedback1`). 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-numeric, not `"kill"` for input): No output, red status (`invalid payload`).
-- Invalid `enable`/`feedback1-4` (non-boolean): No output, red status (`invalid X`).
-- Invalid `hysteresis` (non-numeric, negative): No output, red status (`invalid hysteresis`).
-- Invalid `threshold1-4` (non-numeric, negative): No output, red status (`invalid thresholdX`).
-- Invalid threshold order (`threshold1 ≥ threshold2`, etc.): No output, red status (`invalid threshold order`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Outputs turn off when input falls below `thresholdX - hysteresis` and higher-stage feedback allows. Configurable via editor or `msg.context`. 
+
+`msg.payload = "kill"` shuts down all outputs. `enable = false` disables outputs sequentially (highest to lowest). 
+
+Tracks active stages (`dOn`). Outputs new messages only when a state changes, sending a single non-null message for the lowest stage that changed. 
 
 ### Status
 - Green (dot): Configuration (e.g., `threshold1: 10`, `enable: true`).

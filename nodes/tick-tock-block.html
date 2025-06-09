@@ -70,19 +70,15 @@ Generates a square wave output toggling between true and false.
 : payload (boolean) : Square wave value (`true` or `false`).
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "tick tock").
 : period (number) : Full wave period (seconds, positive). Default: 10.
 
 ### Details
-Generates a square wave output toggling between `true` and `false` every half `period` (seconds), started via `msg.context = "command"` with `msg.payload = "start"`. Stops with `"stop"`. Updates period via `msg.context = "period"` with numeric `msg.payload`. Outputs `{ payload: boolean }` for each state change when running. Configurable via editor or `msg.context`. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `period`) shown in "Changed Runtime Values" if different from defaults. Ignores redundant `start`/`stop` commands.
+Generates a square wave output toggling between `true` and `false` every half `period` (seconds), started via `msg.context = "command"` with 
+`msg.payload = "start"`. Stops with `"stop"`.
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload` for config: No output, red status (`missing payload for X`).
-- Invalid context (non-string): No output, red status (`invalid context`).
-- Invalid period (non-numeric, non-positive, non-finite): No output, red status (`invalid period`).
-- Invalid command (not `"start"`, `"stop"`): No output, red status (`invalid command`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Outputs `{ payload: boolean }` for each state change when running.
+
+Ignores redundant `start`/`stop` commands.
 
 ### Status
 - Green (dot): Configuration or start (e.g., `period: 10.00`, `started, period: 10.00`).

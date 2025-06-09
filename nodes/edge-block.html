@@ -67,7 +67,7 @@ Detects configured boolean transitions (true-to-false or false-to-true) in `msg.
 
 ### Inputs
 : payload (boolean) : Boolean to monitor for transitions.
-: context (string, optional) : Action (`"algorithm"` to set transition type, `"reset"` to clear state).
+: context (string, optional) : Action (`"algorithm"` to set transition type, `"reset"` to clear state). Unknown `msg.context` is ignored.
 : payload (string | boolean, for `context`) : Transition type (`"true-to-false"`, `"false-to-true"`) for `"algorithm"`, true for `"reset"`.
 
 ### Outputs
@@ -78,18 +78,9 @@ Detects configured boolean transitions (true-to-false or false-to-true) in `msg.
 : algorithm (string) : Transition to detect (`"true-to-false"`, `"false-to-true"`). Default: `"true-to-false"`.
 
 ### Details
-Detects transitions in `msg.payload` (boolean) based on the configured `algorithm`. Outputs `{ payload: true }` only when the specified transition occurs (true-to-false or false-to-true). No output on first input after reset, if no transition occurs, or for non-boolean inputs. Configuration via `msg.context`:
+Detects transitions in boolean payloads based on the configured `algorithm`. Outputs `{ payload: true }` only when the specified transition occurs (true-to-false or false-to-true). No output on first input after reset, if no transition occurs, or for non-boolean inputs. Configuration via `msg.context`:
 - `"algorithm"`: Sets transition type, no output.
 - `"reset"`: Clears state, no output.
-Unknown `msg.context` is ignored, processing `msg.payload`. Used in control systems for detecting state changes, such as button toggles or sensor switches. Runtime changes to `algorithm` are shown in "Changed Runtime Values".
-
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` for `"algorithm"` (not `"true-to-false"`, `"false-to-true"`): No output, red status (`invalid algorithm`).
-- Invalid `msg.payload` for `"reset"` (non-boolean): No output, red status (`invalid reset`).
-- Invalid `msg.payload` for transition (non-boolean): No output, red status (`invalid input`).
-- Invalid `msg.context`: Ignored, message processed for transitions.
 
 ### Status
 - Green (dot): Initialization, reset, or algorithm update (e.g., `name: edge`, `state reset`, `algorithm: true-to-false`).

@@ -107,16 +107,17 @@ Outputs a true pulse for a configurable duration when triggered with `msg.payloa
 : resetOnComplete (boolean) : Automatically reset (unlock) after pulse duration. Default: `false`.
 
 ### Details
-Generates a `true` pulse for `duration` (converted to milliseconds, default: 1000ms) when triggered with `msg.payload = true`, then outputs `false`. Locks until reset via `msg.context = "reset"` (requires `msg.payload = true` if `resetRequireTrue = true`) or automatically if `resetOnComplete = true`. Non-`true` payloads are ignored with no output. Duration configurable via editor or `msg.context = "duration"` with `msg.units` (`"milliseconds"`, `"seconds"`, `"minutes"`). Tracks `triggerCount` (number of triggers) and displays in status. Outputs new `{ payload: boolean }` messages for every trigger (`true` then `false`), reset, or locked input. Editor changes require redeployment; reset and duration commands apply immediately. Runtime values (`name`, `duration`, `durationUnits`, `resetRequireTrue`, `resetOnComplete`, `triggerCount`, `locked`, `output`) are shown in "Changed Runtime Values" if different from defaults.
+Generates a `true` pulse for `duration` (converted to milliseconds, default: 1000ms) when triggered with `msg.payload = true`, 
+then outputs `false`. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Invalid `duration` (non-numeric, < 1ms after conversion): No output, red status (`invalid duration`), uses 1000ms.
-- Invalid reset payload (`resetRequireTrue = true`, `msg.payload ≠ true`): No output, red status (`invalid reset payload`).
-- Missing `msg.payload` for `"duration"`: No output, red status (`missing payload for duration`).
-- Non-`true` `msg.payload`: No output, yellow status (`ignored: non-true`).
-- Locked input with `msg.payload = true`: Outputs current `output`, red status (`triggers: X, locked`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Locks until reset via `msg.context = "reset"` (requires `msg.payload = true` if `resetRequireTrue = true`) or 
+automatically if `resetOnComplete = true`. Non-`true` payloads are ignored with no output. 
+
+Duration configurable via editor or `msg.context = "duration"` with `msg.units` (`"milliseconds"`, `"seconds"`, `"minutes"`). 
+
+Tracks `triggerCount` (number of triggers) and displays in status. 
+
+Outputs new `{ payload: boolean }` messages for every trigger (`true` then `false`), reset, or locked input. 
 
 ### Status
 - Green (dot): Trigger or duration update (e.g., `triggers: 1, out: true`, `duration: 1000 ms`).

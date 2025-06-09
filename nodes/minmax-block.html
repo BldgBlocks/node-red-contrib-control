@@ -85,19 +85,13 @@ Clamps a numeric input to a configurable range.
 : *other* (any) : All input properties preserved, including `msg.context`.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "minmax").
 : min (number) : Minimum value for clamping (≥ 0). Default: 0.
 : max (number) : Maximum value for clamping (≥ 0, ≥ min). Default: 100.
 
 ### Details
-Clamps `msg.payload` (a number) to the range `[min, max]` (default: [0, 100]), forwarding the input message with updated `msg.payload`. Ensures `min ≤ max` by adjusting the other value if needed (e.g., setting `min > max` sets `max = min`). Configurable via editor (`name`, `min`, `max`) or `msg.context` (`"min"`, `"max"`) with numeric `msg.payload`. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `min`, `max`) are shown in "Changed Runtime Values" if different from editor defaults (e.g., `min ≠ 0`, `max ≠ 100`). Outputs on every valid input, with status indicating whether the output changed.
+Clamps `msg.payload` (a number) to the range `[min, max]` (default: [0, 100]), forwarding the input message with updated `msg.payload`. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-numeric): No output, red status (`invalid payload`).
-- Invalid `min`/`max` (non-numeric, negative): No output, red status (`invalid min`/`max`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`).
+Ensures `min ≤ max` by adjusting the other value if needed (e.g., setting `min > max` sets `max = min`). 
 
 ### Status
 - Green (dot): Configuration (e.g., `min: 10`, `max: 100`, `min: 10, max adjusted to 10`).

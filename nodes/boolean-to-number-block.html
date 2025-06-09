@@ -67,20 +67,17 @@
 Converts a boolean or null input payload to a numeric output.
 
 ### Inputs
-: context (string) : Ignored unless matched. Unmatched values ignored.
 : payload (boolean | null) : Value to convert (`true`, `false`, `null`).
 
 ### Outputs
 : payload (number) : Converted value: `null` to `0` (if `nullToZero`) or `-1`, `false` to `0`, `true` to `1`.
-: *other* (any) : Other input properties preserved.
 
 ### Details
-Converts `msg.payload` (boolean or null) to a number: `null` maps to `0` (if `nullToZero` is `true`) or `-1` (if `false`), `false` to `0`, `true` to `1`. Preserves all other input message properties (e.g., `msg.topic`). Configurable via editor (`name`, `nullToZero`), with changes requiring redeployment. Operates statelessly, processing each input message independently without persistent storage. Unknown `msg.context` values are ignored without status change. Runtime values (`name`) are shown in "Changed Runtime Values" if non-default (e.g., `name ≠ ""`).
+Converts `msg.payload` (boolean or null) to a number: `null` maps to `0` (if `nullToZero` is `true`) or `-1` (if `false`), `false` to `0`, `true` to `1`. 
 
-### Error Handling
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (not boolean or null): No output, red status (`invalid payload`).
-- Unknown `msg.context`: Ignored, processes `msg.payload` if valid.
+Passthrough all other input message properties (e.g., `msg.topic`). 
+
+Configurable via editor (`name`, `nullToZero`), with changes requiring redeployment.
 
 ### Status
 - Blue (dot): Outputs (e.g., `in: true, out: 1`, `in: null, out: 0`).

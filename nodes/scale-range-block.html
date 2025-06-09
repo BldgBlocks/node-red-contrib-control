@@ -114,7 +114,6 @@ Scales a numeric input from one range to another and passes the original message
 : Other properties (e.g., `msg.context`, `msg.topic`) from the input message are preserved.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "scale range").
 : inMin (number) : Minimum input value. Default: 0.0.
 : inMax (number) : Maximum input value (> inMin). Default: 100.0.
 : outMin (number) : Minimum output value. Default: 0.0.
@@ -122,17 +121,12 @@ Scales a numeric input from one range to another and passes the original message
 : clamp (boolean) : Clamp output to output range. Default: true.
 
 ### Details
-Scales `msg.payload` (number) from an input range (`inMin` to `inMax`) to an output range (`outMin` to `outMax`) using linear interpolation, with optional clamping to `[outMin, outMax]` if `clamp` is `true`. Configurable via editor or `msg.context`. Outputs the input message with `msg.payload` set to the scaled value, preserving other properties. Outputs on valid input or configuration change (recalculates with last input). Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `inMin`, `inMax`, `outMin`, `outMax`, `clamp`, `lastInput`) shown in "Changed Runtime Values" if different from defaults.
+Scales `msg.payload` (number) from an input range (`inMin` to `inMax`) to an output range (`outMin` to `outMax`) using linear interpolation, with optional 
+clamping to `[outMin, outMax]` if `clamp` is `true`.
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing input` or `missing payload for X`).
-- Invalid inMin/inMax/outMin/outMax (non-numeric, non-finite): No output, red status (`invalid X`).
-- Invalid clamp (non-boolean): No output, red status (`invalid clamp`).
-- Invalid input range (inMax <= inMin): No output, red status (`invalid input range`).
-- Invalid output range (outMax <= outMin): No output, red status (`invalid output range`).
-- Invalid input (non-numeric, non-finite): No output, red status (`invalid input`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Outputs the input message with `msg.payload` set to the scaled value, preserving other properties. 
+
+Outputs on valid input or configuration change (recalculates with last input).
 
 ### Status
 - Green (dot): Configuration (e.g., `inMin: 0.00`, `clamp: true`).

@@ -80,21 +80,14 @@ Selects one numeric input from multiple slots based on a switch value.
 : payload (number) : Selected input value based on switch setting.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "analog switch (slots)").
 : slots (integer) : Number of input slots (≥ 1). Default: 2.
 
 ### Details
-Selects one numeric input from multiple slots (`in1`, `in2`, etc.) based on a switch value (1 to slots) set via `msg.context = "switch"` with integer `msg.payload`. Slots configurable via editor or `msg.context = "slots"` with integer `msg.payload` (≥ 1). Inputs default to 0, updated via `msg.context = "inX"` with numeric `msg.payload`. Outputs a new `{ payload: number }` when the active slot is updated, switch changes to a valid slot, or slots change affects the output. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `slots`, `switch`, `in1`, `in2`, etc.) shown in "Changed Runtime Values" if different from defaults.
+Selects one numeric input from multiple slots (`in1`, `in2`, etc.) based on a switch value (1 to slots) 
+set via `msg.context = "switch"` with integer `msg.payload`. Slots configurable via editor or `msg.context = "slots"` with 
+integer `msg.payload` (≥ 1). Inputs default to 0, updated via `msg.context = "inX"` with numeric `msg.payload`. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.context`: No output, red status (`missing context`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `slots` (non-integer, < 1): No output, red status (`invalid slots`).
-- Invalid `switch` (non-integer, < 1, > slots): No output, red status (`invalid switch`).
-- Invalid input index (non-integer, < 1, > slots): No output, red status (`invalid input index X`).
-- Invalid input value (non-numeric): No output, red status (`invalid inX`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Outputs a new `{ payload: number }` when the active slot is updated, switch changes to a valid slot, or slots change affects the output.
 
 ### Status
 - Green (dot): Configuration (e.g., `slots: 3`, `switch: 1`, `in1: 5.50`).

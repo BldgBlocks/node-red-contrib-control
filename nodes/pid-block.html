@@ -158,7 +158,6 @@ Implements a PID controller with deadband, output limits, and tuning.
 : tuneResult (object) : `{ Kp, Ki, Kd, Ku, Tu }` when tuning completes.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "pid").
 : kp (number) : Proportional gain. Default: 0.
 : ki (number) : Integral gain. Default: 0.
 : kd (number) : Derivative gain. Default: 0.
@@ -172,7 +171,13 @@ Implements a PID controller with deadband, output limits, and tuning.
 : run (boolean) : Enable (true) or disable (false) PID calculation. Default: true.
 
 ### Details
-Calculates PID control output based on numeric `msg.payload`, setpoint, and gains (`kp`, `ki`, `kd`). Supports deadband, output limits, rate of change limit, direct/reverse action, integral clamping, and Ziegler-Nichols tuning. Outputs `{ payload: number, diagnostics: object }` when output changes, or `{ tuneResult: object }` on tuning completion. Configurable via editor or `msg.context`. Commands: `reset` (clears state with `msg.payload = true`), `tune` (starts tuning with positive kp). Editor changes require redeployment; message-based updates apply immediately (except `reset`, `tune`). Ziegler-Nichols tuning sets `kp = 0.6*Ku`, `ki = 2*kp/Tu`, `kd = kp*Tu/8` after detecting oscillations. Outputs only on change.
+Calculates PID control output based on numeric `msg.payload`, setpoint, and gains (`kp`, `ki`, `kd`). 
+
+Supports deadband, output limits, rate of change limit, direct/reverse action, integral clamping, and Ziegler-Nichols tuning. 
+
+Outputs `{ payload: number, diagnostics: object }` when output changes, or `{ tuneResult: object }` on tuning completion. 
+
+Ziegler-Nichols tuning sets `kp = 0.6*Ku`, `ki = 2*kp/Tu`, `kd = kp*Tu/8` after detecting oscillations. Outputs only on change.
 
 ### Error Handling
 - Missing `msg`: No output, red status (`invalid message`).

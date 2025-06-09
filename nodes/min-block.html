@@ -70,18 +70,12 @@ Ensures a numeric input is at least a configurable minimum value.
 : *other* (any) : All input properties preserved, including `msg.context`.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "min").
 : min (number) : Minimum value for capping (≥ 0). Default: 50.
 
 ### Details
-Ensures `msg.payload` (a number) is at least the minimum value (`min`, default: 50), forwarding the input message with updated `msg.payload`. Configurable via editor (`name`, `min`) or `msg.context` (`"min"`, `"setpoint"`) with numeric `msg.payload`. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `min`) are shown in "Changed Runtime Values" if different from editor defaults (e.g., `min ≠ 50`). Outputs on every valid input, with status indicating whether the output changed.
+Ensures `msg.payload` (a number) is at least the minimum value (`min`, default: 50), forwarding the input message with updated `msg.payload`. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-numeric): No output, red status (`invalid payload`).
-- Invalid `min` (non-numeric, negative): No output, red status (`invalid min`), uses 50.
-- Unknown `msg.context`: No output, yellow status (`unknown context`).
+Outputs on every valid input, with status indicating whether the output changed.
 
 ### Status
 - Green (dot): Configuration (e.g., `min: 50`).

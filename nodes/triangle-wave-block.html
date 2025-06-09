@@ -101,22 +101,17 @@ Generates a triangle wave output scaled to a configurable range.
 : payload (number) : Triangle wave value scaled between lowerLimit and upperLimit.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "triangle wave").
 : lowerLimit (number) : Minimum output value. Default: 0.
 : upperLimit (number) : Maximum output value (≥ lowerLimit). Default: 100.
 : period (number) : Wave period (positive, in periodUnits). Default: 10.
 : periodUnits (string) : Units for period (`"milliseconds"`, `"seconds"`, `"minutes"`). Default: `"seconds"`.
 
 ### Details
-Generates a triangle wave output, linearly rising from `lowerLimit` to `upperLimit` and falling back over `period`, triggered by any input. Tracks phase (0 to 1) for continuity. Configurable via editor or `msg.context` with numeric `msg.payload` and optional `msg.units`. Ensures `upperLimit ≥ lowerLimit` by adjusting limits. Outputs `{ payload: number }` with wave value; if `period ≤ 0`, outputs `lowerLimit`. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `lowerLimit`, `upperLimit`, `period`, `periodUnits`) shown in "Changed Runtime Values" if different from defaults.
+Generates a triangle wave output, linearly rising from `lowerLimit` to `upperLimit` and falling back over `period`, triggered by any input. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload` for config: No output, red status (`missing payload for X`).
-- Invalid context (non-string): No output, red status (`invalid context`).
-- Invalid lowerLimit/upperLimit/period (non-numeric, non-finite): No output, red status (`invalid X`).
-- Invalid period (non-positive): No output, red status (`invalid period`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Tracks phase (0 to 1) for continuity. 
+
+Ensures `upperLimit ≥ lowerLimit` by adjusting limits. Outputs `{ payload: number }` with wave value; if `period ≤ 0`, outputs `lowerLimit`.
 
 ### Status
 - Green (dot): Configuration (e.g., `lower: 0.00`, `period: 10000.00 ms`).

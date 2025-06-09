@@ -5,6 +5,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-operationMode" title="Choose whether to output the full cloned message or only the payload"><i class="fa fa-cog"></i> Operation Mode</label>
+        <input type="text" id="node-input-operationMode">
+    </div>
+    <div class="form-row">
         <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
         <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
     </div>
@@ -16,7 +20,8 @@
         category: "control",
         color: "#301934",
         defaults: {
-            name: { value: "" }
+            name: { value: "" },
+            operationMode: { value: "payload", required: true, validate: function(v) { return v === "clone" || v === "payload"; } }
         },
         inputs: 1,
         outputs: 1,
@@ -31,9 +36,23 @@
             const node = this;
             $("#node-input-name").val(node.name || "");
 
+            // Initialize typed input for operationMode (Req 9)
+            $("#node-input-operationMode").typedInput({
+                default: "str",
+                types: [{
+                    value: "str",
+                    options: [
+                        { value: "clone", label: "Clone Message" },
+                        { value: "payload", label: "Payload Only" }
+                    ]
+                }],
+                typeField: false
+            }).typedInput("value", node.operationMode || "clone");
+
             $.getJSON(`/cache-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
                 const changes = [];
                 if (data.name) changes.push(`name: ${data.name}`);
+                if (data.operationMode) changes.push(`operationMode: ${data.operationMode === "clone" ? "Clone Message" : "Payload Only"}`);
                 if (data.cachedValue !== null) {
                     const displayValue = typeof data.cachedValue === "number" 
                         ? data.cachedValue.toFixed(2) 
@@ -53,36 +72,38 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="cache-block">
-Caches an input message and outputs a copy on request, preserving original properties.
+Caches an input message and outputs either a copy or just the payload based on configuration.
 
 ### Inputs
-: context (string) : Sets action (`"update"` to store, `"execute"` to output, `"reset"` to clear). Unmatched values trigger error.
+: context (string) : Sets action (`"update"` to store, `"execute"` to output, `"reset"` to clear).  
+Unmatched values trigger an error.
 : payload (any | boolean) : Value to store (`update`), ignored for `execute`, boolean `true` for `reset`.
 
 ### Outputs
-: payload (any) : Cached value when `execute` is triggered; `null` if cache is empty.
-: other properties (e.g., `msg.context`, `msg.topic`) : from the cached message are preserved.
+: payload (any) : Cached value when `execute` is triggered; `null` if cache is empty.  
+: other properties : Included only if "Clone Message" mode is selected.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "cache").
+: name (string) : Display name in editor. Default: "".  
+: operationMode (string) : Selects output behavior: "Clone Message" (full message) or "Payload Only" (just payload). Default: "Clone Message".
 
 ### Details
-Stores the entire input message when `msg.context = "update"`, outputs a copy with the cached `msg.payload` when `msg.context = "execute"`, and clears the cache to `null` when `msg.context = "reset"` with `msg.payload = true`. The output preserves all original message properties (e.g., `msg.context`, `msg.topic`) except for the updated `msg.payload`. Configurable via editor (`name` only). Editor changes require redeployment; message-based actions apply immediately. Runtime values (`name`, `cachedValue`) shown in "Changed Runtime Values" if different from defaults.
+Stores the entire input message when `msg.context = "update"`.  
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.context`: No output, red status (`missing context`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `reset` (non-boolean or `false`): No output, red status (`invalid reset`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Outputs either a full copy of the cached message (`operationMode = "Clone Message"`) 
+or a new message with only the cached `msg.payload` (`operationMode = "Payload Only"`) when `msg.context = "execute"`.  
+
+Clears the cache to `null` when `msg.context = "reset"` with `msg.payload = true`.  
+
+Runtime values (`name`, `operationMode`, `cachedValue`) are shown in "Changed Runtime Values" if different from defaults.
 
 ### Status
-- Green (dot): Update or reset (e.g., `update: 42.00`, `reset`).
-- Blue (dot): Execute (e.g., `execute: 42.00` or `execute: null`).
-- Red (ring): Errors (e.g., `missing payload`, `invalid reset`).
+- Green (dot): Update or reset (e.g., `update: 42.00`, `reset`).  
+- Blue (dot): Execute (e.g., `execute: 42.00` or `execute: null`).  
+- Red (ring): Errors (e.g., `missing payload`, `invalid reset`).  
 - Yellow (ring): Unknown context (e.g., `unknown context`).
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/)
+- [Node-RED Documentation](https://nodered.org/docs/)  
 - [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
 </script>

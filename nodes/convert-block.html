@@ -82,10 +82,9 @@ Converts numeric input payload between temperature or pressure units.
 
 ### Outputs
 : payload (number) : Converted value (e.g., °C to °F, Pa to inH₂O).
-: *other* (any) : Other input properties preserved.
 
 ### Details
-Converts `msg.payload` between units based on the selected conversion, supporting temperature (Celsius to Fahrenheit, Fahrenheit to Celsius) and pressure (Pascal, inches of water, inches of mercury, bar, psi) conversions. Configurable via editor (`name`, `conversion`) or `msg.context = "conversion"` with valid conversion string (e.g., `C to F`). Outputs the input message with `msg.payload` updated to the converted value, preserving other properties. Invalid inputs (non-numeric `msg.payload`, invalid conversion) prevent output and show error status. Runtime values (`name`, `conversion`) are shown in "Changed Runtime Values" if non-default (e.g., `name ≠ ""`, `conversion ≠ C to F`).
+Converts `msg.payload` between units based on the selected conversion.
 
 ### Supported Conversions
 - Temperature:
@@ -100,13 +99,6 @@ Converts `msg.payload` between units based on the selected conversion, supportin
   - `bar to Pa`: Bar to Pascal (`Pa = bar / 0.00001`).
   - `Pa to psi`: Pascal to psi (`psi = Pa * 0.000145038`).
   - `psi to Pa`: Psi to Pascal (`Pa = psi / 0.000145038`).
-
-### Error Handling
-- Missing `msg`: No output, red status (`missing message`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-numeric): No output, red status (`invalid payload`).
-- Invalid `msg.context` for configuration: No output, red status (`invalid conversion`).
-- Unknown `msg.context`: Ignored, processes `msg.payload` if valid.
 
 ### Status
 - Green (dot): Configuration (e.g., `conversion: C to F`).

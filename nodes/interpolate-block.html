@@ -109,16 +109,13 @@ Linearly interpolates a numeric input using a configurable points table.
 : payload (number) : Interpolated output value.
 
 ### Details
-Interpolates a numeric `msg.payload` using a table of `{x, y}` points (default: `[{x: 0, y: 0}, {x: 100, y: 100}]`). Points are set via editor or `msg.context = "points"` with an array of ≥2 `{x, y}` objects (x and y as numbers). Outputs `{ payload: number }` only when the interpolated value changes. Input must be within the x-range of points; out-of-range inputs are rejected. Editor changes require redeployment; message updates apply immediately. Used in control systems for mapping sensor data or control signals.
+Interpolates a numeric `msg.payload` using a table of `{x, y}` points (default: `[{x: 0, y: 0}, {x: 100, y: 100}]`). 
 
-### Error Handling
-- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
-- Missing `msg.context` or `msg.payload` for config: No output, red status (`missing payload`).
-- Missing `msg.payload` for input: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-numeric for input): No output, red status (`invalid input`).
-- Invalid points (non-array, <2 points, invalid `{x, y}`): No output, red status (`invalid points`).
-- Input out of x-range: No output, red status (`input out of range`).
-- Unknown or invalid `msg.context`: No output, yellow status (`unknown context`).
+Points are set via editor or `msg.context = "points"` with an array of ≥2 `{x, y}` objects (x and y as numbers). 
+
+Outputs `{ payload: number }` only when the interpolated value changes. 
+
+Input must be within the x-range of points; out-of-range inputs are rejected. 
 
 ### Status
 - Green (dot): Configuration updates (e.g., `name: interpolate, points: 2`, `points: 3`).

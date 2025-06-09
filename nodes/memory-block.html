@@ -100,11 +100,10 @@ Stores a message property persistently across reboots and redeployments, with co
 : [transferProperty] (any) : Property to store (`"update"`, `"executeWithFallback"`) or pass through (no `context`).
 
 ### Outputs
-: Output 1 (query) : For `context = "query"`: `{ payload: boolean }` (`true` if stored value exists, `false` if none).
-: Output 2 (value) : For no `context`: Input `msg` unchanged. For `context = "execute"`: Input `msg` with `transferProperty` from stored message, or `{ payload: null }` if none. For `context = "executeWithFallback"`: Input `msg` with `transferProperty` from stored message, or stores and outputs `msg[transferProperty]`. For `context = "update"`: No output.
+: query : For `context = "query"`: `{ payload: boolean }` (`true` if stored value exists, `false` if none).
+: value : For no `context`: Input `msg` unchanged. For `context = "execute"`: Input `msg` with `transferProperty` from stored message, or `{ payload: null }` if none. For `context = "executeWithFallback"`: Input `msg` with `transferProperty` from stored message, or stores and outputs `msg[transferProperty]`. For `context = "update"`: No output.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "memory").
 : writePeriod (string) : Delay in milliseconds before writing to file (non-negative, from `msg`, `flow`, `global`, or static). Ignored if Write On Update is enabled. Default: "60000".
 : writePeriodType (string) : Source of `writePeriod` (`"num"`, `"msg"`, `"flow"`, `"global"`). Default: `"num"`.
 : transferProperty (string) : Property to transfer from stored message to output message (valid JavaScript property name). Default: "payload".

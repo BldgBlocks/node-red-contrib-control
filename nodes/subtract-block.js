@@ -89,6 +89,7 @@ module.exports = function(RED) {
                     return;
                 }
                 node.runtime.inputs[slotIndex] = newValue;
+                
                 // Calculate subtraction
                 const result = node.runtime.inputs.reduce((acc, val, idx) => idx === 0 ? val : acc - val, 0);
                 const isUnchanged = result === node.runtime.lastResult;
@@ -97,8 +98,10 @@ module.exports = function(RED) {
                     shape: isUnchanged ? "ring" : "dot",
                     text: `${msg.context}: ${newValue.toFixed(2)}, diff: ${result.toFixed(2)}`
                 });
+
                 node.runtime.lastResult = result;
-                send({ ...msg, payload: result });
+                send({ payload: result });
+
                 if (done) done();
                 return;
             } else {

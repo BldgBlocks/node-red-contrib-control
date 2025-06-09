@@ -315,7 +315,7 @@
 Manages HVAC mode switching between heating and cooling based on temperature inputs and setpoint configurations.
 
 ### Inputs
-: context (string) : Configures node settings (`"operationMode"`, `"algorithm"`, `"setpoint"`, `"deadband"`, `"heatingSetpoint"`, `"coolingSetpoint"`, `"extent"`, `"swapTime"`, `"minTempSetpoint"`, `"maxTempSetpoint"`, `"initWindow"`). Unknown values trigger a warning.
+: context (string) : Configuration commands - (`"operationMode"`, `"algorithm"`, `"setpoint"`, `"deadband"`, `"heatingSetpoint"`, `"coolingSetpoint"`, `"extent"`, `"swapTime"`, `"minTempSetpoint"`, `"maxTempSetpoint"`, `"initWindow"`). Unknown values trigger a warning.
 : payload (number | string) : Temperature for mode evaluation; configuration value with `msg.context`.
 
 ### Outputs
@@ -340,25 +340,16 @@ The node supports two algorithms for determining HVAC mode:
   - Ensures `coolingSetpoint >= heatingSetpoint` to avoid overlap.
 
 ### Details
-Controls HVAC mode (heating or cooling) based on `msg.payload` temperature compared to setpoints. The node caches the last temperature to make an immediate mode decision after the `initWindow` period, avoiding delays.
+Controls HVAC mode (heating or cooling) based on `msg.payload` temperature compared to setpoints. 
+Utilizes a delay on startup for sensor normalization and caches the last temperature to make an immediate decision after the `initWindow` period.
 
 - In **auto** mode, the node switches modes based on the algorithm thresholds, requiring the condition to persist for `swapTime` seconds (minimum 60s). A countdown is shown (e.g., `pending: cooling in 120s`).
 - In **heat** or **cool** mode, the node locks to heating or cooling, respectively, ignoring temperature inputs.
 - The `extent` widens switching thresholds to prevent unnecessary mode changes while allowing sharing of `deadband` with global variables and other nodes.
 - Configuration options can be set via the editor or `msg.context` (e.g., `{ context: "setpoint", payload: 72 }`).
-- Effective setpoints (`effectiveHeatingThreshold`, `effectiveCoolingThreshold`) are always displayed in "Effective Setpoints" for both new and active nodes, showing the calculated mode-switching thresholds.
+- Effective setpoints (`effectiveHeatingThreshold`, `effectiveCoolingThreshold`) are always displayed in "Effective Setpoints" for both new and active nodes, 
+showing the calculated mode-switching thresholds.
 - State (`currentMode`, `lastTemperature`) persists across redeployments.
-
-### Error Handling
-- Missing `msg`: No output, status: `red ring, invalid message`.
-- Missing `msg.payload` for temperature: No output, status: `red ring, missing temperature`.
-- Missing `msg.payload` for context: No output, status: `red ring, missing payload for X`.
-- Invalid temperature (non-numeric): No output, status: `red ring, invalid temperature`.
-- Invalid `operationMode` (not `auto`, `heat`, `cool`): No output, status: `red ring, invalid operationMode`.
-- Invalid `algorithm` (not `single`, `split`): No output, status: `red ring, invalid algorithm`.
-- Invalid numeric context (e.g., non-numeric, out-of-range, `swapTime < 60`): No output, status: `red ring, invalid X`.
-- Wrong context for algorithm (e.g., `setpoint` in split): No output, status: `red ring, X not used in Y algorithm`.
-- Unknown `msg.context`: No output, status: `yellow ring, unknown context`.
 
 ### Status
 - Green (dot): Configuration updated (e.g., `in: setpoint=70.0, out: heating`).

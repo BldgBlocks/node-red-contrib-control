@@ -6,13 +6,14 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name || "",
+            operationMode: config.operationMode || "payload",
             cachedMessage: null
         };
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
-            // Guard against invalid message
+            // Guard against invalid message (Req 7)
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
@@ -52,8 +53,12 @@ module.exports = function(RED) {
                         });
                         send({ payload: null });
                     } else {
-                        const outputMsg = RED.util.cloneMessage(node.runtime.cachedMessage);
-                        outputMsg.payload = node.runtime.cachedMessage.payload;
+                        let outputMsg;
+                        if (node.runtime.operationMode === "clone") {
+                            outputMsg = RED.util.cloneMessage(node.runtime.cachedMessage);
+                        } else {
+                            outputMsg = { payload: node.runtime.cachedMessage.payload };
+                        }
                         node.status({
                             fill: "blue",
                             shape: "dot",
@@ -99,6 +104,7 @@ module.exports = function(RED) {
         if (node && node.type === "cache-block") {
             res.json({
                 name: node.runtime.name,
+                operationMode: node.runtime.operationMode,
                 cachedValue: node.runtime.cachedMessage ? node.runtime.cachedMessage.payload : null
             });
         } else {

@@ -63,14 +63,8 @@ Counts boolean rising edges in the input.
 : name (string) : Display name in editor. Default: "" (shows "count").
 
 ### Details
-Counts rising edges (false-to-true transitions) in `msg.payload` (boolean), incrementing the count on each transition. Resets count to 0 via `msg.context = "reset"` with `msg.payload = true`. Outputs a new `{ payload: number }` message when the count changes (increment or reset). Configurable via editor (`name` only). Editor changes require redeployment; reset messages apply immediately. Runtime values (`name`, `count`) shown in "Changed Runtime Values" if different from defaults. Suitable for automation to track events like button presses or sensor triggers.
-
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing input` or `missing payload for reset`).
-- Invalid input (non-boolean): No output, red status (`invalid input`).
-- Invalid reset value (non-boolean): No output, red status (`invalid reset`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Counts rising edges (false-to-true transitions) in `msg.payload` (boolean), incrementing the count on each transition. 
+Resets count to 0 via `msg.context = "reset"` with `msg.payload = true`. 
 
 ### Status
 - Green (dot): Reset (e.g., `state reset`).

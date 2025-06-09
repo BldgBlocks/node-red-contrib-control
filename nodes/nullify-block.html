@@ -120,13 +120,13 @@ Sets multiple specified message properties to null.
 : *other* (any) : Other input properties preserved.
 
 ### Details
-Sets multiple configured `msg` properties (default: `msg.payload`) to `null`, creating each property if it doesn't exist. Properties are specified via a dynamic rule list in the editor, each defining a `msg` property (e.g., `payload`, `topic`). Configurable via editor (`name`, `rules`) or `msg.context = "rules"` with an array of valid rule objects (e.g., `[{property: "payload", propertyType: "msg"}]`). Outputs the modified input message, preserving all other properties. Invalid inputs (missing message, invalid rule configuration) prevent output and show error status. Runtime values (`name`, `rules`) are shown in "Changed Runtime Values" if non-default (e.g., `name ≠ ""`, `rules ≠ [msg.payload]`).
+Sets multiple configured `msg` properties (default: `msg.payload`) to `null`, creating each property if it doesn't exist. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`missing message`).
-- Invalid `msg.context` for configuration (non-array or invalid rules): No output, red status (`invalid rules`).
-- Unknown `msg.context`: Ignored, processes input message.
-- Invalid configuration (non-string or non-msg properties): Uses default `msg.payload`, red status (`invalid rules, using defaults`).
+Properties are specified via a dynamic rule list in the editor, each defining a `msg` property (e.g., `payload`, `topic`). 
+
+ Outputs the modified input message, preserving all other properties. 
+
+ Invalid inputs (missing message, invalid rule configuration) prevent output and show error status. 
 
 ### Status
 - Green (dot): Configuration (e.g., `rules: payload, topic`).

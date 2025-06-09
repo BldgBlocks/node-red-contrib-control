@@ -120,7 +120,6 @@ Processes a numeric input value based on a selected mode and passes the original
 : Other properties (e.g., `msg.topic`) from the input message are preserved.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows mode or "rate limit").
 : mode (string) : Processing mode (`rate-limit`, `threshold`, `full-value`). Default: `rate-limit`.
 : rate (number) : Rate of change for rate-limit mode (units/s, > 0). Default: 1.
 : interval (number) : Update interval for rate-limit mode (ms, ≥ 10, integer). Default: 100.
@@ -131,17 +130,6 @@ Processes `msg.payload` (number) in one of three modes:
 - **Rate Limit**: Limits rate of change to `rate` (units/s), updating every `interval` (ms) toward the input value.
 - **Threshold**: Outputs when input differs from last output by more than `threshold` (units).
 - **Full Value**: Passes input unchanged.
-Configurable via editor or `msg.context`. Outputs the input message with `msg.payload` set to the processed value, preserving other properties. In rate-limit mode, outputs occur via timer; in threshold mode, only when threshold is exceeded; in full-value mode, on every input. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `mode`, `rate`, `interval`, `threshold`, `currentValue`, `targetValue`) shown in "Changed Runtime Values" if different from defaults.
-
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload` for config: No output, red status (`missing payload for X`).
-- Invalid input (non-numeric, non-finite): No output, red status (`invalid input`).
-- Invalid mode (not `rate-limit`, `threshold`, `full-value`): No output, red status (`invalid mode`).
-- Invalid rate (non-numeric, ≤ 0, non-finite): No output, red status (`invalid rate`).
-- Invalid interval (non-integer, < 10): No output, red status (`invalid interval`).
-- Invalid threshold (non-numeric, < 0, non-finite): No output, red status (`invalid threshold`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
 
 ### Status
 - Green (dot): Configuration or rate-limit input (e.g., `mode: rate-limit, target: 10.00`, `rate: 1.00`).

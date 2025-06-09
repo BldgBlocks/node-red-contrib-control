@@ -77,7 +77,7 @@ Filters redundant messages based on value changes and a configurable period.
 
 ### Inputs
 : payload (any) : Input value to compare.
-: context (string, optional) : Configures period (`"period"`) or queries state (`"status"`).
+: context (string, optional) : Configures period (`"period"`) or queries state (`"status"`). Unknown `msg.context` is ignored
 : payload (number | any, for `context`) : Non-negative number for `"period"` (ms), any for `"status"`.
 
 ### Outputs
@@ -90,16 +90,12 @@ Filters redundant messages based on value changes and a configurable period.
 : periodType (string) : Source of period (`"num"`, `"msg"`, `"flow"`, `"global"`). Default `"num"`.
 
 ### Details
-Filters messages based on value changes (deep comparison) and a filter period. When `period = 0`, outputs the input message only if `msg.payload` differs from the last output value. When `period > 0`, outputs the first message, suppresses all messages during the period (including blips), and after the period, outputs only if the value differs from the last output. Supports complex payloads (objects, arrays) via deep comparison. Configuration:
+Filters messages based on value changes (deep comparison) and a filter period. When `period = 0`, outputs the input message only if `msg.payload` 
+differs from the last output value. When `period > 0`, outputs the first message, suppresses all messages during the period (including blips), 
+and after the period, outputs only if the value differs from the last output. Supports complex payloads (objects, arrays) via deep comparison. 
+Configuration:
 - `msg.context = "period"`: Sets period (ms), no output.
 - `msg.context = "status"`: Outputs `{ period, periodType }`.
-Unknown `msg.context` is ignored, processing `msg.payload`. Editor changes require redeployment; message-based period updates apply immediately. Runtime values (`name`, `period`) shown in "Changed Runtime Values" if different from defaults. Used in control systems to debounce or filter redundant sensor data.
-
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: Message passed, red status (`missing payload`).
-- Invalid period (non-numeric, negative): Message passed, red status (`invalid period`), uses default (0).
-- Invalid `msg.context`: Ignored, message processed as passthrough.
 
 ### Status
 - Green (dot): Configuration (e.g., `name: on change, period: 500 ms`, `period: 1000 ms`).

@@ -81,22 +81,18 @@ Debounces consecutive `true` payloads and passes `false` payloads immediately wi
 
 ### Inputs
 : context (string) : Configures filter period (`"period"`).
-: payload (boolean | number) : `true` for debounced output, `false` for immediate output, number for period config with `msg.context`.
+: payload (boolean | number) : `true` for debounced output, `false` for immediate output.
 
 ### Outputs
-: payload (boolean) : `true` after filter period elapses without new `true` payloads, `false` immediately.
-: *other* (any) : Other input properties preserved, except `msg.context`.
+: payload (boolean) : `true` after filter period elapses without new `true` payloads, `false` immediately. `msg.context` is consumed.
 
 ### Details
-Filters consecutive `true` `msg.payload` inputs, outputting `true` after the filter period elapses without new `true` payloads. Consecutive `true` payloads within the period reset the timer, delaying output. Outputs `false` `msg.payload` inputs immediately without debouncing. Non-boolean payloads (e.g., strings, numbers) are ignored with an error status. Configurable via editor (`period`, positive number in milliseconds) or `msg.context = "period"` with positive numeric `msg.payload` (applies immediately). Outputs the input message, removing `msg.context`. Tracks ignored `true` payloads (`debounceCount`), which increments for each `true` payload resetting an active timer, capped at 9999, resetting to 0 if exceeded or on redeployment. Runtime values (`period`, `debounceCount`) are shown in "Changed Runtime Values" if non-default (`period ≠ 1000 ms`, `debounceCount ≠ 0`).
+Filters consecutive `true` `msg.payload` inputs, outputting `true` after the filter period elapses without new `true` payloads. 
 
-### Error Handling
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Missing `msg.payload` for period: No output, red status (`missing payload`).
-- Invalid period (non-numeric, non-positive): No output, red status (`invalid period`).
-- Invalid `msg.payload` (non-boolean): No output, red status (`invalid payload`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`).
-- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
+Consecutive `true` payloads within the period reset the timer, delaying output. Outputs `false` `msg.payload` inputs immediately without debouncing. 
+Non-boolean payloads (e.g., strings, numbers) are ignored with an error status. 
+
+Tracks ignored `true` payloads (`debounceCount`), which increments for each `true` payload resetting an active timer, capped at 9999, resetting to 0 if exceeded or on redeployment. Runtime values (`period`, `debounceCount`) are shown in "Changed Runtime Values" if non-default (`period ≠ 1000 ms`, `debounceCount ≠ 0`).
 
 ### Status
 - Green (dot): Configuration updates (e.g., `period: 1000 ms`).

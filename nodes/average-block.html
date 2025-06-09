@@ -85,15 +85,11 @@ Computes a rolling average of numeric inputs within a valid range.
 : payload (number | null) : Rolling average, or `null` if no valid inputs.
 
 ### Details
-Averages numeric `msg.payload` values (1 to 150) over a rolling window (default: 10). Outputs `{ payload: number | null }` for each valid input. Configurable via editor (`name`, `sampleSize`) or `msg.context = "sampleSize"` with positive integer. Resets state (`sum`, `count`) via `msg.context = "reset"` with `msg.payload = true`. Editor changes require redeployment; message updates apply immediately. Used in control systems for smoothing sensor data.
+Averages numeric `msg.payload` values (1 to 150) over a rolling window (default: 10). 
 
-### Error Handling
-- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-numeric, <1, >150): No output, red status (`invalid input`).
-- Invalid reset `msg.payload` (non-boolean): No output, red status (`invalid reset`).
-- Invalid window size (non-integer, <1): No output, red status (`invalid window size`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`).
+Outputs `{ payload: number | null }` for each valid input. Configurable via editor (`name`, `sampleSize`) or `msg.context = "sampleSize"` with positive integer. 
+
+Resets state (`sum`, `count`) via `msg.context = "reset"` with `msg.payload = true`. 
 
 ### Status
 - Green (dot): Configuration or reset (e.g., `name: average, window: 10`, `state reset`, `window: 5`).

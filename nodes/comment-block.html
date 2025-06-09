@@ -79,11 +79,10 @@
 Displays a configurable comment, node name, or no status persistently and on input.
 
 ### Inputs
-: payload (any) : Any input message triggers status display (optional).
+: payload (any) : Passthrough.
 
 ### Outputs
-: payload (any) : Input message, passed unchanged.
-: *other* (any) : Other message properties, passed unchanged.
+: payload (any) : Passthrough.
 
 ### Details
 Displays a status (comment, node name, or none) on node creation, editor saves, and input messages. Configurable via editor:
@@ -94,12 +93,6 @@ Displays a status (comment, node name, or none) on node creation, editor saves, 
   - `name`: Shows `name` or "comment" if empty.
   - `none`: No status.
 Used for flow annotations or debugging without requiring input to trigger status.
-
-### Error Handling
-- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
-- Empty `comment` with `default`: Shows `No comment set`.
-- Empty `name` with `name`: Shows `comment`.
-- Long `comment` (> 100 chars): Truncated.
 
 ### Status
 - Green (dot): Configuration updates (e.g., `Sensor check`, `Fan Note`).

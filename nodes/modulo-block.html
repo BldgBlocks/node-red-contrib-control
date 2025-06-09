@@ -72,22 +72,18 @@ Computes the modulo (remainder) of numeric inputs from multiple slots in sequenc
 : payload (number) : Result of modulo operation (in1 % in2 % ...).
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "modulo").
 : slots (number) : Number of input slots (positive integer). Default: 2.
 
 ### Details
-Computes the modulo of numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`) in sequence (in1 % in2 % ...). Slots (default: 2) are set via editor or `msg.context = "slots"` with positive integer. Inputs default to 1, updated via `msg.context = "inX"`. Inputs for `in2` onward must be non-zero to avoid modulo by zero. Resets inputs to 1 via `msg.context = "reset"` with `msg.payload = true`. Outputs `{ payload: number }` only when the result changes. Editor changes require redeployment; message updates apply immediately. Used in control systems for cyclic or remainder-based calculations.
+Computes the modulo of numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`) in sequence (in1 % in2 % ...). 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.context`: No output, red status (`missing context`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` for slots (non-numeric, non-finite): No output, red status (`invalid input`).
-- Invalid `msg.payload` for `in2` onward (zero): No output, red status (`modulo by zero`).
-- Invalid `msg.payload` for reset (non-boolean): No output, red status (`invalid reset`).
-- Invalid `msg.payload` for slots (non-integer, <1): No output, red status (`invalid slots`).
-- Invalid input slot (e.g., `in3` for 2 slots): No output, red status (`invalid input slot X`).
-- Invalid `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Slots (default: 2) are set via editor or `msg.context = "slots"` with positive integer. 
+
+Inputs default to 1, updated via `msg.context = "inX"`. 
+Inputs for `in2` onward must be non-zero to avoid modulo by zero. 
+Resets inputs to 1 via `msg.context = "reset"` with `msg.payload = true`. 
+
+Outputs `{ payload: number }` only when the result changes.
 
 ### Status
 - Green (dot): Configuration or reset (e.g., `name: modulo, slots: 2`, `state reset`, `slots: 3`).

@@ -68,7 +68,7 @@ Rounds a float in `msg.payload` to the nearest configurable precision (tenth, ha
 
 ### Inputs
 : payload (number) : Float to round.
-: context (string, optional) : Action (`"precision"` to set precision).
+: context (string, optional) : Action (`"precision"` to set precision). Unknown `msg.context` values are ignored.
 : payload (string, for `"precision"`) : Precision value (`"0.1"`, `"0.5"`, `"1.0"`).
 
 ### Outputs
@@ -79,14 +79,13 @@ Rounds a float in `msg.payload` to the nearest configurable precision (tenth, ha
 : precision (string) : Rounding precision (`"0.1"`, `"0.5"`, `"1.0"`). Default: `"1.0"`.
 
 ### Details
-Rounds a float in `msg.payload` to the nearest tenth (0.1), half (0.5), or whole number (1.0), set via editor or `msg.context = "precision"`. Operates as a passthrough node, modifying `msg.payload` and forwarding the original message. If `msg.payload` is not a finite number, the message is passed unchanged. Unknown `msg.context` values are ignored, and rounding is applied. Used in control systems for discretizing sensor data.
+Rounds a float in `msg.payload` to the nearest tenth (0.1), half (0.5), or whole number (1.0), set via editor or `msg.context = "precision"`. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload` for `"precision"`: No output, red status (`missing payload`).
-- Invalid `msg.payload` for `"precision"` (not `"0.1"`, `"0.5"`, `"1.0"`): No output, red status (`invalid precision`).
-- Invalid `msg.payload` for rounding (non-numeric, non-finite): Message passed unchanged, red status (`invalid input`).
-- Invalid `msg.context`: Ignored, message processed as passthrough.
+Operates as a passthrough node, modifying `msg.payload` and forwarding the original message. 
+
+If `msg.payload` is not a finite number, the message is passed unchanged. 
+
+Unknown `msg.context` values are ignored.
 
 ### Status
 - Green (dot): Initialization or precision update (e.g., `name: round, precision: 0.1`, `precision: 0.5`).

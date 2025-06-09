@@ -95,19 +95,17 @@ Sets or removes the msg.context property in a message.
 
 ### Inputs
 : payload (any) : Input message payload, passed through unchanged.
-: *other* (any) : Other message properties, passed through unchanged.
 
 ### Outputs
 : context (string) : Configured context property (e.g., `priority`, `clear`, `in1`) if set, or absent if removed.
 : payload (any) : Original input `msg.payload`, unchanged.
-: *other* (any) : Other input message properties, unchanged.
 
 ### Details
-Either sets `msg.context` to a configured property (e.g., `priority`, `clear`, `in1`) or removes `msg.context` based on the `Remove Context` toggle. When `Remove Context` is disabled (default), the node sets `msg.context` to the configured `contextPropertyName` without modifying other message properties. When enabled, it deletes `msg.context` from the input message. Configuration is set via the editor (`name`, `contextPropertyName`, `removeLabel`) with no runtime configuration support. The node’s display name is the user-defined `name`, `contextual <contextPropertyName>` (set mode), or `remove context` (remove mode). Runtime values (`name`, `contextPropertyName`, `removeLabel`) are shown in "Changed Runtime Values" if non-default (e.g., `name ≠ ""`, `contextPropertyName ≠ context`, `removeLabel = true`).
+Either sets `msg.context` to a configured property (e.g., `priority`, `clear`, `in1`) or removes `msg.context` based on the `Remove Context` toggle. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`missing message`).
-- Invalid `contextPropertyName` (empty or non-string): Uses default (`context`), red status (`invalid context property, using context`).
+When `Remove Context` is disabled (default), the node sets `msg.context` to the configured `contextPropertyName` without modifying other message properties. 
+When enabled, it deletes `msg.context` from the input message. Configuration is set via the editor (`name`, `contextPropertyName`, `removeLabel`) 
+with no runtime configuration support. 
 
 ### Status
 - Green (dot): Configuration updates (e.g., `mode: set, contextPropertyName: priority`, `mode: remove`).

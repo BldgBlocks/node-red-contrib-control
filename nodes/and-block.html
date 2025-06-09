@@ -92,22 +92,20 @@
 Computes the logical AND of multiple boolean inputs, outputting a new message with the result.
 
 ### Inputs
-: context (string) : Identifies the input slot (e.g., `"in1"`, `"in2"`).
+: context (string) : Configuration commands - Identifies the input slot (e.g., `"in1"`, `"in2"`).
 : payload (any) : Value for the slot, converted to boolean (`true`, `1` → `true`; `false`, `0`, `null` → `false`).
 
 ### Outputs
 : payload (boolean) : `true` if all slots are `true`, `false` otherwise.
 
 ### Details
-Evaluates the logical AND of a fixed number of boolean inputs (`slots` ≥ 2, set in editor). Each slot is updated via `msg.context = "inX"` (e.g., `"in1"`, `"in2"`) with `msg.payload` converted to boolean. Outputs `{ payload: boolean }` with the AND result whenever a valid input updates a slot. Slots persist their state, shown in "Changed Runtime Values" if non-default (`true`). The original message is not passed through.
+Evaluates the logical AND of a fixed number of boolean inputs (`slots` ≥ 2, set in editor). 
 
-### Error Handling
-- Invalid `slots` (non-integer, <2): Defaults to 2, red status (`invalid slots, using 2`).
-- Missing `msg.context`: No output, red status (`missing context`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid input index (e.g., `in3` for 2 slots): No output, red status (`invalid input index X`).
-- Unknown `msg.context` (not `inX`): No output, yellow status (`unknown context`).
-- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
+Each slot is updated via `msg.context = "inX"` (e.g., `"in1"`, `"in2"`) with `msg.payload` converted to boolean. 
+
+Outputs `{ payload: boolean }` with the AND result whenever a valid input updates a slot. 
+
+Slots persist their state, shown in "Changed Runtime Values" if non-default (`true`).
 
 ### Status
 - Green (dot): Configuration updates (e.g., `slots: 2`).

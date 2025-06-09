@@ -2,38 +2,34 @@ module.exports = function(RED) {
     function UnitsBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
-        const context = this.context();
 
         // Initialize runtime state
         node.runtime = {
             name: config.name || "",
-            unit: config.unit || "°F",
-            lastUnit: context.get("lastUnit") || config.unit || "°F",
-            lastPayload: context.get("lastPayload") || null
+            unit: config.unit || "°F"
         };
 
-        // Validate configuration
+        // Validate configuration (Req 8)
         const validUnits = ["°C", "°F", "K", "%RH", "Pa", "kPa", "bar", "mbar", "psi", "atm", "inH₂O", "mmH₂O", "CFM", "m³/h", "L/s", "V", "mV", "A", "mA", "W", "Ω", "%", "m", "cm", "mm", "km", "ft", "in", "kg", "g", "lb", "s", "min", "h", "L", "mL", "gal", "lx", "cd", "B", "T"];
         if (!validUnits.includes(node.runtime.unit)) {
             node.runtime.unit = "°F";
-            node.runtime.lastUnit = "°F";
             node.status({ fill: "red", shape: "ring", text: "invalid unit, using °F" });
             node.warn(`Invalid configuration: unit=${config.unit}, using °F`);
         } else {
             node.status({
                 fill: "green",
                 shape: "dot",
-                text: `unit: ${node.runtime.unit}`
+                text: `in: unit: ${node.runtime.unit}`
             });
         }
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
-            // Validate input
+            // Validate input (Req 7)
             if (!msg || typeof msg !== "object") {
-                node.status({ fill: "red", shape: "ring", text: "missing message" });
-                node.warn(`Missing message`);
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                node.warn(`Invalid message`);
                 if (done) done();
                 return;
             }
@@ -43,7 +39,6 @@ module.exports = function(RED) {
                 if (msg.context) {
                     if (typeof msg.context !== "string" || !msg.context.trim()) {
                         node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
-                        node.warn(`Unknown context: ${msg.context}`);
                         if (done) done();
                         return;
                     }
@@ -55,50 +50,30 @@ module.exports = function(RED) {
                             return;
                         }
                         node.runtime.unit = msg.payload;
-                        node.runtime.lastUnit = msg.payload;
-                        context.set("lastUnit", node.runtime.lastUnit);
-                        node.status({ fill: "green", shape: "dot", text: `unit: ${node.runtime.unit}` });
-                        if (done) done();
-                        return;
-                    } else {
-                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
-                        node.warn(`Unknown context: ${msg.context}`);
+                        node.status({ fill: "green", shape: "dot", text: `in: unit: ${node.runtime.unit}` });
                         if (done) done();
                         return;
                     }
+                    // Passthrough node: ignore unknown context without error (Req 1)
+                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
                 }
 
-                // Process input
+                // Process input: append units to message (Req 1)
                 const outputMsg = { ...msg, units: node.runtime.unit };
-                const payloadPreview = msg.payload !== null ? (typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload)) : "none";
-                const isUnchanged = node.runtime.unit === node.runtime.lastUnit && JSON.stringify(msg.payload) === JSON.stringify(node.runtime.lastPayload);
-
-                // Update state
-                node.runtime.lastUnit = node.runtime.unit;
-                node.runtime.lastPayload = msg.payload;
-                context.set("lastUnit", node.runtime.lastUnit);
-                context.set("lastPayload", node.runtime.lastPayload);
-
-                // Update status
+                const payloadPreview = msg.payload !== null ? (typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload).slice(0, 20)) : "none";
                 node.status({
                     fill: "blue",
-                    shape: isUnchanged ? "ring" : "dot",
-                    text: `in: ${payloadPreview}, unit: ${node.runtime.unit}`
+                    shape: "dot",
+                    text: `in: ${payloadPreview} out: unit: ${node.runtime.unit}`
                 });
-
-                // Send output only if changed
-                if (!isUnchanged) {
-                    send(outputMsg);
-                }
-
+                send(outputMsg);
+                if (done) done();
             } catch (error) {
                 node.status({ fill: "red", shape: "ring", text: "processing error" });
                 node.warn(`Processing error: ${error.message}`);
                 if (done) done(error);
                 return;
             }
-
-            if (done) done();
         });
 
         node.on("close", function(done) {
@@ -114,11 +89,11 @@ module.exports = function(RED) {
         const node = RED.nodes.getNode(req.params.id);
         if (node && node.type === "units-block") {
             res.json({
-                name: node.runtime.name || "",
-                unit: node.runtime.unit || "°F"
+                name: node.runtime.name,
+                unit: node.runtime.unit
             });
         } else {
-            res.status(404).json({ error: "node not found" });
+            res.status(404).json({ error: "Node not found" });
         }
     });
 };

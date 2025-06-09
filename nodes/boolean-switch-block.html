@@ -78,24 +78,20 @@
 Routes input flows to one of three outputs based on a boolean switch state.
 
 ### Inputs
-: context (string) : Command (`"toggle"`, `"switch"`, `"inTrue"`, `"inFalse"`).
-: payload (any) : Flow data for `"inTrue"` or `"inFalse"`; ignored for `"toggle"`, `"switch"`.
+: context (string) : Configuration commands (`"switch"`, `"inTrue"`, `"inFalse"`).
+: payload (any) : Flow data for `"inTrue"` or `"inFalse"`; ignored for `"switch"`.
 
 ### Outputs
 : outTrue (msg) : Receives `msg` with `context: "inTrue"` when switch is `true`.
 : outFalse (msg) : Receives `msg` with `context: "inFalse"` when switch is `false`.
 : outControl (msg) : `{ payload: boolean }` with switch state on toggle.
 
-### Properties
-: name (string) : Display name in editor. Default: "" (shows "boolean switch").
-
 ### Details
-Routes input messages to one of three outputs based on a boolean switch state (`true` or `false`). Messages with `msg.context = "inTrue"` are sent to `outTrue` when `state = true`, and messages with `msg.context = "inFalse"` are sent to `outFalse` when `state = false`. Toggling the switch (`msg.context = "toggle"` or `"switch"`, or editor toggle button) sends `{ payload: state }` to `outControl`. The switch state is stored persistently in node context, surviving redeployments. Configurable via editor (`name`, toggle state). Runtime values (`name`, `state`) are shown in "Changed Runtime Values" if non-default (`name ≠ ""`, `state ≠ false`).
+Routes input messages to one of three outputs based on a boolean switch state (`true` or `false`).
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing or invalid `msg.context` (non-string): No output, red status (`missing or invalid context`).
-- Unknown `msg.context` (not `"toggle"`, `"switch"`, `"inTrue"`, `"inFalse"`): No output, yellow status (`unknown context`), errors with message.
+Messages with `msg.context = "inTrue"` are sent to `outTrue` when `state = true`, and messages with `msg.context = "inFalse"` are sent to `outFalse` when `state = false`. Toggling the switch (`msg.context = "toggle"` or `"switch"`, or editor toggle button) sends `{ payload: state }` to `outControl`. The switch state is stored persistently in node context, surviving redeployments. Configurable via editor (`name`, toggle state). 
+
+Runtime values (`name`, `state`) are shown in "Changed Runtime Values" if non-default (`name ≠ ""`, `state ≠ false`).
 
 ### Status
 - Green (dot): Initial state (e.g., `state: true, out: true`).

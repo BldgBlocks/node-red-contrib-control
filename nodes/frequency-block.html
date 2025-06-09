@@ -59,18 +59,10 @@ Measures pulse frequency from boolean rising edges.
 ### Outputs
 : payload (object) : Pulse rates `{ ppm, pph, ppd }` (pulses per minute, hour, day).
 
-### Properties
-: name (string) : Display name in editor. Default: "" (shows "frequency").
-
 ### Details
-Measures pulse frequency from rising edges in `msg.payload` (boolean, `true` for pulse), outputting a new message with `msg.payload = { ppm, pph, ppd }` (pulses per minute, hour, day) on the second and subsequent rising edges (first edge sets baseline). Resets state via `msg.context = "reset"` with `msg.payload = true`. Configurable via editor (`name`) or `msg.context`. Editor changes require redeployment; reset messages apply immediately. Runtime values (`name`, `ppm`, `pph`, `ppd`) are shown in "Changed Runtime Values" if non-default (e.g., `ppm ≠ 0`).
-
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-boolean): No output, red status (`invalid payload`).
-- Invalid reset (non-boolean `msg.payload` with `msg.context = "reset"`): No output, red status (`invalid reset`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Measures pulse frequency from rising edges in `msg.payload` (boolean, `true` for pulse), outputting a message with 
+`msg.payload = { ppm, pph, ppd }` (pulses per minute, hour, day) on the second and subsequent rising edges 
+(first edge sets baseline). Resets state via `msg.context = "reset"` with `msg.payload = true`.
 
 ### Status
 - Green (dot): Configuration (e.g., `reset`).

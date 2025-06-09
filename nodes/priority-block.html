@@ -79,22 +79,16 @@ Implements a priority array with 16 levels, default, and fallback.
 
 ### Outputs
 : payload (any) : Value from highest non-null slot (`priority1` to `fallback`), or `null` if none set.
-: diagnostics.activePriority (string) : Active slot (`"priority1"` to `"priority16"`, `"default"`, `"fallback"`, or `null`).
-: Other properties (e.g., `msg.context`, `msg.topic`) from the original message are preserved.
-
-### Properties
-: name (string) : Display name in editor. Default: "" (shows "priority").
+: diagnostics.activePriority (string) : Active slot (`"priority1"` to `"priority16"`, `"default"`, `"fallback"`, or `null`). <-- TODO: Change structure
+: *other* (any) : the original message is preserved.
 
 ### Details
-Manages a priority array with 16 slots (`priority1` to `priority16`), `default`, and `fallback`. Forwards the original message from the highest non-null slot (`priority1` highest, `fallback` lowest), adding `msg.diagnostics.activePriority`. If no slots are set, outputs `{ payload: null, diagnostics: { activePriority: null } }`. Set slots via `msg.context` with `msg.payload` (number, boolean, null) or clear via `msg.payload.clear` or `msg.payload = "clear"`. Configurable via editor (`name` only). Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, non-null slots) shown in "Changed Runtime Values".
+Manages a priority array with 16 slots (`priority1` to `priority16`), `default`, and `fallback`. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Missing `msg.context` (for non-object, non-"clear" payload): No output, red status (`missing or invalid context`).
-- Invalid slot value (not number, boolean, null): No output, red status (`invalid [slot]`).
-- Invalid `clear` payload or context: No output, red status (`invalid clear` or `invalid clear context`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Forwards the original message from the highest non-null slot (`priority1` highest, `fallback` lowest), adding `msg.diagnostics.activePriority`. 
+
+If no slots are set, outputs `{ payload: null, diagnostics: { activePriority: null } }`. 
+Set slots via `msg.context` with `msg.payload` (number, boolean, null) or clear via `msg.payload.clear` or `msg.payload = "clear"`.
 
 ### Status
 - Green (dot): Updates or clears (e.g., `priority1: 42.00`, `priority8 cleared`).

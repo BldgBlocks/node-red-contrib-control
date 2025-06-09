@@ -461,16 +461,22 @@ Thermostat controller for heating/cooling with single, split, or specified setpo
   - Example: `coolingOn=74`, `coolingOff=72`, `heatingOff=68`, `heatingOn=66`, `anticipator=-0.5`, cooling mode sets `above` if `input > 74`, clears at `< 71.5`; heating mode sets `below` if `input < 66`, clears at `> 68.5`.
 
 ### Details
-Compares a numeric temperature input (`msg.payload`) against setpoints to control heating or cooling. The `differential` (`diff`) applies to the `single` and `split` setpoint algorithms, providing hysteresis. The `anticipator` adjusts turn-off points: positive values stop early to prevent overshoot (subtracts for heating, adds for cooling); negative values (allowed for testing, >= -2) delay turn-off to overshoot setpoint. The `isHeating` flag (typically from a changeover node) sets output 1 and selects the active setpoint(s). Configurable via editor or `msg.context` (e.g., `{ context: "coolingOn", payload: 75 }`). The `ignoreAnticipatorCycles` setting allows ignoring the anticipator for a specified number of cycles after a mode change to reduce short-cycling. All numeric inputs (`setpoint`, `heatingSetpoint`, `coolingSetpoint`, `coolingOn`, `coolingOff`, `heatingOff`, `heatingOn`, `diff`, `anticipator`, `ignoreAnticipatorCycles`) support `num`, `msg`, `flow`, or `global` types via `typedInput`. Effective setpoints (`effectiveHeatingOn`, `effectiveHeatingOff`, `effectiveCoolingOn`, `effectiveCoolingOff`) are displayed in "Effective Setpoints" for both new and active nodes, showing the calculated on/off thresholds. Query runtime state with `msg.context = "status"`.
+Compares a numeric temperature input (`msg.payload`) against setpoints to control heating or cooling. 
 
-### Error Handling
-- Missing `msg.payload`: No output, red status (`missing payload`, `missing input`).
-- Invalid `msg.payload` (non-numeric for temperature/setpoints, non-boolean for `isHeating`, invalid string for `algorithm`): No output, red status (e.g., `invalid setpoint`, `invalid isHeating`).
-- Invalid config (e.g., `diff <= 0` in single/split mode, `anticipator < -2`, `coolingOn < coolingOff`): Sets defaults, red status (e.g., `invalid diff, using 2`, `invalid anticipator, using 0.5`).
-- Invalid setpoints (e.g., `heatingSetpoint >= coolingSetpoint`, `coolingOff < heatingOff`): No output, red status (e.g., `invalid coolingOff`).
-- Inappropriate `msg.context` (e.g., `setpoint` in split/specified): No output, red status (e.g., `setpoint not used in this algorithm`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`).
-- Invalid message: No output, red status (`invalid message`).
+The `differential` (`diff`) applies to the `single` and `split` setpoint algorithms, providing hysteresis. 
+
+The `anticipator` adjusts turn-off points: positive values stop early to prevent overshoot (subtracts for heating, adds for cooling); 
+negative values (allowed for testing, >= -2) delay turn-off to overshoot setpoint. 
+
+The `isHeating` flag (typically from a changeover node) sets output 1 and selects the active setpoint(s).
+
+The `ignoreAnticipatorCycles` setting allows ignoring the anticipator for a specified number of cycles after a mode change to reduce short-cycling. 
+
+All numeric inputs (`setpoint`, `heatingSetpoint`, `coolingSetpoint`, `coolingOn`, `coolingOff`, `heatingOff`, `heatingOn`, `diff`, `anticipator`, 
+`ignoreAnticipatorCycles`) support `num`, `msg`, `flow`, or `global` types via `typedInput`. Effective setpoints (`effectiveHeatingOn`, `effectiveHeatingOff`, 
+`effectiveCoolingOn`, `effectiveCoolingOff`) are displayed in "Effective Setpoints" for both new and active nodes, showing the calculated on/off thresholds. 
+
+Query runtime state with `msg.context = "status"`.
 
 ### Status
 - Green (dot): Configuration updates (e.g., `setpoint: 70.0`, `anticipator: 0.5`, `isHeating: true`).

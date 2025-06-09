@@ -78,25 +78,20 @@
 Divides numeric inputs from multiple slots in sequence.
 
 ### Inputs
-: context (string) : Configures reset (`"reset"`), slots (`"slots"`), or identifies input slot (e.g., `"in1"`, `"in2"`).
+: context (string) : Configuration commands - `"reset"`, `"slots"`, or identifies input slot (e.g., `"in1"`, `"in2"`).
 : payload (number | boolean) : Number for slot input, boolean for reset, integer for slots configuration.
 
 ### Outputs
 : payload (number) : Result of dividing slots in sequence (in1 / in2 / ...).
 
 ### Details
-Divides numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`) in sequence. Slots (default: 2) are set via editor or `msg.context = "slots"` with positive integer. Inputs default to 1, updated via `msg.context = "inX"`. Inputs for `in2` onward must be non-zero to avoid division by zero. Resets inputs to 1 via `msg.context = "reset"` with `msg.payload = true`. Outputs `{ payload: number }` only when the result changes. Editor changes require redeployment; message updates apply immediately. Used in control systems for ratio calculations.
+Divides numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`) in sequence. 
 
-### Error Handling
-- Invalid message (e.g., `msg` undefined): No output, red status (`invalid message`).
-- Missing `msg.context`: No output, red status (`missing context`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-numeric for slots): No output, red status (`invalid input`).
-- Invalid `msg.payload` (zero for `in2` onward): No output, red status (`divide by zero`).
-- Invalid reset `msg.payload` (non-boolean): No output, red status (`invalid reset`).
-- Invalid slots (non-integer, <1): No output, red status (`invalid slots`).
-- Invalid input slot (e.g., `in5` for 3 slots): No output, red status (`invalid input slot X`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`).
+Slots (default: 2) are set via editor or `msg.context = "slots"` with positive integer. Inputs default to 1, updated via `msg.context = "inX"`. 
+
+Inputs for `in2` onward must be non-zero to avoid division by zero. Resets inputs to 1 via `msg.context = "reset"` with `msg.payload = true`. 
+
+Outputs a number only when the result changes. 
 
 ### Status
 - Green (dot): Configuration or reset (e.g., `name: divide, slots: 2`, `state reset`, `slots: 3`).

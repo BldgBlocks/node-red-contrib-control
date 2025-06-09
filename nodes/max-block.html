@@ -70,18 +70,12 @@ Caps a numeric input at a configurable maximum value.
 : *other* (any) : All input properties preserved, including `msg.context`.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "max").
 : max (number) : Maximum value for capping (≥ 0). Default: 50.
 
 ### Details
-Caps `msg.payload` (a number) to the maximum value (`max`, default: 50), forwarding the input message with updated `msg.payload`. Configurable via editor (`name`, `max`) or `msg.context` (`"max"`, `"setpoint"`) with numeric `msg.payload`. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `max`) are shown in "Changed Runtime Values" if different from editor defaults (e.g., `max ≠ 50`). Outputs on every valid input, with status indicating whether the output changed.
+Caps `msg.payload` (a number) to the maximum value (`max`, default: 50), forwarding the input message with updated `msg.payload`. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-numeric): No output, red status (`invalid payload`).
-- Invalid `max` (non-numeric, negative): No output, red status (`invalid max`), uses 50.
-- Unknown `msg.context`: No output, yellow status (`unknown context`).
+Configurable via editor (`name`, `max`) or `msg.context` (`"max"`, `"setpoint"`) with numeric `msg.payload`.
 
 ### Status
 - Green (dot): Configuration (e.g., `max: 50`).

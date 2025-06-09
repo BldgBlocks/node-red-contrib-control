@@ -81,21 +81,16 @@ Delays boolean state transitions with configurable on/off delays.
 ### Inputs
 : context (string) : Configures node (`"reset"`, `"delayOn"`, `"delayOff"`). Unmatched values ignored silently.
 : payload (boolean | number) : Boolean for state change; number for delay config with `msg.context`.
-: *units* (string) : Units for delay config (`"milliseconds"`, `"seconds"`, `"minutes"`).
+: *units* (string) : Units for delay context config (`"milliseconds"`, `"seconds"`, `"minutes"`).
 
 ### Outputs
-: payload (boolean) : `true` after `delayOn` ms or `false` after `delayOff` ms if state persists.
+: payload (boolean) : `true` after `delayOn` ms or `false` after `delayOff` ms if state persists. `msg.context` is consumed.
 : *other* (any) : Other input properties preserved, except `msg.context`.
 
 ### Details
-Delays `msg.payload` boolean transitions, outputting `true` after `delayOn` ms for false-to-true or `false` after `delayOff` ms for true-to-false, if the input state persists. Forwards the input message with updated `msg.payload`, removing `msg.context`. Configurable via editor (`name`, `delayOn`, `delayOff`, units) or `msg.context` (`"delayOn"`, `"delayOff"`, `"reset"`). Non-transition inputs (e.g., `true` when `state=true`) or state reversions cancel pending delays without output. Runtime values (`name`, `delayOn`, `delayOff`, `state`) are shown in "Changed Runtime Values" if non-default (e.g., `delayOn ≠ 1000ms`, `state ≠ false`).
-
-### Error Handling
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-boolean for state): No output, red status (`invalid payload`).
-- Invalid `delayOn`/`delayOff` (non-numeric, negative): No output, red status (`invalid X`), uses 1000ms.
-- Invalid reset (non-boolean `msg.payload` with `msg.context = "reset"`): No output, red status (`invalid reset`).
-- Unknown `msg.context`: Ignored, processes `msg.payload` if valid.
+Delays `msg.payload` boolean transitions, outputting `true` after `delayOn` ms for false-to-true or `false` after `delayOff` ms for true-to-false, 
+if the input state persists. Forwards the input message with updated `msg.payload`, removing `msg.context`. 
+Non-transition inputs (e.g., `true` when `state=true`) or state reversions cancel pending delays without output. 
 
 ### Status
 - Green (dot): Configuration (e.g., `reset`, `delayOn: 5000 ms`, `delayOff: 5000 ms`).

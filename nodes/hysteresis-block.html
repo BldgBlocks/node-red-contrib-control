@@ -77,13 +77,13 @@
 Evaluates numeric input against limits with hysteresis.
 
 ### Inputs
-: context (string) : Configures thresholds (`"upperLimit"`, `"lowerLimit"`). Unmatched values trigger error.
+: context (string) : Configuration commands - thresholds (`"upperLimit"`, `"lowerLimit"`). Unmatched values trigger error.
 : payload (number) : Input number for evaluation or new threshold value with `msg.context`.
 
 ### Outputs
-: 1. above (boolean) : `true` if input is in above state, else `false`.
-: 2. within (boolean) : `true` if input is in within state, else `false`.
-: 3. below (boolean) : `true` if input is in below state, else `false`.
+: above (boolean) : `true` if input is in above state, else `false`.
+: within (boolean) : `true` if input is in within state, else `false`.
+: below (boolean) : `true` if input is in below state, else `false`.
 
 ### Properties
 : name (string) : Display name in editor. Default: "" (shows "hysteresis").
@@ -91,14 +91,11 @@ Evaluates numeric input against limits with hysteresis.
 : lowerLimit (number) : Lower threshold for switching to below state (≥ 0, < upperLimit). Default: 30.
 
 ### Details
-Evaluates `msg.payload` (number) against `upperLimit` and `lowerLimit` with hysteresis, outputting new messages with `true` on one port (above, within, or below) and `false` on others. Uses hysteresis: remains in "above" state until `msg.payload < lowerLimit`, "below" until `msg.payload > upperLimit`, or "within" until crossing a threshold. Configurable via editor (`name`, `upperLimit`, `lowerLimit`) or `msg.context` (`"upperLimit"`, `"lowerLimit"`) with numeric `msg.payload`. Editor changes require redeployment; message-based updates apply immediately. Runtime values (`name`, `upperLimit`, `lowerLimit`) are shown in "Changed Runtime Values" if different from editor defaults (e.g., `upperLimit ≠ 50`). Outputs on every valid input.
+Evaluates payload against `upperLimit` and `lowerLimit` with hysteresis, outputting new messages with `true` on one 
+port (above, within, or below) and `false` on others. Uses hysteresis remains in "above" state until `msg.payload < lowerLimit`, "below" 
+until `msg.payload > upperLimit`, or "within" until crossing a threshold. 
 
-### Error Handling
-- Missing `msg`: No output, red status (`invalid message`).
-- Missing `msg.payload`: No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-numeric): No output, red status (`invalid payload`).
-- Invalid `upperLimit`/`lowerLimit` (non-numeric, negative, `upperLimit ≤ lowerLimit`): No output, red status (`invalid upperLimit`/`lowerLimit`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`), errors with message.
+Outputs on every valid input.
 
 ### Status
 - Green (dot): Configuration (e.g., `upperLimit: 50`, `lowerLimit: 30`).

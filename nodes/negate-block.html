@@ -59,15 +59,13 @@ Negates a number or boolean input value.
 : payload (number | boolean) : Negated value (-number or !boolean).
 
 ### Details
-Negates `msg.payload` in a passthrough manner, updating the original message. For numbers, outputs the negative (e.g., 5 becomes -5). For booleans, outputs the inverse (e.g., true becomes false). Preserves other message properties (e.g., `msg.topic`, `msg.context`). Outputs only when the negated value changes. Configuration is set in the editor (name only) and requires redeployment. As a passthrough node, it ignores and preserves `msg.context` without generating unknown context errors. Used in control systems for inverting signals or values.
+Negates `msg.payload` in a passthrough manner, updating the original message.
+- For numbers, outputs the negative (e.g., 5 becomes -5). 
+- For booleans, outputs the inverse (e.g., true becomes false). 
 
-Configuration (set in editor):
-: name (string) : Optional display name (default: negate).
+Preserves other message properties (e.g., `msg.topic`, `msg.context`). 
 
-### Error Handling
-- Invalid message (e.g., `msg` undefined): No output, red status (`missing message`).
-- Missing `msg.payload`: No output, red status (`missing input`).
-- Invalid input (null, array, string, other types, NaN): No output, red status (`invalid input: null`, `invalid input: array`, `invalid input: string`, `invalid input: NaN`, `invalid input type`).
+Outputs only when the negated value changes.
 
 ### Status
 - Green (dot): Initial configuration (e.g., `name: negate`).

@@ -128,16 +128,7 @@ Configuration (set in editor, no runtime changes):
 : ADC_max (number) : Maximum ADC value (default: 32768).
 : name (string) : Optional display name.
 
-Outputs new messages for both outputs when values change. Stores `lastVoltage` and `lastResistance` in context for persistence. Editor changes require redeployment. Used in control systems for thermistor-based temperature sensing.
-
-### Error Handling
-- Invalid message (e.g., `msg` undefined): No output, red status (`missing message`).
-- Invalid input (not a two-byte array, buffer, or valid buffer object): No output, red status (`invalid input: expected [highByte, lowByte] or 2-byte buffer`).
-- Raw value out of range (<0 or >ADC_max): No output, red status (`raw value out of range`).
-- Voltage out of range (≤0 or ≥Vsupply): No output, red status (`voltage out of range`).
-- Invalid resistance (negative or NaN): No output, red status (`invalid resistance`).
-- Invalid configuration (e.g., negative R_fixed, Vsupply, Vref, ADC_max): No output, red status (`invalid r_fixed`, `invalid vsupply`, `invalid vref`, `invalid adc_max`).
-- Calculation error: No output, red status (`calculation error`).
+Outputs new messages for both outputs when values change. Stores `lastVoltage` and `lastResistance` in context for persistence.
 
 ### Status
 - Green (dot): Initial configuration (e.g., `r_fixed: 23500, vsupply: 5.08`).

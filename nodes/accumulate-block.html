@@ -82,22 +82,21 @@
 Counts consecutive inputs based on the selected mode, resetting on specific conditions.
 
 ### Inputs
-: context (string) : Configures reset (`"reset"` to clear count).
+: context (string) : Configuration commands = reset (`"reset"` to clear count).
 : payload (boolean) : For `Accumulate True`, `true` increments count, `false` resets; for `Accumulate False`, `false` increments count, `true` resets; ignored in `Accumulate Flows`.
 
 ### Outputs
 : payload (number) : Current count based on mode.
 
 ### Details
-Counts inputs according to the selected mode: `Accumulate True` counts consecutive `true` `msg.payload` inputs (reset on `false` or explicit reset), `Accumulate False` counts consecutive `false` `msg.payload` inputs (reset on `true` or explicit reset), and `Accumulate Flows` counts all valid input messages (reset only on explicit reset). Outputs `{ payload: number }` only when the count changes. Configurable via editor (`name`, `mode`). Reset via `msg.context = "reset"` with `msg.payload = true` applies immediately; editor changes require redeployment. Used in automation to track sustained events or message frequency. The node’s display name is `<mode> accumulate` (e.g., `true accumulate`) unless overridden by `name`. Runtime values (`name`, `mode`) are shown in "Changed Runtime Values" if non-default (e.g., `name ≠ ""`, `mode ≠ true`).
+Counts inputs according to the selected mode: 
+- `Accumulate True` counts consecutive `true` `msg.payload` inputs (reset on `false` or explicit reset)
+- `Accumulate False` counts consecutive `false` `msg.payload` inputs (reset on `true` or explicit reset)
+- `Accumulate Flows` counts all valid input messages (reset only on explicit reset). 
 
-### Error Handling
-- Missing `msg`: No output, red status (`missing message`).
-- Missing `msg.payload` (in `true` or `false` modes): No output, red status (`missing payload`).
-- Invalid `msg.payload` (non-boolean in `true` or `false` modes): No output, red status (`invalid input`).
-- Invalid reset `msg.payload` (non-boolean): No output, red status (`invalid reset`).
-- Unknown `msg.context`: No output, yellow status (`unknown context`).
-- Invalid mode: Uses `true`, red status (`invalid mode, using true`).
+Reset via `msg.context = "reset"` with `msg.payload = true` applies immediately;
+
+Used to track sustained events or message frequency.  
 
 ### Status
 - Green (dot): Configuration or reset (e.g., `mode: true, name: true accumulate`, `state reset`).
