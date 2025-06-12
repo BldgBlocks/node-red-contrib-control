@@ -10,6 +10,10 @@
                 <option value="C to F">C to F (Celsius to Fahrenheit)</option>
                 <option value="F to C">F to C (Fahrenheit to Celsius)</option>
             </optgroup>
+            <optgroup label="Math">
+                <option value="decimal to %">Decimal to Percent</option>
+                <option value="% to decimal">Percent to Decimal</option>
+            </optgroup>
             <optgroup label="Pressure">
                 <option value="Pa to inH₂O">Pa to inH₂O (Pascal to Inches of Water)</option>
                 <option value="inH₂O to Pa">inH₂O to Pa (Inches of Water to Pascal)</option>
@@ -90,6 +94,9 @@ Converts `msg.payload` between units based on the selected conversion.
 - Temperature:
   - `C to F`: Celsius to Fahrenheit (`°F = °C * 9/5 + 32`).
   - `F to C`: Fahrenheit to Celsius (`°C = (°F - 32) * 5/9`).
+- Math:
+  - `decimal to %`: Decimal to Percent (`% = decimal * 100`).
+  - `% to decimal`: Percent to Decmial (`decimal = % / 100`).
 - Pressure:
   - `Pa to inH₂O`: Pascal to inches of water (`inH₂O = Pa * 0.00401463`).
   - `inH₂O to Pa`: Inches of water to Pascal (`Pa = inH₂O / 0.00401463`).

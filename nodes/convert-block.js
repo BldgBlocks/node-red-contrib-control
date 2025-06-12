@@ -10,7 +10,7 @@ module.exports = function(RED) {
         };
 
         // Validate configuration
-        const validConversions = ["F to C", "C to F", "Pa to inH₂O", "inH₂O to Pa", "Pa to inHg", "inHg to Pa", "Pa to bar", "bar to Pa", "Pa to psi", "psi to Pa"];
+        const validConversions = ["F to C", "C to F", "decimal to %", "% to decimal", "Pa to inH₂O", "inH₂O to Pa", "Pa to inHg", "inHg to Pa", "Pa to bar", "bar to Pa", "Pa to psi", "psi to Pa"];
         if (!validConversions.includes(node.runtime.conversion)) {
             node.runtime.conversion = "C to F";
             node.status({ fill: "red", shape: "ring", text: "invalid conversion, using C to F" });
@@ -82,6 +82,16 @@ module.exports = function(RED) {
                     output = (msg.payload * 9 / 5) + 32;
                     inUnit = "°C";
                     outUnit = "°F";
+                    break;
+                case "decimal to %":
+                    output = msg.payload * 100;
+                    inUnit = "";
+                    outUnit = "%";
+                    break;
+                case "% to decimal":
+                    output = msg.payload / 100;
+                    inUnit = "%";
+                    outUnit = "";
                     break;
                 case "Pa to inH₂O":
                     output = msg.payload * 0.00401463;
