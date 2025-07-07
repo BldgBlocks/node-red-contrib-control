@@ -84,8 +84,8 @@ Unmatched values trigger an error.
 : other properties : Included only if "Clone Message" mode is selected.
 
 ### Properties
-: name (string) : Display name in editor. Default: "".  
-: operationMode (string) : Selects output behavior: "Clone Message" (full message) or "Payload Only" (just payload). Default: "Clone Message".
+: name (string) : Display name in editor. Default; "".  
+: operationMode (string) : Selects output behavior; "Clone Message" (full message) or "Payload Only" (just payload). Default; "Clone Message".
 
 ### Details
 Stores the entire input message when `msg.context = "update"`.  
@@ -98,10 +98,10 @@ Clears the cache to `null` when `msg.context = "reset"` with `msg.payload = true
 Runtime values (`name`, `operationMode`, `cachedValue`) are shown in "Changed Runtime Values" if different from defaults.
 
 ### Status
-- Green (dot): Update or reset (e.g., `update: 42.00`, `reset`).  
-- Blue (dot): Execute (e.g., `execute: 42.00` or `execute: null`).  
-- Red (ring): Errors (e.g., `missing payload`, `invalid reset`).  
-- Yellow (ring): Unknown context (e.g., `unknown context`).
+- Green (dot): Update or reset   
+- Blue (dot): Execute   
+- Red (ring): Errors   
+- Yellow (ring): Unknown context 
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)  

@@ -128,18 +128,18 @@ Issues calls to equipment with status and alarm diagnostics.
 
 ### Outputs
 : call (boolean) : Current call state.
-: diagnostics (object) : `{ call: boolean, status: boolean, alarm: boolean, alarmMessage: string, timeout: boolean }`.
+: diagnostics (object) : `{ call; boolean, status; boolean, alarm; boolean, alarmMessage; string, timeout; boolean }`.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "call status").
-: statusTimeout (number) : Time to wait for status response (seconds, > 0). Default: 30.
-: clearDelay (number) : Delay before clearing status and alarm after call ends (seconds, > 0). Default: 10.
-: normalOff (boolean) : Expected status when call is off. Default: `false`.
-: normalOn (boolean) : Expected status when call is on. Default: `true`.
-: runLostStatus (boolean) : Alarm if status doesn't match `normalOn` during call. Default: `false`.
-: noStatusOnRun (boolean) : Alarm if no status received during call. Default: `true`.
-: runLostStatusMessage (string) : Message for run lost status alarm. Default: "Status lost during run".
-: noStatusOnRunMessage (string) : Message for no status on run alarm. Default: "No status received during run".
+: name (string) : Display name in editor. Default; "" (shows "call status").
+: statusTimeout (number) : Time to wait for status response (seconds, > 0). Default; 30.
+: clearDelay (number) : Delay before clearing status and alarm after call ends (seconds, > 0). Default; 10.
+: normalOff (boolean) : Expected status when call is off. Default; `false`.
+: normalOn (boolean) : Expected status when call is on. Default; `true`.
+: runLostStatus (boolean) : Alarm if status doesn't match `normalOn` during call. Default; `false`.
+: noStatusOnRun (boolean) : Alarm if no status received during call. Default; `true`.
+: runLostStatusMessage (string) : Message for run lost status alarm. Default; "Status lost during run".
+: noStatusOnRunMessage (string) : Message for no status on run alarm. Default; "No status received during run".
 
 ### Details
 Issues a call (`true`) to equipment via output 1 and expects a status response matching `normalOn` within `statusTimeout` seconds. 
@@ -149,11 +149,11 @@ Generates alarms for `runLostStatus` (status mismatch during call) or `noStatusO
 Ignores status inputs without an active call.
 
 ### Status
-- Green (dot): Configuration (e.g., `statusTimeout: 30.00`, `normalOn: true`).
-- Blue (dot): Output, no alarm (e.g., `call: true, status: true, alarm: false`).
-- Red (dot): Output with alarm (e.g., `run lost, alarm: true`).
-- Red (ring): Errors (e.g., `invalid call`, `status ignored`).
-- Yellow (ring): Unknown context (e.g., `unknown context`).
+- Green (dot): Configuration
+- Blue (dot): Output, no alarm
+- Red (dot): Output with alarm
+- Red (ring): Errors
+- Yellow (ring): Unknown context
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

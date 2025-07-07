@@ -100,30 +100,30 @@ Stores a message property persistently across reboots and redeployments, with co
 : [transferProperty] (any) : Property to store (`"update"`, `"executeWithFallback"`) or pass through (no `context`).
 
 ### Outputs
-: query : For `context = "query"`: `{ payload: boolean }` (`true` if stored value exists, `false` if none).
-: value : For no `context`: Input `msg` unchanged. For `context = "execute"`: Input `msg` with `transferProperty` from stored message, or `{ payload: null }` if none. For `context = "executeWithFallback"`: Input `msg` with `transferProperty` from stored message, or stores and outputs `msg[transferProperty]`. For `context = "update"`: No output.
+: query : For `context = "query"`; `{ payload; boolean }` (`true` if stored value exists, `false` if none).
+: value : For no `context`; Input `msg` unchanged. For `context = "execute"`; Input `msg` with `transferProperty` from stored message, or `{ payload; null }` if none. For `context = "executeWithFallback"`; Input `msg` with `transferProperty` from stored message, or stores and outputs `msg[transferProperty]`. For `context = "update"`; No output.
 
 ### Properties
-: writePeriod (string) : Delay in milliseconds before writing to file (non-negative, from `msg`, `flow`, `global`, or static). Ignored if Write On Update is enabled. Default: "60000".
-: writePeriodType (string) : Source of `writePeriod` (`"num"`, `"msg"`, `"flow"`, `"global"`). Default: `"num"`.
-: transferProperty (string) : Property to transfer from stored message to output message (valid JavaScript property name). Default: "payload".
-: writeOnUpdate (boolean) : If true, `update` writes directly to file without in-memory storage; `execute` and `executeWithFallback` read from file. Default: false.
+: writePeriod (string) : Delay in milliseconds before writing to file (non-negative, from `msg`, `flow`, `global`, or static). Ignored if Write On Update is enabled. Default; "60000".
+: writePeriodType (string) : Source of `writePeriod` (`"num"`, `"msg"`, `"flow"`, `"global"`). Default; `"num"`.
+: transferProperty (string) : Property to transfer from stored message to output message (valid JavaScript property name). Default; "payload".
+: writeOnUpdate (boolean) : If true, `update` writes directly to file without in-memory storage; `execute` and `executeWithFallback` read from file. Default; false.
 
 ### Details
-Stores a single message property persistently in a JSON file, surviving Node-RED reboots and redeployments. Actions:
+Stores a single message property persistently in a JSON file, surviving Node-RED reboots and redeployments. Actions;
 - `msg.context = "update"`: Stores `msg[transferProperty]`. If Write On Update is enabled, writes directly to file without in-memory storage; otherwise, stores in memory and context, schedules file write after `writePeriod` (ms, default 60000). No output.
-- `msg.context = "execute"`: Outputs input `msg` with `transferProperty` from stored message to Output 2 if available, or `{ payload: null }` if none. Reads from file if Write On Update is enabled, else uses in-memory value. No file write.
+- `msg.context = "execute"`: Outputs input `msg` with `transferProperty` from stored message to Output 2 if available, or `{ payload; null }` if none. Reads from file if Write On Update is enabled, else uses in-memory value. No file write.
 - `msg.context = "executeWithFallback"`: Outputs input `msg` with `transferProperty` from stored message to Output 2 if available; if none, stores `msg[transferProperty]`, schedules file write (or writes directly if Write On Update is enabled), and outputs `msg[transferProperty]`.
-- `msg.context = "query"`: Outputs `{ payload: true }` to Output 1 if a stored value exists, `{ payload: false }` if none. Checks file existence if Write On Update is enabled. No file write or Output 2 message.
+- `msg.context = "query"`: Outputs `{ payload; true }` to Output 1 if a stored value exists, `{ payload; false }` if none. Checks file existence if Write On Update is enabled. No file write or Output 2 message.
 - No `msg.context`: Passes input `msg` unchanged to Output 2, no effect on stored message or file.
 Configurable via editor (`name`, `writePeriod`, `transferProperty`, `writeOnUpdate`). `writePeriod` resolved dynamically, defaults to 60000ms if invalid. Runtime values (`name`, `writePeriod`, `transferProperty`, `writeOnUpdate`, stored property) shown in "Changed Runtime Values" if non-default.
 
 ### Status
-- Green (dot): Load or update (e.g., `loaded: 42`, `updated: 42`).
-- Blue (dot): Pass-through, execute, executeWithFallback, or query (e.g., `in: test, out2: test`, `in: execute, out2: 42`, `in: executeWithFallback, out2: 42`, `in: query, out1: true`).
-- Blue (ring): Execute with no stored value (e.g., `in: execute, out2: null`).
-- Red (ring): Errors (e.g., `missing payload`, `invalid write period`, `file error`, `file read error`).
-- Yellow (ring): Unknown context (e.g., `unknown context`).
+- Green (dot): Load or update.
+- Blue (dot): Pass-through, execute, executeWithFallback, or query 
+- Blue (ring):
+- Red (ring):
+- Yellow (ring): Unknown context
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

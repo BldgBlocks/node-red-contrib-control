@@ -167,16 +167,22 @@ module.exports = function(RED) {
                     node.status({ fill: "blue", shape: "dot", text: `in: executeWithFallback, out2: ${payloadStr}` });
                     output[1] = outMsg;
                 } else {
-                    if (!msg.hasOwnProperty(node.runtime.transferProperty)) {
+                    let value;
+                    if (msg.hasOwnProperty(node.runtime.transferProperty)) {
+                        value = msg[node.runtime.transferProperty];
+                    }
+                    else if (msg.hasOwnProperty("fallback")) {
+                        value = msg.fallback;
+                    } else {
                         node.status({ fill: "red", shape: "ring", text: `missing ${node.runtime.transferProperty}` });
                         if (done) done();
                         return;
                     }
-                    const outMsg = RED.util.cloneMessage(msg);
+                    
                     if (node.runtime.writeOnUpdate) {
                         // Write directly to file
                         try {
-                            fs.writeFile(filePath, JSON.stringify({ [node.runtime.transferProperty]: msg[node.runtime.transferProperty] })).catch(err => {
+                            fs.writeFile(filePath, JSON.stringify({ [node.runtime.transferProperty]: value })).catch(err => {
                                 node.status({ fill: "red", shape: "ring", text: "file error" });
                                 node.error("Failed to save message: " + err.message);
                             });
@@ -186,7 +192,7 @@ module.exports = function(RED) {
                         }
                     } else {
                         // Store in memory and context
-                        node.runtime.storedMsg = { [node.runtime.transferProperty]: msg[node.runtime.transferProperty] };
+                        node.runtime.storedMsg = { [node.runtime.transferProperty]: value };
                         node.context().set("storedMsg", node.runtime.storedMsg);
                         lastUpdateMsg = node.runtime.storedMsg;
                         if (writeTimeout) clearTimeout(writeTimeout);
@@ -194,6 +200,8 @@ module.exports = function(RED) {
                             saveMessage();
                         }, writePeriod);
                     }
+                    const outMsg = RED.util.cloneMessage(msg);
+                    outMsg[node.runtime.transferProperty] = value;
                     const payloadStr = msg[node.runtime.transferProperty] != null ? String(msg[node.runtime.transferProperty]).substring(0, 20) : "null";
                     node.status({ fill: "blue", shape: "dot", text: `in: executeWithFallback, out2: ${payloadStr}` });
                     output[1] = outMsg;
