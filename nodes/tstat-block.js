@@ -453,14 +453,11 @@ module.exports = function(RED) {
                 statusInfo.anticipator = anticipator;
             }
 
-            let state = above ? "above" : below ? "below" : "within";
-
             // Create outputs with status information
             const outputs = [
                 { 
                     payload: isHeating, 
                     context: "isHeating",
-                    state: state,
                     status: statusInfo
                 },
                 { 
