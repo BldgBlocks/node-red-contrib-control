@@ -4,26 +4,29 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize properties
-        node.name = config.name || "comment";
-        node.comment = config.comment || "";
-        node.statusDisplay = config.statusDisplay || "default";
+        node.name = config.name;
+        node.comment = config.comment;
+        node.statusDisplay = config.statusDisplay;
 
         // Ensure comment is within 100 characters
         if (node.comment.length > 100) {
             node.comment = node.comment.substring(0, 100);
         }
+        
+        // Status helper function
+        const updateStatus = function() {
+            switch (node.statusDisplay) {
+                case "default":
+                    return { fill: "green", shape: "dot", text: node.comment || "No comment set" };
+                case "name":
+                    return { fill: "green", shape: "dot", text: node.name || "comment" };
+                case "none":
+                default:
+                    return {};
+            }
+        };
 
-        // Set initial status
-        let status = {};
-        if (node.statusDisplay === "default") {
-            status = { fill: "green", shape: "dot", text: node.comment || "No comment set" };
-        } else if (node.statusDisplay === "name") {
-            status = { fill: "green", shape: "dot", text: node.name || "comment" };
-        } // "none" leaves status empty
-        node.status(status);
-
-        // Track last status for unchanged state
-        let lastStatusText = status.text || "";
+        node.status(updateStatus());
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -35,24 +38,13 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Update status
-            let status = {};
-            if (node.statusDisplay === "default") {
-                status = { fill: "blue", shape: lastStatusText === (node.comment || "No comment set") ? "ring" : "dot", text: node.comment || "No comment set" };
-            } else if (node.statusDisplay === "name") {
-                status = { fill: "blue", shape: lastStatusText === (node.name || "comment") ? "ring" : "dot", text: node.name || "comment" };
-            } // "none" leaves status empty
-            lastStatusText = status.text || "";
-            node.status(status);
+            node.status(updateStatus());
 
-            // Pass message unchanged
             send(msg);
-
             if (done) done();
         });
 
         node.on("close", function(done) {
-            node.status({});
             done();
         });
     }

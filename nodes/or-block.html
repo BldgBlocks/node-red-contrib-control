@@ -7,10 +7,6 @@
         <label for="node-input-slots" title="Number of boolean inputs (integer ≥ 2)"><i class="fa fa-list"></i> Slots</label>
         <input type="number" id="node-input-slots" placeholder="2" min="2" step="1">
     </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
-    </div>
 </script>
 
 <script type="text/javascript">
@@ -19,10 +15,13 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            slots: { 
-                value: 2, 
-                required: true, 
-                validate: function(v) { return Number.isInteger(+v) && +v >= 2; } 
+            slots: {
+                value: 2,
+                required: true,
+                validate: function(v) {
+                    const num = parseFloat(v, 10);
+                    return !isNaN(num) && num >= 2;
+                }
             }
         },
         inputs: 1,
@@ -34,55 +33,11 @@
         label: function() {
             return this.name ? `${this.name} (${this.slots})` : `or (${this.slots})`;
         },
-        oneditprepare: function() {
-            const node = this;
-
-            // Initialize inputs
-            $("#node-input-name").val(node.name || "");
-            $("#node-input-slots").val(node.slots || 2);
-
-            // Validate slots input
-            $("#node-input-slots").on("input", function() {
-                const val = parseInt($(this).val(), 10);
-                if (!Number.isInteger(val) || val < 2) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
-
-            // Fetch runtime changes
-            $.getJSON(`/or-block-runtime/${node.id}`, function(data) {
-                const runtime = data || {};
-                const changes = [];
-                if (runtime.name !== undefined && runtime.name !== node.name) {
-                    changes.push(`name: ${runtime.name}`);
-                }
-                if (runtime.slots !== undefined && runtime.slots !== Number(node.slots)) {
-                    changes.push(`slots: ${runtime.slots}`);
-                }
-                if (runtime.inputs && Array.isArray(runtime.inputs)) {
-                    runtime.inputs.forEach((value, index) => {
-                        if (value !== false) { // Only show non-default values
-                            changes.push(`in${index + 1}: ${value}`);
-                        }
-                    });
-                }
-                const displayText = changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None";
-                $("#node-runtime-changes").text(displayText);
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: None");
-            });
-        },
         oneditsave: function() {
             // Standard config properties are automatically saved
         },
         oneditvalidate: function() {
-            const slots = parseInt($("#node-input-slots").val(), 10);
-            if (!Number.isInteger(slots) || slots < 2) {
-                $("#node-input-slots").addClass("input-error");
-                return false;
-            }
+            // Simple validation is in defaults above
             return true;
         }
     });
@@ -103,16 +58,12 @@ Evaluates the logical OR of a fixed number of boolean inputs (`slots` ≥ 2, set
 
 Each slot is updated via `msg.context = "inX"` (e.g., `"in1"`, `"in2"`) with `msg.payload` converted to boolean. 
 
-Outputs `{ payload: boolean }` with the OR result whenever a valid input updates a slot. 
-
-Slots persist their state, shown in "Changed Runtime Values" if non-default (`true`). 
-
 ### Status
-- Green (dot): Configuration updates (e.g., `slots: 2`).
-- Blue (dot): Outputs when state changes (e.g., `in: [true, false], out: true`).
-- Blue (ring): Outputs when state unchanged (e.g., `in: [true, false], out: true`).
-- Red (ring): Errors (e.g., `invalid slots, using 2`, `missing context`, `invalid message`).
-- Yellow (ring): Warnings (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

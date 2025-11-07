@@ -1,29 +1,13 @@
 module.exports = function(RED) {
     function AddBlockNode(config) {
         RED.nodes.createNode(this, config);
-        
         const node = this;
         
-        // Initialize runtime state
-        node.runtime = {
-            name: config.name || "add",
-            slots: parseInt(config.slots) || 2,
-            inputs: Array(parseInt(config.slots) || 2).fill(0),
-            lastSum: null
-        };
+        // Initialize state
+        node.slots = parseInt(config.slots) || 2;
+        node.inputs = Array(parseInt(config.slots) || 2).fill(0);
 
-        // Validate initial config
-        if (isNaN(node.runtime.slots) || node.runtime.slots < 1) {
-            node.runtime.slots = 2;
-            node.runtime.inputs = Array(2).fill(0);
-            node.status({ fill: "red", shape: "ring", text: "invalid slots, using 2" });
-        } else {
-            node.status({
-                fill: "green",
-                shape: "dot",
-                text: `name: ${node.runtime.name}, slots: ${node.runtime.slots}`
-            });
-        }
+        let lastSum = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -35,7 +19,7 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Check for missing context or payload
+            // Check for required properties
             if (!msg.hasOwnProperty("context")) {
                 node.status({ fill: "red", shape: "ring", text: "missing context" });
                 if (done) done();
@@ -56,8 +40,8 @@ module.exports = function(RED) {
                     return;
                 }
                 if (msg.payload === true) {
-                    node.runtime.inputs = Array(node.runtime.slots).fill(0);
-                    node.runtime.lastSum = null;
+                    node.inputs = Array(node.slots).fill(0);
+                    lastSum = null;
                     node.status({ fill: "green", shape: "dot", text: "state reset" });
                     if (done) done();
                     return;
@@ -69,15 +53,15 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                node.runtime.slots = newSlots;
-                node.runtime.inputs = Array(newSlots).fill(0);
-                node.runtime.lastSum = null;
-                node.status({ fill: "green", shape: "dot", text: `slots: ${node.runtime.slots}` });
+                node.slots = newSlots;
+                node.inputs = Array(newSlots).fill(0);
+                lastSum = null;
+                node.status({ fill: "green", shape: "dot", text: `slots: ${node.slots}` });
                 if (done) done();
                 return;
             } else if (msg.context.startsWith("in")) {
                 let slotIndex = parseInt(msg.context.slice(2)) - 1;
-                if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= node.runtime.slots) {
+                if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= node.slots) {
                     node.status({ fill: "red", shape: "ring", text: `invalid input slot ${msg.context}` });
                     if (done) done();
                     return;
@@ -88,16 +72,12 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                node.runtime.inputs[slotIndex] = newValue;
+                node.inputs[slotIndex] = newValue;
                 // Calculate sum
-                const sum = node.runtime.inputs.reduce((acc, val) => acc + val, 0);
-                const isUnchanged = sum === node.runtime.lastSum;
-                node.status({
-                    fill: "blue",
-                    shape: isUnchanged ? "ring" : "dot",
-                    text: `${msg.context}: ${newValue.toFixed(2)}, sum: ${sum.toFixed(2)}`
-                });
-                node.runtime.lastSum = sum;
+                const sum = node.inputs.reduce((acc, val) => acc + val, 0);
+                const isUnchanged = sum === lastSum;
+                node.status({ fill: "blue", shape: isUnchanged ? "ring" : "dot", text: `${msg.context}: ${newValue.toFixed(2)}, sum: ${sum.toFixed(2)}` });
+                lastSum = sum;
                 send({ payload: sum });
                 if (done) done();
                 return;
@@ -109,14 +89,6 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            // Reset state on redeployment
-            node.runtime.slots = parseInt(config.slots) || 2;
-            if (isNaN(node.runtime.slots) || node.runtime.slots < 1) {
-                node.runtime.slots = 2;
-            }
-            node.runtime.inputs = Array(node.runtime.slots).fill(0);
-            node.runtime.lastSum = null;
-            node.status({});
             done();
         });
     }

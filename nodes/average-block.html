@@ -7,6 +7,16 @@
         <label for="node-input-sampleSize" title="Rolling window size (positive integer, e.g., 10)"><i class="fa fa-list-ol"></i> Window Size</label>
         <input type="number" id="node-input-sampleSize" placeholder="10" min="1" step="1">
     </div>
+    <div class="form-row">
+        <label for="node-input-minValid"><i class="fa fa-arrow-down"></i> Minimum Valid</label>
+        <input type="text" id="node-input-minValid" placeholder="150">
+        <input type="hidden" id="node-input-minValidType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-maxValid"><i class="fa fa-arrow-up"></i> Maximum Valid</label>
+        <input type="text" id="node-input-maxValid" placeholder="1">
+        <input type="hidden" id="node-input-maxValidType">
+    </div>
 </script>
 
 <script type="text/javascript">
@@ -19,7 +29,11 @@
                 value: 10,
                 required: true,
                 validate: function(v) { return !isNaN(parseInt(v)) && parseInt(v) >= 1; }
-            }
+            },
+            minValid: { value: 1, required: true },
+            minValidType: { value: "num" },
+            maxValid: { value: 150, required: true },
+            maxValidType: { value: "num" }
         },
         inputs: 1,
         outputs: 1,
@@ -31,45 +45,50 @@
             return this.name ? `${this.name} (${this.sampleSize})` : `average (${this.sampleSize})`;
         },
         oneditprepare: function() {
-            // Initialize inputs
-            $("#node-input-name").val(this.name || "average");
-            $("#node-input-sampleSize").val(this.sampleSize || 10);
+            const node = this;
 
-            // Validate name input
-            $("#node-input-name").on("input", function() {
-                const val = $(this).val();
-                if (!val || val.trim().length === 0) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
+            try {
+                // Initialize typed inputs
+                $("#node-input-minValid").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-minValidType"
+                }).typedInput("type", node.minValidType || "num").typedInput("value", node.minValid || "1");
 
-            // Validate sampleSize input
-            $("#node-input-sampleSize").on("input", function() {
-                const val = parseInt($(this).val(), 10);
-                if (isNaN(val) || val < 1) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved
+                $("#node-input-maxValid").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-maxValidType"
+                }).typedInput("type", node.maxValidType || "num").typedInput("value", node.maxValid || "150");
+            } catch (err) {
+                console.error("Error in hysteresis-block oneditprepare:", err);
+            }
         },
         oneditvalidate: function() {
-            const name = $("#node-input-name").val();
-            const sampleSize = parseInt($("#node-input-sampleSize").val(), 10);
-            if (!name || name.trim().length === 0) {
-                $("#node-input-name").addClass("input-error");
+            const node = this;
+            
+            try {
+                // Get current values from the form
+                const minValid = $("#node-input-minValid").typedInput("value");
+                const maxValid = $("#node-input-maxValid").typedInput("value");
+                
+                if (minType === "num" && maxType === "num") {
+                    const minNum = parseFloat(minValid);
+                    const maxNum = parseFloat(maxValid);
+                    
+                    if (isNaN(minNum) || isNaN(maxNum)) {
+                        return false;
+                    }
+                    
+                    if (minNum >= maxNum) {
+                        return false;
+                    }
+                }
+                return true;
+            } catch (err) {
+                node.error("Validation error:", err);
                 return false;
             }
-            if (isNaN(sampleSize) || sampleSize < 1) {
-                $("#node-input-sampleSize").addClass("input-error");
-                return false;
-            }
-            return true;
         }
     });
 </script>
@@ -79,24 +98,24 @@ Computes a rolling average of numeric inputs within a valid range.
 
 ### Inputs
 : context (string) : Configures reset (`"reset"`) or window size (`"sampleSize"`).
-: payload (number | boolean) : Number (1 to 150) for averaging, boolean for reset, integer ≥ 1 for window size.
+: payload (number | boolean) : Number for averaging, boolean for reset.
+: minValid (number) : Minimum valid range for payload input.
+: maxValid (number) : Maximum valid range for payload input.
 
 ### Outputs
 : payload (number | null) : Rolling average, or `null` if no valid inputs.
 
 ### Details
-Averages numeric `msg.payload` values (1 to 150) over a rolling window (default: 10). 
+Averages numeric `msg.payload` values over a rolling window (default: 10).
 
-Outputs `{ payload: number | null }` for each valid input. Configurable via editor (`name`, `sampleSize`) or `msg.context = "sampleSize"` with positive integer. 
-
-Resets state (`sum`, `count`) via `msg.context = "reset"` with `msg.payload = true`. 
+Resets state (`sum`, `count`) via `msg.context = "reset"` with `msg.payload = true`.
 
 ### Status
-- Green (dot): Configuration or reset (e.g., `name: average, window: 10`, `state reset`, `window: 5`).
-- Blue (dot): Outputs when average changes (e.g., `out: 12.345`).
-- Blue (ring): Outputs when average unchanged (e.g., `out: 12.345`).
-- Red (ring): Errors (e.g., `invalid message`, `missing payload`, `invalid input`).
-- Yellow (ring): Warnings (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

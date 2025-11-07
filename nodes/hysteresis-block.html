@@ -84,8 +84,6 @@
         } catch (err) {
             console.error("Error in hysteresis-block oneditprepare:", err);
         }
-
-        $("#node-input-name").val(node.name || "");
     },
     oneditsave: function() {
         // Standard config properties are automatically saved by Node-RED
@@ -134,10 +132,11 @@ Hysteresis controller with separate turn-on limits and turn-off differentials.
 - lowerLimitThreshold: 2°F (turn off heating at 67°F)
 
 ### Status
-- Green (dot): Configuration
-- Blue (dot): Output
-- Red (ring): Errors
-- Yellow (ring): Warnings
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow: Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

@@ -23,7 +23,7 @@
         color: "#301934",
         defaults: {
             name: { value: "comment" },
-            comment: { value: "No comment" },
+            comment: { value: "No comment", validate: function(v) { return v.length < 100 } },
             statusDisplay: { value: "default" }
         },
         inputs: 1,
@@ -35,41 +35,25 @@
         label: function() {
             return this.name || this.comment || "comment";
         },
-        oneditprepare: function() {
-            // Initialize inputs
-            $("#node-input-name").val(this.name || "comment");
-            $("#node-input-comment").val(this.comment || "No comment");
-            $("#node-input-statusDisplay").val(this.statusDisplay || "default");
-
-            // Validate comment input
-            $("#node-input-comment").on("input", function() {
-                const val = $(this).val();
-                if (!val || val.trim().length === 0 || val.length > 100) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
-        },
         oneditsave: function() {
             // Update status immediately
             const node = RED.nodes.getNode(this.id);
-            if (node) {
-                let status = {};
-                if (node.statusDisplay === "default") {
+            let status = {};
+            switch (node.statusDisplay) {
+                case "default":
                     status = { fill: "green", shape: "dot", text: node.comment || "No comment set" };
-                } else if (node.statusDisplay === "name") {
+                    break;
+                case "name":
                     status = { fill: "green", shape: "dot", text: node.name || "comment" };
-                } // "none" leaves status empty
-                node.status(status);
+                    break;
+                case "none":
+                    break;
+                default:
             }
+
+            node.status(status);
         },
         oneditvalidate: function() {
-            const comment = $("#node-input-comment").val();
-            if (!comment || comment.trim().length === 0 || comment.length > 100) {
-                $("#node-input-comment").addClass("input-error");
-                return false;
-            }
             return true;
         }
     });
@@ -85,20 +69,16 @@ Displays a configurable comment, node name, or no status persistently and on inp
 : payload (any) : Passthrough.
 
 ### Details
-Displays a status (comment, node name, or none) on node creation, editor saves, and input messages. Configurable via editor:
-- `name`: Sets canvas display name and status text if `statusDisplay` is `name`.
-- `comment`: Sets status text (max 100 characters) if `statusDisplay` is `default`.
-- `statusDisplay`:
-  - `default`: Shows `comment` or "No comment set" if empty.
-  - `name`: Shows `name` or "comment" if empty.
-  - `none`: No status.
+Displays a status (comment, node name, or none) on node creation, editor saves, and input messages.
+
 Used for flow annotations or debugging without requiring input to trigger status.
 
 ### Status
-- Green (dot): Configuration updates (e.g., `Sensor check`, `Fan Note`).
-- Blue (dot): Input-triggered status when text changes (e.g., `Sensor check`).
-- Blue (ring): Input-triggered status when text unchanged (e.g., `Sensor check`).
-- Red (ring): Errors (e.g., `invalid message`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow: Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

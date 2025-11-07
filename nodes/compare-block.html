@@ -8,10 +8,6 @@
         <label for="node-input-setpoint" title="Default setpoint value for comparison (number)"><i class="fa fa-crosshairs"></i> Setpoint</label>
         <input type="number" id="node-input-setpoint" placeholder="50" step="any">
     </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
-    </div>
 </script>
 
 <!-- JavaScript Section: Registers the node and handles editor logic -->
@@ -21,7 +17,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            setpoint: { value: 50, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } }
+            setpoint: { value: 50, required: true, validate: function(v) { return !isNaN(+v) && isFinite(+v); } }
         },
         inputs: 1,
         outputs: 3,
@@ -36,24 +32,13 @@
             const node = this;
             $("#node-input-name").val(node.name || "");
             $("#node-input-setpoint").val(node.setpoint || 50);
-
-            $.getJSON(`/compare-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                if (data.setpoint !== undefined && !isNaN(data.setpoint) && isFinite(data.setpoint) && data.setpoint !== parseFloat(node.setpoint || 50)) {
-                    changes.push(`setpoint: ${data.setpoint.toFixed(2)}`);
-                }
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
         },
         oneditsave: function() {
             // Standard config properties are automatically saved by Node-RED
         },
         oneditvalidate: function() {
-            const setpoint = parseFloat($("#node-input-setpoint").val());
-            return !isNaN(setpoint) && isFinite(setpoint);
+            // Simple validation is in defaults above
+            return true;
         }
     });
 </script>
@@ -72,17 +57,18 @@ Compares a numeric input to a setpoint, outputting three boolean signals.
 : less than (boolean) : `true` if input < setpoint, else `false`.
 
 ### Properties
-: setpoint (number) : Value for comparison. Default: 50.
+: setpoint (number) : Value for comparison.
 
 ### Details
 Compares `msg.payload` (number) to a `setpoint` (default: 50), outputting three messages to separate ports:
 `true` for greater than, equal to, or less than the setpoint, respectively; `false` otherwise.
- 
+
 ### Status
-- Green (dot): Configuration (e.g., `setpoint: 60.00`).
-- Blue (dot): Output (e.g., `in: 55.00, sp: 50.00, out: [true, false, false]`).
-- Red (ring): Errors (e.g., `invalid input`, `invalid setpoint`).
-- Yellow (ring): Unknown context (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow: Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)
