@@ -20,31 +20,6 @@
         paletteLabel: "negate",
         label: function() {
             return this.name || "negate";
-        },
-        oneditprepare: function() {
-            // Initialize inputs
-            $("#node-input-name").val(this.name || "negate");
-
-            // Validate name input
-            $("#node-input-name").on("input", function() {
-                const val = $(this).val();
-                if (!val || val.trim().length === 0) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved
-        },
-        oneditvalidate: function() {
-            const name = $("#node-input-name").val();
-            if (!name || name.trim().length === 0) {
-                $("#node-input-name").addClass("input-error");
-                return false;
-            }
-            return true;
         }
     });
 </script>
@@ -68,10 +43,11 @@ Preserves other message properties (e.g., `msg.topic`, `msg.context`).
 Outputs only when the negated value changes.
 
 ### Status
-- Green (dot): Initial configuration (e.g., `name: negate`).
-- Blue (dot): Outputs when value changes (e.g., `in: 5.00, out: -5.00`, `in: true, out: false`).
-- Blue (ring): Outputs when value unchanged (e.g., `in: 5.00, out: -5.00`).
-- Red (ring): Errors (e.g., `missing message`, `invalid input: string`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

@@ -9,10 +9,6 @@
         <input type="text" id="node-input-period" placeholder="0">
         <input type="hidden" id="node-input-periodType">
     </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
-    </div>
 </script>
 
 <!-- JavaScript Section -->
@@ -35,38 +31,11 @@
             return this.name || "on change";
         },
         oneditprepare: function() {
-            const node = this;
-            const periodType = node.periodType || "num";
-            const periodValue = node.period !== undefined ? node.period : 0;
-
             const periodInput = $("#node-input-period").typedInput({
                 default: "num",
                 types: ["num", "msg", "flow", "global"],
                 typeField: "#node-input-periodType"
             });
-
-            periodInput.typedInput("type", periodType);
-            periodInput.typedInput("value", periodValue);
-
-            $("#node-input-name").val(node.name || "");
-
-            $.getJSON(`/on-change-block-runtime/${node.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                if (data.period !== undefined && !isNaN(data.period) && data.period !== Number(node.period) && data.periodType === node.periodType) {
-                    changes.push(`period: ${data.period.toFixed(0)} ms`);
-                }
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
-        },
-        oneditsave: function() {
-            $("#node-input-periodType").val($("#node-input-period").typedInput("type"));
-        },
-        oneditvalidate: function() {
-            const period = parseFloat($("#node-input-period").typedInput("value"));
-            return !isNaN(period) && period >= 0;
         }
     });
 </script>
@@ -93,15 +62,16 @@ Filters redundant messages based on value changes and a configurable period.
 Filters messages based on value changes (deep comparison) and a filter period. When `period = 0`, outputs the input message only if `msg.payload` 
 differs from the last output value. When `period > 0`, outputs the first message, suppresses all messages during the period (including blips), 
 and after the period, outputs only if the value differs from the last output. Supports complex payloads (objects, arrays) via deep comparison. 
-Configuration:
-- `msg.context = "period"`: Sets period (ms), no output.
-- `msg.context = "status"`: Outputs `{ period, periodType }`.
+Configuration
+- `msg.context = "period"` Sets period (ms), no output.
+- `msg.context = "status"` Outputs `{ period, periodType }`.
 
 ### Status
-- Green (dot): Configuration (e.g., `name: on change, period: 500 ms`, `period: 1000 ms`).
-- Blue (dot): Output (e.g., `out: true`).
-- Blue (ring): Filtered or unchanged (e.g., `filtered: false`, `unchanged: true`).
-- Red (ring): Errors (e.g., `invalid message`, `invalid period`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

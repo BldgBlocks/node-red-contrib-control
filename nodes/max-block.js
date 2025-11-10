@@ -5,21 +5,32 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            max: parseFloat(config.max) || 50
+            name: config.name
         };
-
-        // Validate max at startup
-        if (isNaN(node.runtime.max) || node.runtime.max < 0) {
-            node.runtime.max = 50;
-            node.status({ fill: "red", shape: "ring", text: "invalid max" });
-        }
 
         // Store last output value for status
         let lastOutput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
+
+            // Evaluate typed-inputs
+            try {
+                node.runtime.max = RED.util.evaluateNodeProperty(
+                    config.max, config.maxType, node, msg
+                );
+                
+                // Validate values
+                if (isNaN(node.runtime.max)) {
+                    node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
+                    if (done) done();
+                    return;
+                }
+            } catch(err) {
+                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+                if (done) done(err);
+                return;
+            }
 
             // Guard against invalid message
             if (!msg) {
@@ -39,10 +50,7 @@ module.exports = function(RED) {
                     const maxValue = parseFloat(msg.payload);
                     if (!isNaN(maxValue) && maxValue >= 0) {
                         node.runtime.max = maxValue;
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `max: ${maxValue}`
+                        node.status({ fill: "green", shape: "dot", text: `max: ${maxValue}`
                         });
                     } else {
                         node.status({ fill: "red", shape: "ring", text: "invalid max" });
@@ -87,27 +95,9 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            node.runtime.max = parseFloat(config.max) || 50;
-            if (isNaN(node.runtime.max) || node.runtime.max < 0) {
-                node.runtime.max = 50;
-            }
-            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("max-block", MaxBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/max-block-runtime/:id", RED.auth.needsPermission("max-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "max-block") {
-            res.json({
-                name: node.runtime.name,
-                max: node.runtime.max
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

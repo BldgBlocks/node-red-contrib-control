@@ -4,10 +4,6 @@
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
-    </div>
 </script>
 
 <!-- JavaScript Section: Registers the node and handles editor logic -->
@@ -26,39 +22,6 @@
         paletteLabel: "priority",
         label: function() {
             return this.name || "priority";
-        },
-        oneditprepare: function() {
-            const node = this;
-            $("#node-input-name").val(node.name || "");
-
-            $.getJSON(`/priority-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                Object.keys(data.priorities || {}).forEach(key => {
-                    if (data.priorities[key] !== null) {
-                        const displayValue = data.priorities[key] === null ? "null" : 
-                            typeof data.priorities[key] === "number" ? data.priorities[key].toFixed(2) : 
-                            JSON.stringify(data.priorities[key]).slice(0, 20);
-                        changes.push(`${key}: ${displayValue}`);
-                    }
-                });
-                if (data.defaultValue !== null) {
-                    const displayValue = typeof data.defaultValue === "number" ? data.defaultValue.toFixed(2) : 
-                        JSON.stringify(data.defaultValue).slice(0, 20);
-                    changes.push(`default: ${displayValue}`);
-                }
-                if (data.fallbackValue !== null) {
-                    const displayValue = typeof data.fallbackValue === "number" ? data.fallbackValue.toFixed(2) : 
-                        JSON.stringify(data.fallbackValue).slice(0, 20);
-                    changes.push(`fallback: ${displayValue}`);
-                }
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
         }
     });
 </script>
@@ -70,16 +33,16 @@ Implements a priority array with 16 levels, default, and fallback.
 ### Inputs
 : context (string) : Identifies slot (`"priority1"` to `"priority16"`, `"default"`, `"fallback"`) for setting or clearing. Ignored if `msg.payload` is an object with `clear` key.
 : payload (any | object | string) : 
-  - Non-object, non-"clear" (number, boolean, null): Value for slot specified by `msg.context` (numbers parsed as float, null to relinquish).
-  - String `"clear"`: Relinquish slot specified by `msg.context`.
-  - Object with `clear`:
-    - `{ clear: "priorityX" }`: Relinquish single slot.
-    - `{ clear: ["priorityX", ...] }`: Relinquish multiple slots.
-    - `{ clear: "all" }`: Relinquish all slots.
+  - Non-object, non-"clear" (number, boolean, null) Value for slot specified by `msg.context` (numbers parsed as float, null to relinquish).
+  - String `"clear"` Relinquish slot specified by `msg.context`.
+  - Object with `clear`
+    - `{ clear "priorityX" }` Relinquish single slot.
+    - `{ clear ["priorityX", ...] }` Relinquish multiple slots.
+    - `{ clear "all" }` Relinquish all slots.
 
 ### Outputs
 : payload (any) : Value from highest non-null slot (`priority1` to `fallback`), or `null` if none set.
-: diagnostics.activePriority (string) : Active slot (`"priority1"` to `"priority16"`, `"default"`, `"fallback"`, or `null`). <-- TODO: Change structure
+: diagnostics.activePriority (string) : Active slot (`"priority1"` to `"priority16"`, `"default"`, `"fallback"`, or `null`).
 : *other* (any) : the original message is preserved.
 
 ### Details
@@ -87,14 +50,15 @@ Manages a priority array with 16 slots (`priority1` to `priority16`), `default`,
 
 Forwards the original message from the highest non-null slot (`priority1` highest, `fallback` lowest), adding `msg.diagnostics.activePriority`. 
 
-If no slots are set, outputs `{ payload: null, diagnostics: { activePriority: null } }`. 
+If no slots are set, outputs `{ payload null, diagnostics { activePriority null } }`. 
 Set slots via `msg.context` with `msg.payload` (number, boolean, null) or clear via `msg.payload.clear` or `msg.payload = "clear"`.
 
 ### Status
-- Green (dot): Updates or clears (e.g., `priority1: 42.00`, `priority8 cleared`).
-- Blue (dot): Output (e.g., `in: true, out: true, slot: priority1`).
-- Red (ring): Errors (e.g., `invalid priority1`, `invalid clear`).
-- Yellow (ring): Unknown context (e.g., `unknown context`).
+- Green (dot): Configuration
+- Blue (dot): Output, no alarm
+- Red (dot): Output with alarm
+- Red (ring): Errors
+- Yellow (ring): Unknown context
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

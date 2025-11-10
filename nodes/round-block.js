@@ -5,8 +5,8 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            precision: config.precision || "1.0"
+            name: config.name,
+            precision: config.precision
         };
 
         // Validate initial config
@@ -15,11 +15,7 @@ module.exports = function(RED) {
             node.runtime.precision = "1.0";
             node.status({ fill: "red", shape: "ring", text: "invalid precision, using 1.0" });
         } else {
-            node.status({
-                fill: "green",
-                shape: "dot",
-                text: `name: ${node.runtime.name || "round"}, precision: ${node.runtime.precision}`
-            });
+            node.status({ fill: "green", shape: "dot", text: `name: ${node.runtime.name || "round"}, precision: ${node.runtime.precision}` });
         }
 
         node.on("input", function(msg, send, done) {
@@ -79,34 +75,15 @@ module.exports = function(RED) {
             }
 
             msg.payload = result;
-            node.status({
-                fill: "blue",
-                shape: "dot",
-                text: `in: ${input.toFixed(2)}, out: ${result.toFixed(2)}`
-            });
+            node.status({ fill: "blue", shape: "dot", text: `in: ${input.toFixed(2)}, out: ${result.toFixed(2)}` });
             send(msg);
             if (done) done();
         });
 
         node.on("close", function(done) {
-            node.runtime.precision = config.precision || "1.0";
-            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("round-block", RoundBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/round-block-runtime/:id", RED.auth.needsPermission("round-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "round-block") {
-            res.json({
-                name: node.runtime.name,
-                precision: node.runtime.precision
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

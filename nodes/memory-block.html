@@ -29,7 +29,7 @@
             writePeriod: { value: "60000", validate: function(v) { return RED.validators.number(true)(v) && parseFloat(v) >= 0; } },
             writePeriodType: { value: "num" },
             transferProperty: { value: "payload", required: true, validate: RED.validators.regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/) },
-            writeOnUpdate: { value: false } // New boolean
+            writeOnUpdate: { value: false }
         },
         inputs: 1,
         outputs: 2,
@@ -46,9 +46,7 @@
                 types: ["num", "msg", "flow", "global"],
                 typeField: "#node-input-writePeriodType"
             });
-        },
-        oneditvalidate: function() {
-            return true;
+            
         }
     });
 </script>

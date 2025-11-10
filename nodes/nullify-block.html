@@ -7,10 +7,6 @@
         <label><i class="fa fa-eraser"></i> Rules</label>
         <ol id="node-input-rule-container"></ol>
     </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
-    </div>
 </script>
 
 <script type="text/javascript">
@@ -24,7 +20,7 @@
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
-        outputLabels: ["output with null properties"],
+        outputLabels: ["null"],
         icon: "font-awesome/fa-eraser",
         paletteLabel: "nullify",
         label: function() {
@@ -66,20 +62,6 @@
                     addRule({ property: "", propertyType: "msg" });
                 })
                 .insertAfter($container);
-
-            $("#node-input-name").val(node.name || "");
-
-            // Fetch runtime values
-            $.getJSON(`/nullify-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                if (data.rules && JSON.stringify(data.rules) !== JSON.stringify(node.rules)) {
-                    changes.push(`rules: ${data.rules.map(r => `${r.propertyType}.${r.property}`).join(", ")}`);
-                }
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
         },
         oneditsave: function() {
             const rules = [];
@@ -92,18 +74,6 @@
                 }
             });
             this.rules = rules.length > 0 ? rules : [{ property: "payload", propertyType: "msg" }];
-        },
-        oneditvalidate: function() {
-            let valid = true;
-            $("#node-input-rule-container").find(".node-input-rule-row").each(function() {
-                const $property = $(this).find(".node-input-rule-property");
-                const property = $property.typedInput("value");
-                const propertyType = $property.typedInput("type");
-                if (!property || propertyType !== "msg") {
-                    valid = false;
-                }
-            });
-            return valid;
         }
     });
 </script>
@@ -120,20 +90,21 @@ Sets multiple specified message properties to null.
 : *other* (any) : Other input properties preserved.
 
 ### Details
-Sets multiple configured `msg` properties (default: `msg.payload`) to `null`, creating each property if it doesn't exist. 
+Sets multiple configured `msg` properties to `null`, creating each property if it doesn't exist. 
 
-Properties are specified via a dynamic rule list in the editor, each defining a `msg` property (e.g., `payload`, `topic`). 
+Properties are specified via a dynamic rule list in the editor, each defining a `msg` property.
 
  Outputs the modified input message, preserving all other properties. 
 
  Invalid inputs (missing message, invalid rule configuration) prevent output and show error status. 
 
-### Status
-- Green (dot): Configuration (e.g., `rules: payload, topic`).
-- Blue (dot): Outputs (e.g., `nullified: payload, topic`).
-- Red (ring): Errors (e.g., `missing message`, `invalid rules`).
-- Yellow (ring): Warnings (e.g., `unknown context`).
-
+ ### Status
+ - Green (dot): Configuration update
+ - Blue (dot): State changed
+ - Blue (ring): State unchanged
+ - Red (ring): Error
+ - Yellow (ring): Warning
+ 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)
 - [GitHub Repository](https://github.com/your-repo/node-red-contrib-buildingblocks-control)

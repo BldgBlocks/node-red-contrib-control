@@ -5,21 +5,32 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            min: parseFloat(config.min) || 50
+            name: config.name,
         };
-
-        // Validate min at startup
-        if (isNaN(node.runtime.min) || node.runtime.min < 0) {
-            node.runtime.min = 50;
-            node.status({ fill: "red", shape: "ring", text: "invalid min" });
-        }
 
         // Store last output value for status
         let lastOutput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
+
+            // Evaluate typed-inputs
+            try {
+                node.runtime.min = RED.util.evaluateNodeProperty(
+                    config.min, config.minType, node, msg
+                );
+                
+                // Validate values
+                if (isNaN(node.runtime.min)) {
+                    node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
+                    if (done) done();
+                    return;
+                }
+            } catch(err) {
+                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+                if (done) done(err);
+                return;
+            }
 
             // Guard against invalid message
             if (!msg) {
@@ -87,27 +98,9 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            node.runtime.min = parseFloat(config.min) || 50;
-            if (isNaN(node.runtime.min) || node.runtime.min < 0) {
-                node.runtime.min = 50;
-            }
-            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("min-block", MinBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/min-block-runtime/:id", RED.auth.needsPermission("min-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "min-block") {
-            res.json({
-                name: node.runtime.name,
-                min: node.runtime.min
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

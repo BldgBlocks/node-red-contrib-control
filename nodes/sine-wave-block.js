@@ -5,11 +5,11 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            lowerLimit: parseFloat(config.lowerLimit) || 0,
-            upperLimit: parseFloat(config.upperLimit) || 100,
-            period: (parseFloat(config.period) || 10) * (config.periodUnits === "minutes" ? 60000 : config.periodUnits === "seconds" ? 1000 : 1),
-            periodUnits: config.periodUnits || "seconds",
+            name: config.name,
+            lowerLimit: parseFloat(config.lowerLimit),
+            upperLimit: parseFloat(config.upperLimit),
+            period: (parseFloat(config.period)) * (config.periodUnits === "minutes" ? 60000 : config.periodUnits === "seconds" ? 1000 : 1),
+            periodUnits: config.periodUnits,
             lastExecution: Date.now(),
             phase: 0
         };
@@ -68,11 +68,7 @@ module.exports = function(RED) {
                                 text: `lower: ${node.runtime.lowerLimit.toFixed(2)}, upper adjusted to ${node.runtime.upperLimit.toFixed(2)}`
                             });
                         } else {
-                            node.status({
-                                fill: "green",
-                                shape: "dot",
-                                text: `lower: ${node.runtime.lowerLimit.toFixed(2)}`
-                            });
+                            node.status({ fill: "green", shape: "dot", text: `lower: ${node.runtime.lowerLimit.toFixed(2)}` });
                         }
                         break;
                     case "upperLimit":
@@ -85,11 +81,7 @@ module.exports = function(RED) {
                                 text: `upper: ${node.runtime.upperLimit.toFixed(2)}, lower adjusted to ${node.runtime.lowerLimit.toFixed(2)}`
                             });
                         } else {
-                            node.status({
-                                fill: "green",
-                                shape: "dot",
-                                text: `upper: ${node.runtime.upperLimit.toFixed(2)}`
-                            });
+                            node.status({ fill: "green", shape: "dot", text: `upper: ${node.runtime.upperLimit.toFixed(2)}` });
                         }
                         break;
                     case "period":
@@ -102,11 +94,7 @@ module.exports = function(RED) {
                         }
                         node.runtime.period = value;
                         node.runtime.periodUnits = msg.units || "milliseconds";
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `period: ${node.runtime.period.toFixed(2)} ms`
-                        });
+                        node.status({ fill: "green", shape: "dot", text: `period: ${node.runtime.period.toFixed(2)} ms` });
                         break;
                     default:
                         node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
@@ -124,11 +112,7 @@ module.exports = function(RED) {
 
             // Return lowerLimit if period is invalid
             if (node.runtime.period <= 0) {
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `out: ${node.runtime.lowerLimit.toFixed(2)}, phase: ${node.runtime.phase.toFixed(2)}`
-                });
+                node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.lowerLimit.toFixed(2)}, phase: ${node.runtime.phase.toFixed(2)}` });
                 send({ payload: node.runtime.lowerLimit });
                 if (done) done();
                 return;
@@ -143,65 +127,16 @@ module.exports = function(RED) {
             const value = node.runtime.lowerLimit + amplitude * (sineValue + 1);
 
             // Output new message
-            node.status({
-                fill: "blue",
-                shape: "dot",
-                text: `out: ${value.toFixed(2)}, phase: ${node.runtime.phase.toFixed(2)}`
-            });
+            node.status({ fill: "blue", shape: "dot", text: `out: ${value.toFixed(2)}, phase: ${node.runtime.phase.toFixed(2)}` });
             send({ payload: value });
 
             if (done) done();
         });
 
         node.on("close", function(done) {
-            node.runtime = {
-                name: config.name || "",
-                lowerLimit: parseFloat(config.lowerLimit) || 0,
-                upperLimit: parseFloat(config.upperLimit) || 100,
-                period: (parseFloat(config.period) || 10) * (config.periodUnits === "minutes" ? 60000 : config.periodUnits === "seconds" ? 1000 : 1),
-                periodUnits: config.periodUnits || "seconds",
-                lastExecution: Date.now(),
-                phase: 0
-            };
-            if (isNaN(node.runtime.lowerLimit) || isNaN(node.runtime.upperLimit) || !isFinite(node.runtime.lowerLimit) || !isFinite(node.runtime.upperLimit)) {
-                node.runtime.lowerLimit = 0;
-                node.runtime.upperLimit = 100;
-            } else if (node.runtime.lowerLimit > node.runtime.upperLimit) {
-                node.runtime.upperLimit = node.runtime.lowerLimit;
-            }
-            if (isNaN(node.runtime.period) || node.runtime.period <= 0 || !isFinite(node.runtime.period)) {
-                node.runtime.period = 10000;
-                node.runtime.periodUnits = "milliseconds";
-            }
-            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("sine-wave-block", SineWaveBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/sine-wave-block-runtime/:id", RED.auth.needsPermission("sine-wave-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "sine-wave-block") {
-            let period = node.runtime.period || 10000;
-            let periodUnits = node.runtime.periodUnits || "milliseconds";
-            if (period >= 60000 && period % 60000 === 0) {
-                period /= 60000;
-                periodUnits = "minutes";
-            } else if (period >= 1000 && period % 1000 === 0) {
-                period /= 1000;
-                periodUnits = "seconds";
-            }
-            res.json({
-                name: node.runtime.name,
-                lowerLimit: node.runtime.lowerLimit,
-                upperLimit: node.runtime.upperLimit,
-                period: period,
-                periodUnits: periodUnits
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

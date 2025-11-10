@@ -232,7 +232,6 @@ module.exports = function(RED) {
                         done();
                     });
             } else {
-                node.status({});
                 done();
             }
         });

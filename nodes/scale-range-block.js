@@ -6,12 +6,12 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name || "",
-            inMin: parseFloat(config.inMin) || 0.0,
-            inMax: parseFloat(config.inMax) || 100.0,
-            outMin: parseFloat(config.outMin) || 0.0,
-            outMax: parseFloat(config.outMax) || 80.0,
-            clamp: config.clamp !== false,
-            lastInput: parseFloat(config.inMin) || 0.0
+            inMin: parseFloat(config.inMin),
+            inMax: parseFloat(config.inMax),
+            outMin: parseFloat(config.outMin),
+            outMax: parseFloat(config.outMax),
+            clamp: config.clamp,
+            lastInput: parseFloat(config.inMin)
         };
 
         // Validate initial config
@@ -20,11 +20,6 @@ module.exports = function(RED) {
             node.runtime.inMax = 100.0;
             node.runtime.lastInput = 0.0;
             node.status({ fill: "red", shape: "ring", text: "invalid input range" });
-        }
-        if (isNaN(node.runtime.outMin) || isNaN(node.runtime.outMax) || !isFinite(node.runtime.outMin) || !isFinite(node.runtime.outMax) || node.runtime.outMin >= node.runtime.outMax) {
-            node.runtime.outMin = 0.0;
-            node.runtime.outMax = 80.0;
-            node.status({ fill: "red", shape: "ring", text: "invalid output range" });
         }
 
         node.on("input", function(msg, send, done) {
@@ -68,11 +63,7 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `${msg.context}: ${value.toFixed(2)}`
-                        });
+                        node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${value.toFixed(2)}` });
                         shouldOutput = true;
                         break;
                     case "clamp":
@@ -82,11 +73,7 @@ module.exports = function(RED) {
                             return;
                         }
                         node.runtime.clamp = msg.payload;
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `clamp: ${node.runtime.clamp}`
-                        });
+                        node.status({ fill: "green", shape: "dot", text: `clamp: ${node.runtime.clamp}` });
                         shouldOutput = true;
                         break;
                     default:
@@ -99,11 +86,7 @@ module.exports = function(RED) {
                 if (shouldOutput) {
                     const out = calculate(node.runtime.lastInput, node.runtime.inMin, node.runtime.inMax, node.runtime.outMin, node.runtime.outMax, node.runtime.clamp);
                     msg.payload = out;
-                    node.status({
-                        fill: "blue",
-                        shape: "dot",
-                        text: `out: ${out.toFixed(2)}, in: ${node.runtime.lastInput.toFixed(2)}`
-                    });
+                    node.status({ fill: "blue", shape: "dot", text: `out: ${out.toFixed(2)}, in: ${node.runtime.lastInput.toFixed(2)}` });
                     send(msg);
                 }
                 if (done) done();
@@ -123,12 +106,7 @@ module.exports = function(RED) {
                 return;
             }
             if (node.runtime.inMax <= node.runtime.inMin) {
-                node.status({ fill: "red", shape: "ring", text: "invalid input range" });
-                if (done) done();
-                return;
-            }
-            if (node.runtime.outMax <= node.runtime.outMin) {
-                node.status({ fill: "red", shape: "ring", text: "invalid output range" });
+                node.status({ fill: "red", shape: "ring", text: "inMinx must be < inMax" });
                 if (done) done();
                 return;
             }
@@ -137,11 +115,7 @@ module.exports = function(RED) {
             node.runtime.lastInput = inputValue;
             const out = calculate(inputValue, node.runtime.inMin, node.runtime.inMax, node.runtime.outMin, node.runtime.outMax, node.runtime.clamp);
             msg.payload = out;
-            node.status({
-                fill: "blue",
-                shape: "dot",
-                text: `out: ${out.toFixed(2)}, in: ${inputValue.toFixed(2)}`
-            });
+            node.status({ fill: "blue", shape: "dot", text: `out: ${out.toFixed(2)}, in: ${inputValue.toFixed(2)}` });
             send(msg);
 
             if (done) done();
@@ -154,49 +128,10 @@ module.exports = function(RED) {
             return clamp ? Math.max(outMin, Math.min(outMax, output)) : output;
         }
 
-        node.on("close", function(done) {
-            node.runtime = {
-                name: config.name || "",
-                inMin: parseFloat(config.inMin) || 0.0,
-                inMax: parseFloat(config.inMax) || 100.0,
-                outMin: parseFloat(config.outMin) || 0.0,
-                outMax: parseFloat(config.outMax) || 80.0,
-                clamp: config.clamp !== false,
-                lastInput: parseFloat(config.inMin) || 0.0
-            };
-
-            if (isNaN(node.runtime.inMin) || isNaN(node.runtime.inMax) || !isFinite(node.runtime.inMin) || !isFinite(node.runtime.inMax) || node.runtime.inMin >= node.runtime.inMax) {
-                node.runtime.inMin = 0.0;
-                node.runtime.inMax = 100.0;
-                node.runtime.lastInput = 0.0;
-            }
-            if (isNaN(node.runtime.outMin) || isNaN(node.runtime.outMax) || !isFinite(node.runtime.outMin) || !isFinite(node.runtime.outMax) || node.runtime.outMin >= node.runtime.outMax) {
-                node.runtime.outMin = 0.0;
-                node.runtime.outMax = 80.0;
-            }
-
-            node.status({});
+        node.on("close", function(done) { 
             done();
         });
     }
 
-    RED.nodes.registerType("scale-range-block", ScaleRangeBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/scale-range-block-runtime/:id", RED.auth.needsPermission("scale-range-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "scale-range-block") {
-            res.json({
-                name: node.runtime.name,
-                inMin: node.runtime.inMin,
-                inMax: node.runtime.inMax,
-                outMin: node.runtime.outMin,
-                outMax: node.runtime.outMax,
-                clamp: node.runtime.clamp,
-                lastInput: node.runtime.lastInput
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
+    RED.nodes.registerType("scale-range-block", ScaleRangeBlockNode); 
 };

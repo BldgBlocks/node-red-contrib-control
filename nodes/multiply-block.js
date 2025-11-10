@@ -6,8 +6,8 @@ module.exports = function(RED) {
         
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "multiply",
-            slots: parseInt(config.slots) || 2,
+            name: config.name,
+            slots: parseInt(config.slots),
             inputs: Array(parseInt(config.slots) || 2).fill(1),
             lastResult: null
         };
@@ -18,11 +18,7 @@ module.exports = function(RED) {
             node.runtime.inputs = Array(2).fill(1);
             node.status({ fill: "red", shape: "ring", text: "invalid slots, using 2" });
         } else {
-            node.status({
-                fill: "green",
-                shape: "dot",
-                text: `name: ${node.runtime.name}, slots: ${node.runtime.slots}`
-            });
+            node.status({ fill: "green", shape: "dot", text: `name: ${node.runtime.name}, slots: ${node.runtime.slots}` });
         }
 
         node.on("input", function(msg, send, done) {
@@ -111,14 +107,6 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            // Reset state on redeployment
-            node.runtime.slots = parseInt(config.slots) || 2;
-            if (isNaN(node.runtime.slots) || node.runtime.slots < 1) {
-                node.runtime.slots = 2;
-            }
-            node.runtime.inputs = Array(node.runtime.slots).fill(1);
-            node.runtime.lastResult = null;
-            node.status({});
             done();
         });
     }

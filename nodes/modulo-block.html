@@ -31,31 +31,6 @@
         paletteLabel: "modulo",
         label: function() {
             return this.name ? `${this.name} (${this.slots})` : `modulo (${this.slots})`;
-        },
-        oneditprepare: function() {
-            const node = this;
-            $("#node-input-name").val(node.name || "");
-            $("#node-input-slots").val(node.slots || 2);
-
-            $("#node-input-slots").on("input", function() {
-                const val = parseInt($(this).val(), 10);
-                if (isNaN(val) || val < 1) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved
-        },
-        oneditvalidate: function() {
-            const slots = parseInt($("#node-input-slots").val(), 10);
-            if (isNaN(slots) || slots < 1) {
-                $("#node-input-slots").addClass("input-error");
-                return false;
-            }
-            return true;
         }
     });
 </script>
@@ -72,25 +47,25 @@ Computes the modulo (remainder) of numeric inputs from multiple slots in sequenc
 : payload (number) : Result of modulo operation (in1 % in2 % ...).
 
 ### Properties
-: slots (number) : Number of input slots (positive integer). Default: 2.
+: slots (number) : Number of input slots (positive integer).
 
 ### Details
 Computes the modulo of numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`) in sequence (in1 % in2 % ...). 
 
-Slots (default: 2) are set via editor or `msg.context = "slots"` with positive integer. 
+Slots are set via editor or `msg.context = "slots"` with positive integer. 
 
 Inputs default to 1, updated via `msg.context = "inX"`. 
 Inputs for `in2` onward must be non-zero to avoid modulo by zero. 
 Resets inputs to 1 via `msg.context = "reset"` with `msg.payload = true`. 
 
-Outputs `{ payload: number }` only when the result changes.
+Outputs only when the result changes.
 
 ### Status
-- Green (dot): Configuration or reset (e.g., `name: modulo, slots: 2`, `state reset`, `slots: 3`).
-- Blue (dot): Outputs when result changes (e.g., `in: in1=10.00, out: 4.00`).
-- Blue (ring): Outputs when result unchanged (e.g., `in: in1=10.00, out: 4.00`).
-- Red (ring): Errors (e.g., `invalid message`, `missing context`, `modulo by zero`).
-- Yellow (ring): Unknown context (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

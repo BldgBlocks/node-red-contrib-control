@@ -12,10 +12,6 @@
             <option value="1.0">1.0 (whole)</option>
         </select>
     </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
-    </div>
 </script>
 
 <!-- JavaScript Section -->
@@ -35,29 +31,6 @@
         paletteLabel: "round",
         label: function() {
             return this.name || "";
-        },
-        oneditprepare: function() {
-            const node = this;
-            $("#node-input-name").val(node.name || "");
-            $("#node-input-precision").val(node.precision || "1.0");
-
-            $.getJSON(`/round-block-runtime/${node.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                if (data.precision && data.precision !== node.precision) {
-                    changes.push(`precision: ${data.precision}`);
-                }
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved
-        },
-        oneditvalidate: function() {
-            const precision = $("#node-input-precision").val();
-            return ["0.1", "0.5", "1.0"].includes(precision);
         }
     });
 </script>
@@ -75,8 +48,8 @@ Rounds a float in `msg.payload` to the nearest configurable precision (tenth, ha
 : msg : Original message with `msg.payload` rounded to configured precision.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "round").
-: precision (string) : Rounding precision (`"0.1"`, `"0.5"`, `"1.0"`). Default: `"1.0"`.
+: name (string) : Display name in editor.
+: precision (string) : Rounding precision (`"0.1"`, `"0.5"`, `"1.0"`).
 
 ### Details
 Rounds a float in `msg.payload` to the nearest tenth (0.1), half (0.5), or whole number (1.0), set via editor or `msg.context = "precision"`. 
@@ -88,9 +61,11 @@ If `msg.payload` is not a finite number, the message is passed unchanged.
 Unknown `msg.context` values are ignored.
 
 ### Status
-- Green (dot): Initialization or precision update (e.g., `name: round, precision: 0.1`, `precision: 0.5`).
-- Blue (dot): Valid input/output (e.g., `in: 3.14, out: 3.10`).
-- Red (ring): Errors (e.g., `invalid message`, `invalid input`, `invalid precision`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

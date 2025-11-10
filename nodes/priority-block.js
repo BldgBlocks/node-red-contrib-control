@@ -6,7 +6,7 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || ""
+            name: config.name
         };
 
         // Initialize state from context or defaults
@@ -231,29 +231,9 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("priority-block", PriorityBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/priority-block-runtime/:id", RED.auth.needsPermission("priority-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "priority-block") {
-            const context = node.context();
-            const priorities = context.get("priorities") || {};
-            const defaultValue = context.get("defaultValue") || null;
-            const fallbackValue = context.get("fallbackValue") || null;
-            res.json({
-                name: node.runtime.name,
-                priorities,
-                defaultValue,
-                fallbackValue
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

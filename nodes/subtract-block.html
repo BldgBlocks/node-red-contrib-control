@@ -29,47 +29,6 @@
         paletteLabel: "subtract",
         label: function() {
             return this.name ? `${this.name} (${this.slots})` : `subtract (${this.slots})`;
-        },
-        oneditprepare: function() {
-            // Initialize inputs
-            $("#node-input-name").val(this.name || "subtract");
-            $("#node-input-slots").val(this.slots || 2);
-
-            // Validate name input
-            $("#node-input-name").on("input", function() {
-                const val = $(this).val();
-                if (!val || val.trim().length === 0) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
-
-            // Validate slots input
-            $("#node-input-slots").on("input", function() {
-                const val = parseInt($(this).val(), 10);
-                if (isNaN(val) || val < 1) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved
-        },
-        oneditvalidate: function() {
-            const name = $("#node-input-name").val();
-            const slots = parseInt($("#node-input-slots").val(), 10);
-            if (!name || name.trim().length === 0) {
-                $("#node-input-name").addClass("input-error");
-                return false;
-            }
-            if (isNaN(slots) || slots < 1) {
-                $("#node-input-slots").addClass("input-error");
-                return false;
-            }
-            return true;
         }
     });
 </script>
@@ -88,18 +47,16 @@ Subtracts numeric inputs from multiple slots in sequence, preserving the input m
 ### Details
 Subtracts numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`) in sequence. 
 
-Slots (default: 2) are set via editor or `msg.context = "slots"` with positive integer. 
-
 Inputs default to 0, updated via `msg.context = "inX"`. 
 
 Resets inputs to 0 via `msg.context = "reset"` with `msg.payload = true`. 
 
 ### Status
-- Green (dot): Configuration or reset (e.g., `name: subtract, slots: 2`, `state reset`, `slots: 3`).
-- Blue (dot): Outputs when result changes (e.g., `in1: 10.00, diff: 7.00`).
-- Blue (ring): Outputs when result unchanged (e.g., `in1: 10.00, diff: 7.00`).
-- Red (ring): Errors (e.g., `invalid message`, `missing context`, `invalid input`).
-- Yellow (ring): Warnings (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

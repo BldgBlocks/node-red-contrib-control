@@ -5,9 +5,9 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            period: Number(config.period) || 0,
-            periodType: config.periodType || "num",
+            name: config.name,
+            period: Number(config.period),
+            periodType: config.periodType,
             lastValue: null,
             periodValue: null,
             blockTimer: null,
@@ -19,11 +19,7 @@ module.exports = function(RED) {
             node.runtime.period = 0;
             node.status({ fill: "red", shape: "ring", text: "invalid period, using 0" });
         } else {
-            node.status({
-                fill: "green",
-                shape: "dot",
-                text: `name: ${node.runtime.name || "on change"}, period: ${node.runtime.period.toFixed(0)} ms`
-            });
+            node.status({ fill: "green", shape: "dot", text: `name: ${node.runtime.name || "on change"}, period: ${node.runtime.period.toFixed(0)} ms` });
         }
 
         node.on("input", function(msg, send, done) {
@@ -187,28 +183,9 @@ module.exports = function(RED) {
                 clearTimeout(node.runtime.blockTimer);
                 node.runtime.blockTimer = null;
             }
-            node.runtime.lastValue = null;
-            node.runtime.periodValue = null;
-            node.runtime.pendingMsg = null;
-            node.runtime.period = Number(config.period) || 0;
-            node.runtime.periodType = config.periodType || "num";
-            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("on-change-block", OnChangeBlockNode);
-
-    RED.httpAdmin.get("/on-change-block-runtime/:id", RED.auth.needsPermission("on-change-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "on-change-block") {
-            res.json({
-                name: node.runtime.name,
-                period: node.runtime.period,
-                periodType: node.runtime.periodType
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

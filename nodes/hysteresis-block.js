@@ -14,7 +14,7 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Evaluate all properties
+            // Evaluate typed-inputs
             try {
                 node.upperLimit = RED.util.evaluateNodeProperty(
                     config.upperLimit, config.upperLimitType, node, msg

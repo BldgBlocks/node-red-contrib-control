@@ -8,10 +8,6 @@
         <label for="node-input-period" title="Period in seconds (positive number, e.g., 10)"><i class="fa fa-clock-o"></i> Period</label>
         <input type="number" id="node-input-period" placeholder="10" min="0.001" step="any">
     </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
-    </div>
 </script>
 
 <!-- JavaScript Section -->
@@ -31,29 +27,6 @@
         paletteLabel: "tick tock",
         label: function() {
             return this.name || "tick tock";
-        },
-        oneditprepare: function() {
-            const node = this;
-            $("#node-input-name").val(node.name || "");
-            $("#node-input-period").val(node.period || 10);
-
-            $.getJSON(`/tick-tock-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                if (data.period !== undefined && !isNaN(data.period) && isFinite(data.period) && data.period !== parseFloat(node.period || 10)) {
-                    changes.push(`period: ${data.period.toFixed(2)}`);
-                }
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved
-        },
-        oneditvalidate: function() {
-            const period = parseFloat($("#node-input-period").val());
-            return !isNaN(period) && isFinite(period) && period > 0;
         }
     });
 </script>
@@ -70,22 +43,22 @@ Generates a square wave output toggling between true and false.
 : payload (boolean) : Square wave value (`true` or `false`).
 
 ### Properties
-: period (number) : Full wave period (seconds, positive). Default: 10.
+: period (number) : Full wave period (seconds, positive).
 
 ### Details
 Generates a square wave output toggling between `true` and `false` every half `period` (seconds), started via `msg.context = "command"` with 
 `msg.payload = "start"`. Stops with `"stop"`.
 
-Outputs `{ payload: boolean }` for each state change when running.
+Outputs `msg.payload for each state change when running.
 
 Ignores redundant `start`/`stop` commands.
 
 ### Status
-- Green (dot): Configuration or start (e.g., `period: 10.00`, `started, period: 10.00`).
-- Blue (dot): Output (e.g., `out: true`).
-- Yellow (dot): Stopped (e.g., `stopped`).
-- Red (ring): Errors (e.g., `invalid period`, `invalid command`).
-- Yellow (ring): Unknown context (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

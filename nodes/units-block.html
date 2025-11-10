@@ -30,7 +30,6 @@
         },
         oneditprepare: function() {
             const validUnits = ["°C", "°F", "K", "%RH", "Pa", "kPa", "bar", "mbar", "psi", "atm", "inH₂O", "mmH₂O", "CFM", "m³/h", "L/s", "V", "mV", "A", "mA", "W", "Ω", "%", "m", "cm", "mm", "km", "ft", "in", "kg", "g", "lb", "s", "min", "h", "L", "mL", "gal", "lx", "cd", "B", "T"];
-            $("#node-input-name").val(this.name || "");
             $("#node-input-unit").typedInput({
                 default: "str",
                 types: [{
@@ -81,9 +80,6 @@
                 }],
                 typeField: false
             }).typedInput("value", this.unit || "°F");
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved
         }
     });
 </script>
@@ -99,10 +95,6 @@ Appends a selected unit to `msg.units` of every input message.
 ### Outputs
 : payload (any) : Original payload.  
 : units (string) : Selected unit (e.g., °F, %RH, inH₂O).  
-: other properties : Preserved from input message.
-
-### Properties
-: unit (string) : Unit to append to `msg.units`. Default: "°F".
 
 ### Details
 Appends `msg.units` with the configured unit to every input message.  
@@ -111,10 +103,11 @@ Supports units like °C, °F, %RH, inH₂O, CFM for HVAC and control systems.
 Processes every input message, preserving all original properties, just adding `msg.units`.
 
 ### Status
-- Green (dot): Initial configuration or unit update (e.g., `in: unit: °F`).  
-- Blue (dot): Message processed (e.g., `in: 45.20 out: unit: %RH`).  
-- Red (ring): Errors (e.g., `invalid message`, `invalid unit`).  
-- Yellow (ring): Unknown context (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)  

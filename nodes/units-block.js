@@ -5,8 +5,8 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            unit: config.unit || "°F"
+            name: config.name,
+            unit: config.unit
         };
 
         // Validate configuration (Req 8)
@@ -16,17 +16,13 @@ module.exports = function(RED) {
             node.status({ fill: "red", shape: "ring", text: "invalid unit, using °F" });
             node.warn(`Invalid configuration: unit=${config.unit}, using °F`);
         } else {
-            node.status({
-                fill: "green",
-                shape: "dot",
-                text: `in: unit: ${node.runtime.unit}`
-            });
+            node.status({ fill: "green", shape: "dot", text: `in: unit: ${node.runtime.unit}` });
         }
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
-            // Validate input (Req 7)
+            // Validate input
             if (!msg || typeof msg !== "object") {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 node.warn(`Invalid message`);
@@ -54,11 +50,11 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    // Passthrough node: ignore unknown context without error (Req 1)
+                    // Passthrough node: ignore unknown context without error
                     node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
                 }
 
-                // Process input: append units to message (Req 1)
+                // Process input: append units to message
                 const outputMsg = { ...msg, units: node.runtime.unit };
                 const payloadPreview = msg.payload !== null ? (typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload).slice(0, 20)) : "none";
                 node.status({
@@ -83,17 +79,4 @@ module.exports = function(RED) {
     }
 
     RED.nodes.registerType("units-block", UnitsBlockNode);
-
-    // HTTP endpoint for editor reflection
-    RED.httpAdmin.get("/units-block/:id", RED.auth.needsPermission("units-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "units-block") {
-            res.json({
-                name: node.runtime.name,
-                unit: node.runtime.unit
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

@@ -13,14 +13,10 @@ module.exports = function(RED) {
             maxTempSetpoint: parseFloat(config.maxTempSetpoint),
             operationMode: config.operationMode,
             initWindow: parseFloat(config.initWindow),
-            currentMode: persistedState?.currentMode || (config.operationMode === "cool" ? "cooling" : "heating"),
-            lastTemperature: persistedState?.lastTemperature || null,
-            lastModeChange: persistedState?.lastModeChange || 0
+            currentMode: (config.operationMode === "cool" ? "cooling" : "heating"),
+            lastTemperature: null,
+            lastModeChange: 0
         };
-
-        node.runtime.currentMode = node.runtime.operationMode === "cool" ? "cooling" : "heating";
-        node.runtime.lastTemperature = null;
-        node.runtime.lastModeChange = 0;
 
         // Initialize state
         let initComplete = false;
@@ -218,10 +214,6 @@ module.exports = function(RED) {
                 conditionStartTime = null;
                 pendingMode = null;
 
-                savePersistentState({
-                    currentMode: node.runtime.currentMode
-                });
-
                 send(evaluateState() || buildOutputs());
                 if (done) done();
                 return;
@@ -291,11 +283,6 @@ module.exports = function(RED) {
 
             node.runtime.currentMode = newMode;
             node.runtime.lastModeChange = Date.now() / 1000;
-            
-            savePersistentState({
-                currentMode: node.runtime.currentMode,
-                lastModeChange: node.runtime.lastModeChange
-            });
         }
 
         function evaluateState() {
@@ -346,11 +333,6 @@ module.exports = function(RED) {
             if (newMode !== node.runtime.currentMode) {
                 node.runtime.currentMode = newMode;
                 node.runtime.lastModeChange = now;
-                
-                savePersistentState({
-                    currentMode: node.runtime.currentMode,
-                    lastModeChange: node.runtime.lastModeChange
-                });
             }
 
             return null;

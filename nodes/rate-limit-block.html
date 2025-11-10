@@ -24,10 +24,6 @@
         <label for="node-input-threshold" title="Threshold for output (units, ≥ 0)"><i class="fa fa-filter"></i> Threshold (units)</label>
         <input type="number" id="node-input-threshold" placeholder="5" min="0" step="0.01">
     </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
-    </div>
 </script>
 
 <!-- JavaScript Section -->
@@ -53,35 +49,6 @@
         },
         oneditprepare: function() {
             const node = this;
-            $("#node-input-name").val(node.name || "");
-            $("#node-input-mode").val(node.mode || "rate-limit");
-            $("#node-input-rate").val(node.rate || 1);
-            $("#node-input-interval").val(node.interval || 100);
-            $("#node-input-threshold").val(node.threshold || 5);
-
-            $.getJSON(`/rate-limit-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                if (data.mode !== (node.mode || "rate-limit")) changes.push(`mode: ${data.mode}`);
-                if (data.rate !== undefined && !isNaN(data.rate) && isFinite(data.rate) && data.rate !== parseFloat(node.rate || 1)) {
-                    changes.push(`rate: ${data.rate.toFixed(2)}`);
-                }
-                if (data.interval !== undefined && Number.isInteger(data.interval) && data.interval !== parseInt(node.interval || 100)) {
-                    changes.push(`interval: ${data.interval}`);
-                }
-                if (data.threshold !== undefined && !isNaN(data.threshold) && isFinite(data.threshold) && data.threshold !== parseFloat(node.threshold || 5)) {
-                    changes.push(`threshold: ${data.threshold.toFixed(2)}`);
-                }
-                if (data.currentValue !== undefined && !isNaN(data.currentValue) && isFinite(data.currentValue) && data.currentValue !== 0) {
-                    changes.push(`currentValue: ${data.currentValue.toFixed(2)}`);
-                }
-                if (data.targetValue !== undefined && !isNaN(data.targetValue) && isFinite(data.targetValue) && data.targetValue !== 0) {
-                    changes.push(`targetValue: ${data.targetValue.toFixed(2)}`);
-                }
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
 
             // Field visibility logic
             function updateFieldVisibility() {
@@ -91,18 +58,6 @@
             }
             $("#node-input-mode").on("change", updateFieldVisibility);
             updateFieldVisibility();
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
-        },
-        oneditvalidate: function() {
-            const mode = $("#node-input-mode").val();
-            const rate = parseFloat($("#node-input-rate").val());
-            const interval = parseInt($("#node-input-interval").val());
-            const threshold = parseFloat($("#node-input-threshold").val());
-            return ["rate-limit", "threshold", "full-value"].includes(mode) &&
-                   (mode !== "rate-limit" || (!isNaN(rate) && rate > 0 && isFinite(rate) && Number.isInteger(interval) && interval >= 10)) &&
-                   (mode !== "threshold" || (!isNaN(threshold) && threshold >= 0 && isFinite(threshold)));
         }
     });
 </script>
@@ -120,23 +75,23 @@ Processes a numeric input value based on a selected mode and passes the original
 : Other properties (e.g., `msg.topic`) from the input message are preserved.
 
 ### Properties
-: mode (string) : Processing mode (`rate-limit`, `threshold`, `full-value`). Default: `rate-limit`.
-: rate (number) : Rate of change for rate-limit mode (units/s, > 0). Default: 1.
-: interval (number) : Update interval for rate-limit mode (ms, ≥ 10, integer). Default: 100.
-: threshold (number) : Threshold for output in threshold mode (units, ≥ 0). Default: 5.
+: mode (string) : Processing mode.
+: rate (number) : Rate of change for rate-limit mode.
+: interval (number) : Update interval for rate-limit mode.
+: threshold (number) : Threshold for output in threshold mode.
 
 ### Details
 Processes `msg.payload` (number) in one of three modes:
-- **Rate Limit**: Limits rate of change to `rate` (units/s), updating every `interval` (ms) toward the input value.
-- **Threshold**: Outputs when input differs from last output by more than `threshold` (units).
-- **Full Value**: Passes input unchanged.
+- `Rate Limit` Limits rate of change to `rate` (units/s), updating every `interval` (ms) toward the input value.
+- `Threshold` Outputs when input differs from last output by more than `threshold` (units).
+- `Full Value` Passes input unchanged.
 
 ### Status
-- Green (dot): Configuration or rate-limit input (e.g., `mode: rate-limit, target: 10.00`, `rate: 1.00`).
-- Blue (dot): Output (e.g., `mode: rate-limit, out: 2.00`).
-- Blue (ring): No output in threshold mode (e.g., `mode: threshold, out: 2.00`).
-- Red (ring): Errors (e.g., `invalid input`, `invalid rate`).
-- Yellow (ring): Unknown context (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

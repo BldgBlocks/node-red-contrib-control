@@ -6,13 +6,13 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            R_fixed: parseFloat(config.R_fixed) || 23500,
-            Vsupply: parseFloat(config.Vsupply) || 5.08,
-            Vref: parseFloat(config.Vref) || 4.096,
-            ADC_max: parseFloat(config.ADC_max) || 32768,
-            lastVoltage: context.get("lastVoltage") || 0,
-            lastResistance: context.get("lastResistance") || 0
+            name: config.name,
+            R_fixed: parseFloat(config.R_fixed),
+            Vsupply: parseFloat(config.Vsupply),
+            Vref: parseFloat(config.Vref),
+            ADC_max: parseFloat(config.ADC_max),
+            lastVoltage: context.get("lastVoltage"),
+            lastResistance: context.get("lastResistance")
         };
 
         // Validate configuration
@@ -38,11 +38,7 @@ module.exports = function(RED) {
         }
 
         // Set initial status
-        node.status({
-            fill: "green",
-            shape: "dot",
-            text: `r_fixed: ${node.runtime.R_fixed}, vsupply: ${node.runtime.Vsupply}`
-        });
+        node.status({ fill: "green", shape: "dot", text: `r_fixed: ${node.runtime.R_fixed}, vsupply: ${node.runtime.Vsupply}` });
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -142,7 +138,6 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            node.status({});
             done();
         });
     }

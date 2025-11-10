@@ -6,11 +6,11 @@ module.exports = function(RED) {
         // Initialize runtime state
         const durationMultiplier = config.durationUnits === "seconds" ? 1000 : config.durationUnits === "minutes" ? 60000 : 1;
         node.runtime = {
-            name: config.name || "",
-            duration: (parseFloat(config.duration) || 1000) * durationMultiplier,
-            durationUnits: config.durationUnits || "milliseconds",
-            resetRequireTrue: config.resetRequireTrue !== false,
-            resetOnComplete: config.resetOnComplete || false,
+            name: config.name,
+            duration: (parseFloat(config.duration)) * durationMultiplier,
+            durationUnits: config.durationUnits,
+            resetRequireTrue: config.resetRequireTrue,
+            resetOnComplete: config.resetOnComplete,
             triggerCount: 0,
             locked: false,
             output: false
@@ -161,29 +161,9 @@ module.exports = function(RED) {
                 clearTimeout(timer);
                 timer = null;
             }
-            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("oneshot-block", OneshotBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/oneshot-block-runtime/:id", RED.auth.needsPermission("oneshot-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "oneshot-block") {
-            res.json({
-                name: node.runtime.name,
-                duration: node.runtime.duration,
-                durationUnits: node.runtime.durationUnits,
-                resetRequireTrue: node.runtime.resetRequireTrue,
-                resetOnComplete: node.runtime.resetOnComplete,
-                triggerCount: node.runtime.triggerCount,
-                locked: node.runtime.locked,
-                output: node.runtime.output
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

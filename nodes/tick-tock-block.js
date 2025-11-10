@@ -5,8 +5,8 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            period: parseFloat(config.period) || 10,
+            name: config.name,
+            period: parseFloat(config.period),
             state: true
         };
 
@@ -102,31 +102,9 @@ module.exports = function(RED) {
                 clearInterval(intervalId);
                 intervalId = null;
             }
-            node.runtime = {
-                name: config.name || "",
-                period: parseFloat(config.period) || 10,
-                state: true
-            };
-            if (isNaN(node.runtime.period) || node.runtime.period <= 0 || !isFinite(node.runtime.period)) {
-                node.runtime.period = 10;
-            }
-            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("tick-tock-block", TickTockBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/tick-tock-block-runtime/:id", RED.auth.needsPermission("tick-tock-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "tick-tock-block") {
-            res.json({
-                name: node.runtime.name,
-                period: node.runtime.period
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

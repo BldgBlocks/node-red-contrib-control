@@ -122,11 +122,11 @@ Outputs turn off when input falls below `thresholdX - hysteresis` and higher-sta
 Tracks active stages (`dOn`). Outputs new messages only when a state changes, sending a single non-null message for the lowest stage that changed. 
 
 ### Status
-- Green (dot): Configuration
-- Blue (dot): Output, no alarm
-- Red (dot): Output with alarm
-- Red (ring): Errors
-- Yellow (ring): Unknown context
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

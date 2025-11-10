@@ -6,7 +6,7 @@ module.exports = function(RED) {
         
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "negate",
+            name: config.name,
             lastOutput: null
         };
 
@@ -83,7 +83,6 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            node.status({});
             done();
         });
     }

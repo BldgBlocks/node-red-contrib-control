@@ -5,11 +5,11 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            mode: config.mode || "rate-limit",
-            rate: parseFloat(config.rate) || 1.0,
-            interval: parseInt(config.interval) || 100,
-            threshold: parseFloat(config.threshold) || 5.0,
+            name: config.name,
+            mode: config.mode,
+            rate: parseFloat(config.rate),
+            interval: parseInt(config.interval),
+            threshold: parseFloat(config.threshold),
             currentValue: 0,
             targetValue: 0,
             lastUpdate: Date.now(),
@@ -35,11 +35,7 @@ module.exports = function(RED) {
         }
 
         // Set initial status
-        node.status({
-            fill: "blue",
-            shape: "dot",
-            text: `mode: ${node.runtime.mode}, out: ${node.runtime.currentValue.toFixed(2)}`
-        });
+        node.status({ fill: "blue", shape: "dot", text: `mode: ${node.runtime.mode}, out: ${node.runtime.currentValue.toFixed(2)}` });
 
         let updateTimer = null;
 
@@ -216,28 +212,10 @@ module.exports = function(RED) {
 
         node.on("close", function(done) {
             if (updateTimer) clearInterval(updateTimer);
-            node.status({});
+            updateTimer = null;
             done();
         });
     }
 
     RED.nodes.registerType("rate-limit-block", RateLimitBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/rate-limit-block-runtime/:id", RED.auth.needsPermission("rate-limit-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "rate-limit-block") {
-            res.json({
-                name: node.runtime.name,
-                mode: node.runtime.mode,
-                rate: node.runtime.rate,
-                interval: node.runtime.interval,
-                threshold: node.runtime.threshold,
-                currentValue: node.runtime.currentValue,
-                targetValue: node.runtime.targetValue
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

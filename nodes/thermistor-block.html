@@ -40,68 +40,6 @@
         paletteLabel: "thermistor",
         label: function() {
             return this.name || "thermistor";
-        },
-        oneditprepare: function() {
-            // Initialize inputs
-            $("#node-input-name").val(this.name || "");
-            $("#node-input-R_fixed").val(this.R_fixed || 23500);
-            $("#node-input-Vsupply").val(this.Vsupply || 5.08);
-            $("#node-input-Vref").val(this.Vref || 4.096);
-            $("#node-input-ADC_max").val(this.ADC_max || 32768);
-
-            // Validate name input
-            $("#node-input-name").on("input", function() {
-                const val = $(this).val();
-                if (!val || val.trim().length === 0) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
-
-            // Validate numeric inputs
-            ["R_fixed", "Vsupply", "Vref", "ADC_max"].forEach(field => {
-                $(`#node-input-${field}`).on("input", function() {
-                    const val = parseFloat($(this).val());
-                    if (isNaN(val) || val <= 0) {
-                        $(this).addClass("input-error");
-                    } else {
-                        $(this).removeClass("input-error");
-                    }
-                });
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved
-        },
-        oneditvalidate: function() {
-            const name = $("#node-input-name").val();
-            const R_fixed = parseFloat($("#node-input-R_fixed").val());
-            const Vsupply = parseFloat($("#node-input-Vsupply").val());
-            const Vref = parseFloat($("#node-input-Vref").val());
-            const ADC_max = parseFloat($("#node-input-ADC_max").val());
-
-            if (!name || name.trim().length === 0) {
-                $("#node-input-name").addClass("input-error");
-                return false;
-            }
-            if (isNaN(R_fixed) || R_fixed <= 0) {
-                $("#node-input-R_fixed").addClass("input-error");
-                return false;
-            }
-            if (isNaN(Vsupply) || Vsupply <= 0) {
-                $("#node-input-Vsupply").addClass("input-error");
-                return false;
-            }
-            if (isNaN(Vref) || Vref <= 0) {
-                $("#node-input-Vref").addClass("input-error");
-                return false;
-            }
-            if (isNaN(ADC_max) || ADC_max <= 0) {
-                $("#node-input-ADC_max").addClass("input-error");
-                return false;
-            }
-            return true;
         }
     });
 </script>
@@ -117,24 +55,25 @@ Converts a 16-bit raw sensor value into voltage and thermistor resistance.
 : payload (number) : Output 2 -> Calculated thermistor resistance in ohms.
 
 ### Details
-Converts raw ADC data from a thermistor circuit into voltage and resistance. Calculates:
+Converts raw ADC data from a thermistor circuit into voltage and resistance. Calculates
 - Voltage: `(raw * Vref) / ADC_max`, where `raw = (highByte << 8) | lowByte`.
 - Resistance: `R_fixed * (voltage / (Vsupply - voltage))`.
 
 Configuration (set in editor, no runtime changes):
-: R_fixed (number) : Fixed resistor value in ohms (default: 23500).
-: Vsupply (number) : Supply voltage in volts (default: 5.08).
-: Vref (number) : Reference voltage in volts for ADC conversion (default: 4.096).
-: ADC_max (number) : Maximum ADC value (default: 32768).
+: R_fixed (number) : Fixed resistor value in ohms
+: Vsupply (number) : Supply voltage in volts
+: Vref (number) : Reference voltage in volts for ADC conversion
+: ADC_max (number) : Maximum ADC value
 : name (string) : Optional display name.
 
 Outputs new messages for both outputs when values change. Stores `lastVoltage` and `lastResistance` in context for persistence.
 
 ### Status
-- Green (dot): Initial configuration (e.g., `r_fixed: 23500, vsupply: 5.08`).
-- Blue (dot): Outputs when values change (e.g., `in: 32768, out: 2.05, 23500.00`).
-- Blue (ring): Outputs when values unchanged (e.g., `in: 32768, out: 2.05, 23500.00`).
-- Red (ring): Errors (e.g., `missing message`, `invalid input`, `invalid resistance`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

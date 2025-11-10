@@ -6,11 +6,8 @@
     </div>
     <div class="form-row">
         <label for="node-input-max" title="Maximum value for capping the input number"><i class="fa fa-arrow-up"></i> Max</label>
-        <input type="number" id="node-input-max" placeholder="50" min="0" step="any">
-    </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+        <input type="text" id="node-input-max" placeholder="50" min="0" step="any">
+        <input type="hidden" id="node-input-maxType">
     </div>
 </script>
 
@@ -21,7 +18,8 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            max: { value: 50, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } }
+            max: { value: 50, required: true },
+            maxType: { value: "num" },
         },
         inputs: 1,
         outputs: 1,
@@ -34,25 +32,14 @@
         },
         oneditprepare: function() {
             const node = this;
-            $("#node-input-name").val(node.name || "");
-            $("#node-input-max").val(node.max || 50);
+            
+            // Initialize typed inputs
+            $("#node-input-max").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-maxType"
+            }).typedInput("type", node.maxType || "num").typedInput("value", node.max);
 
-            // Ensure node.max is a number for comparison
-            const editorMax = parseFloat(node.max) || 50;
-
-            $.getJSON(`/max-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                if (data.max !== undefined && !isNaN(data.max) && parseFloat(data.max) !== parseFloat(editorMax)) {
-                    changes.push(`max: ${data.max}`);
-                }
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
         }
     });
 </script>
@@ -67,22 +54,21 @@ Caps a numeric input at a configurable maximum value.
 
 ### Outputs
 : payload (number) : Input number capped at the maximum value.
-: *other* (any) : All input properties preserved, including `msg.context`.
 
 ### Properties
-: max (number) : Maximum value for capping (≥ 0). Default: 50.
+: max (number) : Maximum value for capping.
 
 ### Details
-Caps `msg.payload` (a number) to the maximum value (`max`, default: 50), forwarding the input message with updated `msg.payload`. 
+Caps `msg.payload` (a number) to the maximum value, forwarding the input message with updated `msg.payload`.
 
 Configurable via editor (`name`, `max`) or `msg.context` (`"max"`, `"setpoint"`) with numeric `msg.payload`.
 
 ### Status
-- Green (dot): Configuration (e.g., `max: 50`).
-- Blue (dot): Output with changed value (e.g., `in: 60.00, out: 50.00`).
-- Blue (ring): Output with unchanged value (e.g., `in: 40.00, out: 40.00`).
-- Red (ring): Errors (e.g., `missing payload`, `invalid payload`, `invalid max`).
-- Yellow (ring): Warnings (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

@@ -6,15 +6,13 @@
     </div>
     <div class="form-row">
         <label for="node-input-min" title="Minimum value for clamping the input number"><i class="fa fa-arrow-down"></i> Min</label>
-        <input type="number" id="node-input-min" placeholder="0" min="0" step="any">
+        <input type="text" id="node-input-min" placeholder="0" min="0" step="any">
+        <input type="hidden" id="node-input-minType">
     </div>
     <div class="form-row">
         <label for="node-input-max" title="Maximum value for clamping the input number"><i class="fa fa-arrow-up"></i> Max</label>
-        <input type="number" id="node-input-max" placeholder="100" min="0" step="any">
-    </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+        <input type="text" id="node-input-max" placeholder="100" min="0" step="any">
+        <input type="hidden" id="node-input-maxType">
     </div>
 </script>
 
@@ -25,8 +23,8 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            min: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
-            max: { value: 100, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } }
+            min: { value: 0, required: true },
+            max: { value: 100, required: true }
         },
         inputs: 1,
         outputs: 1,
@@ -39,35 +37,20 @@
         },
         oneditprepare: function() {
             const node = this;
-            $("#node-input-name").val(node.name || "");
-            $("#node-input-min").val(node.min || 0);
-            $("#node-input-max").val(node.max || 100);
+            
+            // Initialize typed inputs
+            $("#node-input-min").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-minType"
+            }).typedInput("type", node.minType || "num").typedInput("value", node.min);
 
-            // Ensure node.min and node.max are numbers for comparison
-            const editorMin = parseFloat(node.min) || 0;
-            const editorMax = parseFloat(node.max) || 100;
+            $("#node-input-max").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-maxType"
+            }).typedInput("type", node.maxType || "num").typedInput("value", node.max);
 
-            $.getJSON(`/minmax-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                if (data.min !== undefined && !isNaN(data.min) && parseFloat(data.min) !== parseFloat(editorMin)) {
-                    changes.push(`min: ${data.min}`);
-                }
-                if (data.max !== undefined && !isNaN(data.max) && parseFloat(data.max) !== parseFloat(editorMax)) {
-                    changes.push(`max: ${data.max}`);
-                }
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
-        },
-        oneditvalidate: function() {
-            const min = parseFloat($("#node-input-min").val());
-            const max = parseFloat($("#node-input-max").val());
-            return !isNaN(min) && !isNaN(max) && min >= 0 && max >= 0 && min <= max;
         }
     });
 </script>
@@ -85,20 +68,20 @@ Clamps a numeric input to a configurable range.
 : *other* (any) : All input properties preserved, including `msg.context`.
 
 ### Properties
-: min (number) : Minimum value for clamping (≥ 0). Default: 0.
-: max (number) : Maximum value for clamping (≥ 0, ≥ min). Default: 100.
+: min (number) : Minimum value for clamping (≥ 0).
+: max (number) : Maximum value for clamping (≥ 0, ≥ min)..
 
 ### Details
-Clamps `msg.payload` (a number) to the range `[min, max]` (default: [0, 100]), forwarding the input message with updated `msg.payload`. 
+Clamps `msg.payload` (a number) to the range `[min, max]`, forwarding the input message with updated `msg.payload`. 
 
 Ensures `min ≤ max` by adjusting the other value if needed (e.g., setting `min > max` sets `max = min`). 
 
 ### Status
-- Green (dot): Configuration (e.g., `min: 10`, `max: 100`, `min: 10, max adjusted to 10`).
-- Blue (dot): Output with changed value (e.g., `in: 150.00, out: 100.00`).
-- Blue (ring): Output with unchanged value (e.g., `in: 75.00, out: 75.00`).
-- Red (ring): Errors (e.g., `missing payload`, `invalid payload`, `invalid min`).
-- Yellow (ring): Warnings (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

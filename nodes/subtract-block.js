@@ -62,19 +62,6 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-            } else if (msg.context === "slots") {
-                let newSlots = parseInt(msg.payload);
-                if (isNaN(newSlots) || newSlots < 1) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid slots" });
-                    if (done) done();
-                    return;
-                }
-                node.runtime.slots = newSlots;
-                node.runtime.inputs = Array(newSlots).fill(0);
-                node.runtime.lastResult = null;
-                node.status({ fill: "green", shape: "dot", text: `slots: ${node.runtime.slots}` });
-                if (done) done();
-                return;
             } else if (msg.context.startsWith("in")) {
                 let slotIndex = parseInt(msg.context.slice(2)) - 1;
                 if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= node.runtime.slots) {
@@ -93,11 +80,7 @@ module.exports = function(RED) {
                 // Calculate subtraction
                 const result = node.runtime.inputs.reduce((acc, val, idx) => idx === 0 ? val : acc - val, 0);
                 const isUnchanged = result === node.runtime.lastResult;
-                node.status({
-                    fill: "blue",
-                    shape: isUnchanged ? "ring" : "dot",
-                    text: `${msg.context}: ${newValue.toFixed(2)}, diff: ${result.toFixed(2)}`
-                });
+                node.status({ fill: "blue", shape: isUnchanged ? "ring" : "dot", text: `${msg.context}: ${newValue.toFixed(2)}, diff: ${result.toFixed(2)}` });
 
                 node.runtime.lastResult = result;
                 send({ payload: result });
@@ -112,14 +95,6 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            // Reset state on redeployment
-            node.runtime.slots = parseInt(config.slots) || 2;
-            if (isNaN(node.runtime.slots) || node.runtime.slots < 1) {
-                node.runtime.slots = 2;
-            }
-            node.runtime.inputs = Array(node.runtime.slots).fill(0);
-            node.runtime.lastResult = null;
-            node.status({});
             done();
         });
     }

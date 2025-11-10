@@ -21,10 +21,6 @@
         <label for="node-input-resetOnComplete" title="Automatically reset (unlock) after pulse duration"><i class="fa fa-undo"></i> Reset On Complete</label>
         <input type="checkbox" id="node-input-resetOnComplete" style="width: auto; vertical-align: middle;">
     </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
-    </div>
 </script>
 
 <!-- JavaScript Section -->
@@ -51,38 +47,6 @@
         paletteLabel: "oneshot",
         label: function() {
             return this.name || `oneshot (${this.duration}${this.durationUnits.charAt(0)})`;
-        },
-        oneditprepare: function() {
-            const node = this;
-            $("#node-input-name").val(node.name || "");
-            $("#node-input-duration").val(node.duration || 1000);
-            $("#node-input-durationUnits").val(node.durationUnits || "milliseconds");
-            $("#node-input-resetRequireTrue").prop("checked", node.resetRequireTrue !== false);
-            $("#node-input-resetOnComplete").prop("checked", node.resetOnComplete || false);
-
-            $.getJSON(`/oneshot-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                if (data.duration !== undefined && !isNaN(data.duration) && data.duration !== (Number(node.duration) * (node.durationUnits === "seconds" ? 1000 : node.durationUnits === "minutes" ? 60000 : 1))) {
-                    changes.push(`duration: ${data.duration.toFixed(0)} ms`);
-                }
-                if (data.durationUnits !== node.durationUnits) changes.push(`durationUnits: ${data.durationUnits}`);
-                if (data.resetRequireTrue !== node.resetRequireTrue) changes.push(`resetRequireTrue: ${data.resetRequireTrue}`);
-                if (data.resetOnComplete !== node.resetOnComplete) changes.push(`resetOnComplete: ${data.resetOnComplete}`);
-                if (data.triggerCount !== 0) changes.push(`triggerCount: ${data.triggerCount}`);
-                if (data.locked !== false) changes.push(`locked: ${data.locked}`);
-                if (data.output !== false) changes.push(`output: ${data.output}`);
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
-        },
-        oneditvalidate: function() {
-            const duration = parseFloat($("#node-input-duration").val());
-            return !isNaN(duration) && duration > 0;
         }
     });
 </script>
@@ -100,14 +64,14 @@ Outputs a true pulse for a configurable duration when triggered with `msg.payloa
 : payload (boolean) : `true` for `duration` on trigger, then `false`; `false` on reset or if locked.
 
 ### Properties
-: name (string) : Display name in editor. Default: "" (shows "oneshot (duration unit)").
-: duration (number) : Pulse duration (positive number). Default: 1000.
-: durationUnits (string) : Units for duration (`"milliseconds"`, `"seconds"`, `"minutes"`). Default: `"milliseconds"`.
-: resetRequireTrue (boolean) : Require `msg.payload = true` for reset. Default: `true`.
-: resetOnComplete (boolean) : Automatically reset (unlock) after pulse duration. Default: `false`.
+: name (string) : Display name in editor.
+: duration (number) : Pulse duration (positive number).
+: durationUnits (string) : Units for duration (`"milliseconds"`, `"seconds"`, `"minutes"`).
+: resetRequireTrue (boolean) : Require `msg.payload = true` for reset.
+: resetOnComplete (boolean) : Automatically reset (unlock) after pulse duration.
 
 ### Details
-Generates a `true` pulse for `duration` (converted to milliseconds, default: 1000ms) when triggered with `msg.payload = true`, 
+Generates a `true` pulse for `duration` when triggered with `msg.payload = true`, 
 then outputs `false`. 
 
 Locks until reset via `msg.context = "reset"` (requires `msg.payload = true` if `resetRequireTrue = true`) or 
@@ -117,14 +81,14 @@ Duration configurable via editor or `msg.context = "duration"` with `msg.units` 
 
 Tracks `triggerCount` (number of triggers) and displays in status. 
 
-Outputs new `{ payload: boolean }` messages for every trigger (`true` then `false`), reset, or locked input. 
+Outputs new `{ payload boolean }` messages for every trigger (`true` then `false`), reset, or locked input. 
 
 ### Status
-- Green (dot): Trigger or duration update (e.g., `triggers: 1, out: true`, `duration: 1000 ms`).
-- Blue (dot): Reset (e.g., `triggers: 1, reset`).
-- Blue (ring): Initial or auto-reset (e.g., `triggers: 0, unlocked`).
-- Red (ring): Locked or error (e.g., `triggers: 1, locked`, `invalid duration`, `invalid reset payload`).
-- Yellow (ring): Ignored non-`true` payload or unknown context (e.g., `ignored: non-true`, `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

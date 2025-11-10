@@ -5,8 +5,8 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            delay: parseFloat(config.delay) || 5000,
+            name: config.name,
+            delay: parseFloat(config.delay),
             stage: 0
         };
 
@@ -135,31 +135,10 @@ module.exports = function(RED) {
 
         node.on("close", function(done) {
             if (timer) clearTimeout(timer);
-            node.runtime = {
-                name: config.name || "",
-                delay: parseFloat(config.delay) || 5000,
-                stage: 0
-            };
-            if (isNaN(node.runtime.delay) || node.runtime.delay < 0 || !isFinite(node.runtime.delay)) {
-                node.runtime.delay = 5000;
-            }
-            node.status({});
+            timer = null;
             done();
         });
     }
 
     RED.nodes.registerType("time-sequence-block", TimeSequenceBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/time-sequence-block-runtime/:id", RED.auth.needsPermission("time-sequence-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "time-sequence-block") {
-            res.json({
-                name: node.runtime.name,
-                delay: node.runtime.delay
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

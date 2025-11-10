@@ -29,47 +29,6 @@
         paletteLabel: "multiply",
         label: function() {
             return this.name ? `${this.name} (${this.slots})` : `multiply (${this.slots})`;
-        },
-        oneditprepare: function() {
-            // Initialize inputs
-            $("#node-input-name").val(this.name || "multiply");
-            $("#node-input-slots").val(this.slots || 2);
-
-            // Validate name input
-            $("#node-input-name").on("input", function() {
-                const val = $(this).val();
-                if (!val || val.trim().length === 0) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
-
-            // Validate slots input
-            $("#node-input-slots").on("input", function() {
-                const val = parseInt($(this).val(), 10);
-                if (isNaN(val) || val < 1) {
-                    $(this).addClass("input-error");
-                } else {
-                    $(this).removeClass("input-error");
-                }
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved
-        },
-        oneditvalidate: function() {
-            const name = $("#node-input-name").val();
-            const slots = parseInt($("#node-input-slots").val(), 10);
-            if (!name || name.trim().length === 0) {
-                $("#node-input-name").addClass("input-error");
-                return false;
-            }
-            if (isNaN(slots) || slots < 1) {
-                $("#node-input-slots").addClass("input-error");
-                return false;
-            }
-            return true;
         }
     });
 </script>
@@ -87,16 +46,16 @@ Multiplies numeric inputs from multiple slots.
 ### Details
 Multiplies numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`). 
 
-Slots (default: 2) are set via editor or `msg.context = "slots"` with positive integer. Inputs default to 1, updated via `msg.context = "inX"`. 
+Slots are set via editor or `msg.context = "slots"` with positive integer. Inputs default to 1, updated via `msg.context = "inX"`. 
 
-Resets inputs to 1 via `msg.context = "reset"` with `msg.payload = true`. Outputs `{ payload: number }` only when the product changes.
+Resets inputs to 1 via `msg.context = "reset"` with `msg.payload = true`. Outputs only when the product changes.
 
 ### Status
-- Green (dot): Configuration or reset (e.g., `name: multiply, slots: 2`, `state reset`, `slots: 3`).
-- Blue (dot): Outputs when product changes (e.g., `in: in1=5.00, out: 5.00`).
-- Blue (ring): Outputs when product unchanged (e.g., `in: in1=5.00, out: 5.00`).
-- Red (ring): Errors (e.g., `invalid message`, `missing context`, `invalid input`).
-- Yellow (ring): Warnings (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

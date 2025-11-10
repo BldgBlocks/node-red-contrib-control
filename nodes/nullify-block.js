@@ -5,8 +5,8 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "",
-            rules: config.rules || [{ property: "payload", propertyType: "msg" }]
+            name: config.name,
+            rules: config.rules
         };
 
         // Validate configuration
@@ -20,7 +20,6 @@ module.exports = function(RED) {
         });
         if (!valid) {
             node.status({ fill: "red", shape: "ring", text: "invalid rules, using defaults" });
-            node.warn("Invalid rule configuration, using default msg.payload");
         } else {
             node.status({ fill: "green", shape: "dot", text: `rules: ${node.runtime.rules.map(r => r.property).join(", ")}` });
         }
@@ -31,7 +30,6 @@ module.exports = function(RED) {
             // Guard against invalid message
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "missing message" });
-                node.warn("Missing message");
                 if (done) done();
                 return;
             }
@@ -40,14 +38,12 @@ module.exports = function(RED) {
             if (msg.context) {
                 if (typeof msg.context !== "string" || !msg.context.trim()) {
                     node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
-                    node.warn(`Unknown context: ${msg.context}`);
                     if (done) done();
                     return;
                 }
                 if (msg.context === "rules") {
                     if (!msg.hasOwnProperty("payload") || !Array.isArray(msg.payload) || !msg.payload.every(r => r.property && typeof r.property === "string" && r.propertyType === "msg")) {
                         node.status({ fill: "red", shape: "ring", text: "invalid rules" });
-                        node.warn(`Invalid rules: ${JSON.stringify(msg.payload)}`);
                         if (done) done();
                         return;
                     }
@@ -56,8 +52,6 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                // Ignore unknown context for passthrough node
-                node.warn(`Ignored context: ${msg.context}`);
             }
 
             // Apply nullification rules
@@ -69,34 +63,16 @@ module.exports = function(RED) {
             });
 
             // Update status and send output
-            node.status({
-                fill: "blue",
-                shape: "dot",
-                text: `nullified: ${nullified.join(", ")}`
-            });
+            node.status({ fill: "blue", shape: "dot", text: `nullified: ${nullified.join(", ")}` });
             send(outputMsg);
 
             if (done) done();
         });
 
         node.on("close", function(done) {
-            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("nullify-block", NullifyBlockNode);
-
-    // HTTP endpoint for editor reflection
-    RED.httpAdmin.get("/nullify-block-runtime/:id", RED.auth.needsPermission("nullify-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "nullify-block") {
-            res.json({
-                name: node.runtime.name,
-                rules: node.runtime.rules
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };
