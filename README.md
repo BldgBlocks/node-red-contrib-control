@@ -30,4 +30,14 @@ The help section of every node describes the expected msg.context (data tag) for
 An 'and' block set to 4 slots must recieve `true` values on each inX at some point to evaluate to a `true` output. Where as, an 'or' block set to 4 inputs could have any input trigger a `true` evaluation. However, a remaining `true` would prevent evaluating to `false`. So the flow may look like 4 small tagging nodes configured in1,in2,in3,in4 connecting to the 'and' block and just wiring your branches of logic to those inputs. You can also negate or have multiple connected to an input and you can watch as each comes in to evaluate. Just try to keep it clean.
 
 ## Install
-Manage your palette through your NodeRED palette manager. Search for the package name and add to your project.
+##### Via NodeRED Palette Manager (Not Yet Available)
+
+Search for the package name and add to your project.
+
+##### Via NPM
+```
+# Navigate to Node-RED user directory (varies by installation)
+- $ cd ~/.node-red
+- $ npm install node-red-contrib-buildingblocks-control
+# then restart node-red
+```
