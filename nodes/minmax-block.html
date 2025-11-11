@@ -1,0 +1,89 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="minmax-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-min" title="Minimum value for clamping the input number"><i class="fa fa-arrow-down"></i> Min</label>
+        <input type="text" id="node-input-min" placeholder="0" min="0" step="any">
+        <input type="hidden" id="node-input-minType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-max" title="Maximum value for clamping the input number"><i class="fa fa-arrow-up"></i> Max</label>
+        <input type="text" id="node-input-max" placeholder="100" min="0" step="any">
+        <input type="hidden" id="node-input-maxType">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("minmax-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            min: { value: 0, required: true },
+            max: { value: 100, required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-arrows-v",
+        paletteLabel: "minmax",
+        label: function() {
+            return this.name || "minmax";
+        },
+        oneditprepare: function() {
+            const node = this;
+            
+            // Initialize typed inputs
+            $("#node-input-min").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-minType"
+            }).typedInput("type", node.minType || "num").typedInput("value", node.min);
+
+            $("#node-input-max").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-maxType"
+            }).typedInput("type", node.maxType || "num").typedInput("value", node.max);
+
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="minmax-block">
+Clamps a numeric input to a configurable range.
+
+### Inputs
+: context (string) : Configures range (`"min"`, `"max"`). Unmatched values trigger warning.
+: payload (number) : Input number to clamp or new min/max value with `msg.context`.
+
+### Outputs
+: payload (number) : Input number clamped to `[min, max]`.
+: *other* (any) : All input properties preserved, including `msg.context`.
+
+### Properties
+: min (number) : Minimum value for clamping (≥ 0).
+: max (number) : Maximum value for clamping (≥ 0, ≥ min)..
+
+### Details
+Clamps `msg.payload` (a number) to the range `[min, max]`, forwarding the input message with updated `msg.payload`. 
+
+Ensures `min ≤ max` by adjusting the other value if needed (e.g., setting `min > max` sets `max = min`). 
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

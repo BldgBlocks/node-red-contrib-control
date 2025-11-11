@@ -1,0 +1,90 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="scale-range-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-inMin" title="Minimum input value (number)"><i class="fa fa-arrow-down"></i> Input Min</label>
+        <input type="number" id="node-input-inMin" placeholder="0.0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-inMax" title="Maximum input value (number, > inMin)"><i class="fa fa-arrow-up"></i> Input Max</label>
+        <input type="number" id="node-input-inMax" placeholder="100.0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-outMin" title="Minimum output value (number)"><i class="fa fa-arrow-down"></i> Output Min</label>
+        <input type="number" id="node-input-outMin" placeholder="0.0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-outMax" title="Maximum output value (number, > outMin)"><i class="fa fa-arrow-up"></i> Output Max</label>
+        <input type="number" id="node-input-outMax" placeholder="80.0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-clamp" title="Clamp output to output range (boolean)"><i class="fa fa-lock"></i> Clamp</label>
+        <input type="checkbox" id="node-input-clamp" style="width: auto; vertical-align: middle;">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("scale-range-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            inMin: { value: 0.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            inMax: { value: 100.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            outMin: { value: 0.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            outMax: { value: 80.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            clamp: { value: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-arrows-h",
+        paletteLabel: "scale range",
+        label: function() {
+            return this.name || "scale range";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="scale-range-block">
+Scales a numeric input from one range to another and passes the original message.
+
+### Inputs
+: context (string) : Configures settings (`"inMin"`, `"inMax"`, `"outMin"`, `"outMax"`, `"clamp"`). Unmatched values trigger error.
+: payload (number | boolean) : Number for input or range configuration, boolean for clamp.
+
+### Outputs
+: payload (number) : Scaled output value.
+
+### Properties
+: inMin (number) : Minimum input value.
+: inMax (number) : Maximum input value (> inMin).
+: outMin (number) : Minimum output value.
+: outMax (number) : Maximum output value (> outMin).
+: clamp (boolean) : Clamp output to output range.
+
+### Details
+Scales `msg.payload` (number) from an input range (`inMin` to `inMax`) to an output range (`outMin` to `outMax`) using linear interpolation, with optional 
+clamping to `[outMin, outMax]` if `clamp` is `true`.
+
+Outputs the input message with `msg.payload` set to the scaled value, preserving other properties. 
+
+Outputs on valid input or configuration change (recalculates with last input).
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

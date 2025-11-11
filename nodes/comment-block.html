@@ -1,0 +1,83 @@
+<script type="text/html" data-template-name="comment-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-comment" title="Comment shown in status when Default is selected (max 100 characters)"><i class="fa fa-comment"></i> Comment</label>
+        <input type="text" id="node-input-comment" placeholder="Enter comment (max 100 chars)" maxlength="100">
+    </div>
+    <div class="form-row">
+        <label for="node-input-statusDisplay" title="Select what to display in the node status"><i class="fa fa-eye"></i> Status Display</label>
+        <select id="node-input-statusDisplay">
+            <option value="default">Comment to status (Default)</option>
+            <option value="name">Name to status</option>
+            <option value="none">No status</option>
+        </select>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("comment-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "comment" },
+            comment: { value: "No comment", validate: function(v) { return v.length < 100 } },
+            statusDisplay: { value: "default" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-comment",
+        paletteLabel: "comment",
+        label: function() {
+            return this.name || this.comment || "comment";
+        },
+        oneditsave: function() {
+            // Update status immediately
+            const node = RED.nodes.getNode(this.id);
+            let status = {};
+            switch (node.statusDisplay) {
+                case "default":
+                    status = { fill: "green", shape: "dot", text: node.comment || "No comment set" };
+                    break;
+                case "name":
+                    status = { fill: "green", shape: "dot", text: node.name || "comment" };
+                    break;
+                case "none":
+                    break;
+                default:
+            }
+
+            node.status(status);
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="comment-block">
+Displays a configurable comment, node name, or no status persistently and on input.
+
+### Inputs
+: payload (any) : Passthrough.
+
+### Outputs
+: payload (any) : Passthrough.
+
+### Details
+Displays a status (comment, node name, or none) on node creation, editor saves, and input messages.
+
+Used for flow annotations or debugging without requiring input to trigger status.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow: Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

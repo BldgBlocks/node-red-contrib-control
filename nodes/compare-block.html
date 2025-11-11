@@ -1,0 +1,64 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="compare-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-setpoint" title="Default setpoint value for comparison (number)"><i class="fa fa-crosshairs"></i> Setpoint</label>
+        <input type="number" id="node-input-setpoint" placeholder="50" step="any">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("compare-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            setpoint: { value: 50, required: true, validate: function(v) { return !isNaN(+v) && isFinite(+v); } }
+        },
+        inputs: 1,
+        outputs: 3,
+        outputLabels: ["greater than", "equal to", "less than"],
+        inputLabels: ["input"],
+        icon: "font-awesome/fa-balance-scale",
+        paletteLabel: "compare",
+        label: function() {
+            return this.name || "compare";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="compare-block">
+Compares a numeric input to a setpoint, outputting three boolean signals.
+
+### Inputs
+: context (string) : Configuration commands - setpoint (`"setpoint"`). Unmatched values trigger error.
+: payload (number) : Input number to compare, or setpoint value for config.
+
+### Outputs
+: greater than (boolean) : `true` if input > setpoint, else `false`.
+: equal to (boolean) : `true` if input = setpoint, else `false`.
+: less than (boolean) : `true` if input < setpoint, else `false`.
+
+### Properties
+: setpoint (number) : Value for comparison.
+
+### Details
+Compares `msg.payload` (number) to a `setpoint` (default: 50), outputting three messages to separate ports:
+`true` for greater than, equal to, or less than the setpoint, respectively; `false` otherwise.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

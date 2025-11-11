@@ -1,0 +1,55 @@
+<script type="text/html" data-template-name="negate-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("negate-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-minus",
+        paletteLabel: "negate",
+        label: function() {
+            return this.name || "negate";
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="negate-block">
+Negates a number or boolean input value.
+
+### Inputs
+: payload (number | boolean) : Value to negate (number or boolean).
+
+### Outputs
+: payload (number | boolean) : Negated value (-number or !boolean).
+
+### Details
+Negates `msg.payload` in a passthrough manner, updating the original message.
+- For numbers, outputs the negative (e.g., 5 becomes -5). 
+- For booleans, outputs the inverse (e.g., true becomes false). 
+
+Preserves other message properties (e.g., `msg.topic`, `msg.context`). 
+
+Outputs only when the negated value changes.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

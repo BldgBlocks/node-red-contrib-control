@@ -1,0 +1,65 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="analog-switch-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-slots" title="Number of input slots (integer >= 1)"><i class="fa fa-th-list"></i> Slots</label>
+        <input type="number" id="node-input-slots" placeholder="2" min="1" step="1">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("analog-switch-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            slots: { value: 2, required: true, validate: function(v) { return Number.isInteger(Number(v)) && Number(v) >= 1; } }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-exchange",
+        paletteLabel: "analog switch",
+        label: function() {
+            return this.name ? `${this.name} (${this.slots})` : `analog switch (${this.slots})`;
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="analog-switch-block">
+Selects one numeric input from multiple slots based on a switch value.
+
+### Inputs
+: context (string) : Configures slots (`"slots"`), switch (`"switch"`), or input slot (`"inX"`, e.g., `in1`). Unmatched values trigger error.
+: payload (number | integer) : Number for input slot, integer for slots or switch configuration.
+
+### Outputs
+: payload (number) : Selected input value based on switch setting.
+
+### Properties
+: slots (integer) : Number of input slots (≥ 1). Default 2.
+
+### Details
+Selects one numeric input from multiple slots (`in1`, `in2`, etc.) based on a switch value (1 to slots) 
+set via `msg.context = "switch"` with integer `msg.payload`. Slots configurable via editor or `msg.context = "slots"` with 
+integer `msg.payload` (≥ 1). Inputs default to 0, updated via `msg.context = "inX"` with numeric `msg.payload`. 
+
+Outputs a new `msg.payload` when the active slot is updated, switch changes to a valid slot, or slots change affects the output.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

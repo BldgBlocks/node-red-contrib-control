@@ -1,0 +1,79 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="on-change-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-period" title="Filter period in milliseconds (non-negative number from msg, flow, global, or static value)"><i class="fa fa-clock-o"></i> Filter Period (ms)</label>
+        <input type="text" id="node-input-period" placeholder="0">
+        <input type="hidden" id="node-input-periodType">
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("on-change-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            period: { value: 0 },
+            periodType: { value: "num" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-filter",
+        paletteLabel: "on change",
+        label: function() {
+            return this.name || "on change";
+        },
+        oneditprepare: function() {
+            const periodInput = $("#node-input-period").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-periodType"
+            });
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="on-change-block">
+Filters redundant messages based on value changes and a configurable period.
+
+### Inputs
+: payload (any) : Input value to compare.
+: context (string, optional) : Configures period (`"period"`) or queries state (`"status"`). Unknown `msg.context` is ignored
+: payload (number | any, for `context`) : Non-negative number for `"period"` (ms), any for `"status"`.
+
+### Outputs
+: msg (any) : Input message if value changed and not filtered.
+: payload (object, for `msg.context = "status"`) : `{ period, periodType }`.
+
+### Properties
+: name (string) : Display name in editor. Default "" (shows "on change").
+: period (number) : Filter period in milliseconds (≥ 0, static or from `msg`, `flow`, `global`). Default 0.
+: periodType (string) : Source of period (`"num"`, `"msg"`, `"flow"`, `"global"`). Default `"num"`.
+
+### Details
+Filters messages based on value changes (deep comparison) and a filter period. When `period = 0`, outputs the input message only if `msg.payload` 
+differs from the last output value. When `period > 0`, outputs the first message, suppresses all messages during the period (including blips), 
+and after the period, outputs only if the value differs from the last output. Supports complex payloads (objects, arrays) via deep comparison. 
+Configuration
+- `msg.context = "period"` Sets period (ms), no output.
+- `msg.context = "status"` Outputs `{ period, periodType }`.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

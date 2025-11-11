@@ -1,0 +1,71 @@
+<script type="text/html" data-template-name="accumulate-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-mode" title="Select accumulation mode"><i class="fa fa-cog"></i> Mode</label>
+        <select id="node-input-mode">
+            <option value="true">Accumulate True</option>
+            <option value="false">Accumulate False</option>
+            <option value="flows">Accumulate Flows</option>
+        </select>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("accumulate-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            mode: { value: "true", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["count"],
+        icon: "font-awesome/fa-sort-numeric-asc",
+        paletteLabel: "accumulate",
+        label: function() {
+            if (this.name) return this.name;
+            const modeLabels = {
+                "true": "true accumulate",
+                "false": "false accumulate", 
+                "flows": "flows accumulate"
+            };
+            return modeLabels[this.mode] || "accumulate";
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="accumulate-block">
+Counts consecutive inputs based on the selected mode, resetting on specific conditions.
+
+### Inputs
+: context (string) : Configuration commands = reset (`"reset"` to clear count).
+: payload (boolean) : For `Accumulate True`, `true` increments count, `false` resets; for `Accumulate False`, `false` increments count, `true` resets; ignored in `Accumulate Flows`.
+
+### Outputs
+: payload (number) : Current count based on mode.
+
+### Details
+Counts inputs according to the selected mode 
+- `Accumulate True` counts consecutive `true` `msg.payload` inputs (reset on `false` or explicit reset)
+- `Accumulate False` counts consecutive `false` `msg.payload` inputs (reset on `true` or explicit reset)
+- `Accumulate Flows` counts all valid input messages (reset only on explicit reset). 
+
+Reset via `msg.context = "reset"` with `msg.payload = true` applies immediately;
+
+Used to track sustained events or message frequency.
+
+### Status
+- Green (dot): Configuration
+- Blue (dot): Output sent
+- Red (ring): Errors
+- Yellow (ring): Unknown context
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

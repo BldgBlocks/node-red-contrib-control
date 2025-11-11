@@ -1,0 +1,76 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="max-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-max" title="Maximum value for capping the input number"><i class="fa fa-arrow-up"></i> Max</label>
+        <input type="text" id="node-input-max" placeholder="50" min="0" step="any">
+        <input type="hidden" id="node-input-maxType">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("max-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            max: { value: 50, required: true },
+            maxType: { value: "num" },
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-arrow-circle-up",
+        paletteLabel: "max",
+        label: function() {
+            return this.name || "max";
+        },
+        oneditprepare: function() {
+            const node = this;
+            
+            // Initialize typed inputs
+            $("#node-input-max").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-maxType"
+            }).typedInput("type", node.maxType || "num").typedInput("value", node.max);
+
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="max-block">
+Caps a numeric input at a configurable maximum value.
+
+### Inputs
+: context (string) : Configures maximum value (`"max"`, `"setpoint"`). Unmatched values trigger warning.
+: payload (number) : Input number to cap or new maximum value with `msg.context`.
+
+### Outputs
+: payload (number) : Input number capped at the maximum value.
+
+### Properties
+: max (number) : Maximum value for capping.
+
+### Details
+Caps `msg.payload` (a number) to the maximum value, forwarding the input message with updated `msg.payload`.
+
+Configurable via editor (`name`, `max`) or `msg.context` (`"max"`, `"setpoint"`) with numeric `msg.payload`.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

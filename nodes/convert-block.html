@@ -1,0 +1,179 @@
+<script type="text/html" data-template-name="convert-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-conversion" title="Select the unit conversion to perform"><i class="fa fa-exchange"></i> Conversion</label>
+        <select id="node-input-conversion">
+            <optgroup label="Temperature">
+                <option value="C to F">C to F (Celsius to Fahrenheit)</option>
+                <option value="F to C">F to C (Fahrenheit to Celsius)</option>
+                <option value="K to C">K to C (Kelvin to Celsius)</option>
+                <option value="C to K">C to K (Celsius to Kelvin)</option>
+                <option value="K to F">K to F (Kelvin to Fahrenheit)</option>
+                <option value="F to K">F to K (Fahrenheit to Kelvin)</option>
+                <option value="R to F">R to F (Rankine to Fahrenheit)</option>
+                <option value="F to R">F to R (Fahrenheit to Rankine)</option>
+            </optgroup>
+            <optgroup label="Math">
+                <option value="decimal to %">Decimal to Percent</option>
+                <option value="% to decimal">Percent to Decimal</option>
+                <option value="rad to deg">Radians to Degrees</option>
+                <option value="deg to rad">Degrees to Radians</option>
+            </optgroup>
+            <optgroup label="Pressure">
+                <option value="Pa to inH₂O">Pa to inH₂O (Pascal to Inches of Water)</option>
+                <option value="inH₂O to Pa">inH₂O to Pa (Inches of Water to Pascal)</option>
+                <option value="Pa to inHg">Pa to inHg (Pascal to Inches of Mercury)</option>
+                <option value="inHg to Pa">inHg to Pa (Inches of Mercury to Pascal)</option>
+                <option value="Pa to bar">Pa to bar (Pascal to Bar)</option>
+                <option value="bar to Pa">bar to Pa (Bar to Pascal)</option>
+                <option value="Pa to psi">Pa to psi (Pascal to PSI)</option>
+                <option value="psi to Pa">psi to Pa (PSI to Pascal)</option>
+            </optgroup>
+            <optgroup label="Length">
+                <option value="m to ft">m to ft (Meters to Feet)</option>
+                <option value="ft to m">ft to m (Feet to Meters)</option>
+                <option value="m to in">m to in (Meters to Inches)</option>
+                <option value="in to m">in to m (Inches to Meters)</option>
+                <option value="mm to in">mm to in (Millimeters to Inches)</option>
+                <option value="in to mm">in to mm (Inches to Millimeters)</option>
+            </optgroup>
+            <optgroup label="Mass & Volume">
+                <option value="kg to lb">kg to lb (Kilograms to Pounds)</option>
+                <option value="lb to kg">lb to kg (Pounds to Kilograms)</option>
+                <option value="L to gal">L to gal (Liters to Gallons)</option>
+                <option value="gal to L">gal to L (Gallons to Liters)</option>
+            </optgroup>
+            <optgroup label="Power & Time">
+                <option value="kW to hp">kW to hp (Kilowatts to Horsepower)</option>
+                <option value="hp to kW">hp to kW (Horsepower to Kilowatts)</option>
+                <option value="s to min">s to min (Seconds to Minutes)</option>
+                <option value="min to s">min to s (Minutes to Seconds)</option>
+            </optgroup>
+        </select>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("convert-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            conversion: { value: "C to F", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["converted output"],
+        icon: "font-awesome/fa-exchange",
+        paletteLabel: "convert",
+        label: function() {
+            return this.name || `Convert (${this.conversion})`;
+        },
+        oneditvalidate: function() {
+        const conversion = $("#node-input-conversion").val();
+        const validConversions = [
+            "F to C", 
+            "C to F", 
+            "K to C",
+            "C to K", 
+            "K to F",
+            "F to K",
+            "R to F",
+            "F to R",
+            "decimal to %", 
+            "% to decimal", 
+            "Pa to inH₂O", 
+            "inH₂O to Pa", 
+            "Pa to inHg", 
+            "inHg to Pa", 
+            "Pa to bar", 
+            "bar to Pa", 
+            "Pa to psi", 
+            "psi to Pa",
+            "m to ft",
+            "ft to m",
+            "m to in",
+            "in to m",
+            "mm to in",
+            "in to mm",
+            "kg to lb",
+            "lb to kg",
+            "L to gal",
+            "gal to L",
+            "kW to hp",
+            "hp to kW",
+            "rad to deg",
+            "deg to rad",
+            "s to min",
+            "min to s"
+        ];
+        return validConversions.includes(conversion);
+    }
+});
+</script>
+
+<script type="text/markdown" data-help-name="convert-block">
+Converts numeric input payload between temperature or pressure units.
+
+### Inputs
+: context (string) : Configures the conversion (`"conversion"`). Unmatched values ignored.
+: payload (number) : Numeric value to convert 
+
+### Outputs
+: payload (number) : Converted value (e.g., °C to °F, Pa to inH₂O).
+
+### Details
+Converts `msg.payload` between units based on the selected conversion.
+
+### validConversions = [
+            "F to C", 
+            "C to F", 
+            "K to C",
+            "C to K", 
+            "K to F",
+            "F to K",
+            "R to F",
+            "F to R",
+            "decimal to %", 
+            "% to decimal", 
+            "Pa to inH₂O", 
+            "inH₂O to Pa", 
+            "Pa to inHg", 
+            "inHg to Pa", 
+            "Pa to bar", 
+            "bar to Pa", 
+            "Pa to psi", 
+            "psi to Pa",
+            "m to ft",
+            "ft to m",
+            "m to in",
+            "in to m",
+            "mm to in",
+            "in to mm",
+            "kg to lb",
+            "lb to kg",
+            "L to gal",
+            "gal to L",
+            "kW to hp",
+            "hp to kW",
+            "rad to deg",
+            "deg to rad",
+            "s to min",
+            "min to s"
+        ];
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

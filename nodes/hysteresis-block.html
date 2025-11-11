@@ -1,0 +1,131 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="hysteresis-block">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-upperLimit"><i class="fa fa-arrow-up"></i> Upper Limit (turn on)</label>
+        <input type="text" id="node-input-upperLimit" placeholder="50">
+        <input type="hidden" id="node-input-upperLimitType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-upperLimitThreshold"><i class="fa fa-arrows-h"></i> Upper Differential (turn off)</label>
+        <input type="text" id="node-input-upperLimitThreshold" placeholder="2">
+        <input type="hidden" id="node-input-upperLimitThresholdType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-lowerLimit"><i class="fa fa-arrow-down"></i> Lower Limit (turn on)</label>
+        <input type="text" id="node-input-lowerLimit" placeholder="30">
+        <input type="hidden" id="node-input-lowerLimitType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-lowerLimitThreshold"><i class="fa fa-arrows-h"></i> Lower Differential (turn off)</label>
+        <input type="text" id="node-input-lowerLimitThreshold" placeholder="2">
+        <input type="hidden" id="node-input-lowerLimitThresholdType">
+    </div>
+</script>
+
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("hysteresis-block", {
+    category: "control",
+    color: "#301934",
+    defaults: {
+        name: { value: "" },
+        upperLimit: { value: 50, required: true },
+        upperLimitType: { value: "num" },
+        lowerLimit: { value: 30, required: true },
+        lowerLimitType: { value: "num" },
+        upperLimitThreshold: { value: 2, required: true },
+        upperLimitThresholdType: { value: "num" },
+        lowerLimitThreshold: { value: 2, required: true },
+        lowerLimitThresholdType: { value: "num" }
+    },
+    inputs: 1,
+    outputs: 3,
+    inputLabels: ["input"],
+    outputLabels: ["above", "within", "below"],
+    icon: "font-awesome/fa-toggle-on",
+    paletteLabel: "hysteresis",
+    label: function() {
+        return this.name || "hysteresis";
+    },
+    oneditprepare: function() {
+        const node = this;
+
+        try {
+            // Initialize typed inputs
+            $("#node-input-upperLimit").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-upperLimitType"
+            }).typedInput("type", node.upperLimitType || "num").typedInput("value", node.upperLimit);
+
+            $("#node-input-lowerLimit").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-lowerLimitType"
+            }).typedInput("type", node.lowerLimitType || "num").typedInput("value", node.lowerLimit);
+
+            $("#node-input-upperLimitThreshold").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-upperLimitThresholdType"
+            }).typedInput("type", node.upperLimitThresholdType || "num").typedInput("value", node.upperLimitThreshold);
+
+            $("#node-input-lowerLimitThreshold").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-lowerLimitThresholdType"
+            }).typedInput("type", node.lowerLimitThresholdType || "num").typedInput("value", node.lowerLimitThreshold);
+
+        } catch (err) {
+            console.error("Error in hysteresis-block oneditprepare:", err);
+        }
+    }
+});
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="hysteresis-block">
+Hysteresis controller with separate turn-on limits and turn-off differentials.
+
+### Inputs
+: payload (number) : Input value to evaluate
+: context (string) : Configure `upperLimit`, `lowerLimit`, `upperLimitThreshold`, `lowerLimitThreshold`
+
+### Outputs
+: above (boolean) : Input > upperLimit
+: within (boolean) : lowerLimit ≤ input ≤ upperLimit  
+: below (boolean) : Input < lowerLimit
+
+### Properties
+: upperLimit (number) : Turn on "above" state when input exceeds this value
+: upperLimitThreshold (number) : Turn off "above" state when input drops below (upperLimit - this value)
+: lowerLimit (number) : Turn on "below" state when input drops below this value  
+: lowerLimitThreshold (number) : Turn off "below" state when input rises above (lowerLimit + this value)
+
+### Hysteresis Behavior
+- **Above**: Turns on at upperLimit, turns off at (upperLimit - upperLimitThreshold)
+- **Below**: Turns on at lowerLimit, turns off at (lowerLimit + lowerLimitThreshold)  
+- **Within**: State between turn-off points
+
+### Example: Temperature Control
+- upperLimit: 75°F (turn on cooling)
+- upperLimitThreshold: 2°F (turn off cooling at 73°F)  
+- lowerLimit: 65°F (turn on heating)
+- lowerLimitThreshold: 2°F (turn off heating at 67°F)
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

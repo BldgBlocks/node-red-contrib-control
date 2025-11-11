@@ -1,0 +1,67 @@
+<script type="text/html" data-template-name="contextual-label-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-contextPropertyName" title="Context property to set (e.g., priority, clear, in1)"><i class="fa fa-key"></i> Context Property</label>
+        <input type="text" id="node-input-contextPropertyName" placeholder="e.g., priority">
+    </div>
+    <div class="form-row">
+        <label for="node-input-removeLabel" title="Remove msg.context instead of setting it"><i class="fa fa-trash"></i> Remove Context</label>
+        <input type="checkbox" id="node-input-removeLabel" style="width: auto; vertical-align: middle;">
+    </div>
+</script>
+
+<script type="text/javascript">
+RED.nodes.registerType("contextual-label-block", {
+    category: "control",
+    color: "#301934",
+    defaults: {
+        name: { value: "" },
+        contextPropertyName: { 
+            value: "in1", 
+            required: true, 
+            validate: function(v) { return v && typeof v === "string" && v.trim().length > 0; } 
+        },
+        removeLabel: { value: false }
+    },
+    inputs: 1,
+    outputs: 1,
+    inputLabels: ["input"],
+    outputLabels: ["output"],
+    icon: "font-awesome/fa-tag",
+    paletteLabel: "contextual label",
+    label: function() {
+        if (this.name) return this.name;
+        return this.removeLabel ? "remove context" : `🛈 ${this.contextPropertyName || "context"}`;
+    },
+    oneditprepare: function() {
+        $("#node-input-removeLabel").prop("checked", this.removeLabel || false);
+    }
+});
+</script>
+
+<script type="text/markdown" data-help-name="contextual-label-block">
+Sets or removes the msg.context property in a message.
+
+### Inputs
+: payload (any) : Input message payload, passed through unchanged.
+
+### Outputs
+: context (string) : Configured context property (e.g., `priority`, `clear`, `in1`) if set, or absent if removed.
+: payload (any) : Original message object with context added or deleted.
+
+### Details
+Either sets `msg.context` to a configured property (e.g., `priority`, `clear`, `in1`) or removes `msg.context` based on the `Remove Context` toggle.
+
+### Status
+- Green (dot): Configuration updates
+- Blue (dot): Outputs when input changes
+- Blue (ring): Outputs when input unchanged
+- Red (ring): Errors
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

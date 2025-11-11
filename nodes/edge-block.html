@@ -1,0 +1,71 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="edge-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-algorithm" title="Transition to detect (true-to-false or false-to-true)"><i class="fa fa-exchange"></i> Algorithm</label>
+        <select id="node-input-algorithm">
+            <option value="true-to-false">True to False</option>
+            <option value="false-to-true">False to True</option>
+        </select>
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("edge-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            algorithm: { value: "true-to-false", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["transition"],
+        icon: "font-awesome/fa-exchange",
+        paletteLabel: "edge",
+        label: function() {
+            return this.name || "edge";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="edge-block">
+Detects configured boolean transitions (true-to-false or false-to-true) in `msg.payload`.
+
+### Inputs
+: payload (boolean) : Boolean to monitor for transitions.
+: context (string) : Action (`"algorithm"` to set transition type, `"reset"` to clear state). Unknown `msg.context` is ignored.
+: payload (string | boolean) : Transition type (`"true-to-false"`, `"false-to-true"`) for `"algorithm"`, true for `"reset"`.
+
+### Outputs
+: payload (boolean) : `true` when the specified transition occurs (true-to-false or false-to-true).
+
+### Properties
+: name (string) : Display name in editor.
+: algorithm (string) : Transition to detect (`"true-to-false"`, `"false-to-true"`).
+
+### Details
+Detects transitions in boolean payloads based on the configured `algorithm`. 
+Outputs `msg.payload` as true only when the specified transition occurs (true-to-false or false-to-true). 
+No output on first input after reset, if no transition occurs, or for non-boolean inputs. 
+Configuration via `msg.context`
+- `"algorithm"` Sets transition type, no output.
+- `"reset"` Clears state, no output.
+
+### Status
+- Green (dot): Configuration
+- Blue (dot): Output, no alarm
+- Red (dot): Output with alarm
+- Red (ring): Errors
+- Yellow (ring): Unknown context
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

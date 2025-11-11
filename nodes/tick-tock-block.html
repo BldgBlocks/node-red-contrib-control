@@ -1,0 +1,66 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="tick-tock-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-period" title="Period in seconds (positive number, e.g., 10)"><i class="fa fa-clock-o"></i> Period</label>
+        <input type="number" id="node-input-period" placeholder="10" min="0.001" step="any">
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("tick-tock-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            period: { value: 10, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0 && isFinite(parseFloat(v)); } }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-wave-square",
+        paletteLabel: "tick tock",
+        label: function() {
+            return this.name || "tick tock";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="tick-tock-block">
+Generates a square wave output toggling between true and false.
+
+### Inputs
+: context (string) : Configures settings (`"period"`, `"command"`). Unmatched values trigger error.
+: payload (number | string) : Numeric value for period, string (`"start"`, `"stop"`) for command.
+
+### Outputs
+: payload (boolean) : Square wave value (`true` or `false`).
+
+### Properties
+: period (number) : Full wave period (seconds, positive).
+
+### Details
+Generates a square wave output toggling between `true` and `false` every half `period` (seconds), started via `msg.context = "command"` with 
+`msg.payload = "start"`. Stops with `"stop"`.
+
+Outputs `msg.payload for each state change when running.
+
+Ignores redundant `start`/`stop` commands.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

@@ -1,15 +1,62 @@
 {
   "name": "node-red-contrib-buildingblocks-control",
-  "version": "0.0.1",
+  "version": "0.1.1",
   "description": "Sedona-inspired control nodes for Node-RED",
-  "main": "index.js",
   "keywords": [ "sedona", "control", "hvac" ],
+  "files": ["nodes/*.js", "nodes/*.html"],
   "node-red": {
-    "nodes": {
-      "sinewave-block": "nodes/sinewave-block.js"
-    }
+      "nodes": {
+        "accumulate-block": "nodes/accumulate-block.js",
+        "add-block": "nodes/add-block.js",
+        "analog-switch-block": "nodes/analog-switch-block.js",
+        "and-block": "nodes/and-block.js",
+        "average-block": "nodes/average-block.js",
+        "boolean-switch-block": "nodes/boolean-switch-block.js",
+        "boolean-to-number-block": "nodes/boolean-to-number-block.js",
+        "cache-block": "nodes/cache-block.js",
+        "call-status-block": "nodes/call-status-block.js",
+        "changeover-block": "nodes/changeover-block.js",
+        "comment-block": "nodes/comment-block.js",
+        "compare-block": "nodes/compare-block.js",
+        "contextual-label-block": "nodes/contextual-label-block.js",
+        "convert-block": "nodes/convert-block.js",
+        "count-block": "nodes/count-block.js",
+        "debounce-block": "nodes/debounce-block.js",
+        "delay-block": "nodes/delay-block.js",
+        "divide-block": "nodes/divide-block.js",
+        "edge-block": "nodes/edge-block.js",
+        "frequency-block": "nodes/frequency-block.js",
+        "hysteresis-block": "nodes/hysteresis-block.js",
+        "interpolate-block": "nodes/interpolate-block.js",
+        "load-sequence-block": "nodes/load-sequence-block.js",
+        "max-block": "nodes/max-block.js",
+        "memory-block": "nodes/memory-block.js",
+        "min-block": "nodes/min-block.js",
+        "minmax-block": "nodes/minmax-block.js",
+        "modulo-block": "nodes/modulo-block.js",
+        "multiply-block": "nodes/multiply-block.js",
+        "negate-block": "nodes/negate-block.js",
+        "nullify-block": "nodes/nullify-block.js",
+        "on-change-block": "nodes/on-change-block.js",
+        "oneshot-block": "nodes/oneshot-block.js",
+        "or-block": "nodes/or-block.js",
+        "pid-block": "nodes/pid-block.js",
+        "priority-block": "nodes/priority-block.js",
+        "rate-limit-block": "nodes/rate-limit-block.js",
+        "round-block": "nodes/round-block.js",
+        "saw-tooth-wave-block": "nodes/saw-tooth-wave-block.js",
+        "scale-range-block": "nodes/scale-range-block.js",
+        "sine-wave-block": "nodes/sine-wave-block.js",
+        "subtract-block": "nodes/subtract-block.js",
+        "thermistor-block": "nodes/thermistor-block.js",
+        "tick-tock-block": "nodes/tick-tock-block.js",
+        "time-sequence-block": "nodes/time-sequence-block.js",
+        "triangle-wave-block": "nodes/triangle-wave-block.js",
+        "tstat-block": "nodes/tstat-block.js",
+        "units-block": "nodes/units-block.js"
+      }
   },
-  "author": "BuildingBlocks",
+  "author": "buildingblocks",
   "license": "MIT",  
   "repository": {
     "type": "git",
@@ -18,5 +65,5 @@
   "homepage": "https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control#readme",
   "bugs": {
     "url": "https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control/issues"
-  },
+  }
 }

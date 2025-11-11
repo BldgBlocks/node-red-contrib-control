@@ -1,0 +1,134 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="load-sequence-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-enable" title="Enable sequencing (boolean)"><i class="fa fa-power-off"></i> Enable</label>
+        <input type="checkbox" id="node-input-enable" style="width: auto; vertical-align: middle;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-hysteresis" title="Hysteresis for threshold switching (non-negative number)"><i class="fa fa-exchange"></i> Hysteresis</label>
+        <input type="number" id="node-input-hysteresis" placeholder="0.5" min="0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-threshold1" title="Threshold for load 1 (number)"><i class="fa fa-arrow-up"></i> Threshold 1</label>
+        <input type="number" id="node-input-threshold1" placeholder="10.0" min="0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-threshold2" title="Threshold for load 2 (number, > threshold1)"><i class="fa fa-arrow-up"></i> Threshold 2</label>
+        <input type="number" id="node-input-threshold2" placeholder="20.0" min="0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-threshold3" title="Threshold for load 3 (number, > threshold2)"><i class="fa fa-arrow-up"></i> Threshold 3</label>
+        <input type="number" id="node-input-threshold3" placeholder="30.0" min="0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-threshold4" title="Threshold for load 4 (number, > threshold3)"><i class="fa fa-arrow-up"></i> Threshold 4</label>
+        <input type="number" id="node-input-threshold4" placeholder="40.0" min="0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-feedback1" title="Feedback for load 1 (boolean)"><i class="fa fa-refresh"></i> Feedback 1</label>
+        <input type="checkbox" id="node-input-feedback1" style="width: auto; vertical-align: middle;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-feedback2" title="Feedback for load 2 (boolean)"><i class="fa fa-refresh"></i> Feedback 2</label>
+        <input type="checkbox" id="node-input-feedback2" style="width: auto; vertical-align: middle;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-feedback3" title="Feedback for load 3 (boolean)"><i class="fa fa-refresh"></i> Feedback 3</label>
+        <input type="checkbox" id="node-input-feedback3" style="width: auto; vertical-align: middle;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-feedback4" title="Feedback for load 4 (boolean)"><i class="fa fa-refresh"></i> Feedback 4</label>
+        <input type="checkbox" id="node-input-feedback4" style="width: auto; vertical-align: middle;">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("load-sequence-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            enable: { value: true },
+            hysteresis: { value: 0.5, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            threshold1: { value: 10.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            threshold2: { value: 20.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            threshold3: { value: 30.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            threshold4: { value: 40.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            feedback1: { value: true },
+            feedback2: { value: true },
+            feedback3: { value: true },
+            feedback4: { value: true }
+        },
+        inputs: 1,
+        outputs: 4,
+        inputLabels: ["input"],
+        outputLabels: ["load1", "load2", "load3", "load4"],
+        icon: "font-awesome/fa-list-ol",
+        paletteLabel: "load sequence",
+        label: function() {
+            return this.name || "load sequence";
+        },
+        oneditprepare: function() {
+            const node = this;
+            $("#node-input-enable").prop("checked", node.enable !== false);
+            $("#node-input-feedback1").prop("checked", node.feedback1 !== false);
+            $("#node-input-feedback2").prop("checked", node.feedback2 !== false);
+            $("#node-input-feedback3").prop("checked", node.feedback3 !== false);
+            $("#node-input-feedback4").prop("checked", node.feedback4 !== false);
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="load-sequence-block">
+Sequences four boolean outputs based on input thresholds with feedback and hysteresis.
+
+### Inputs
+: context (string) : Configures settings (`"enable"`, `"hysteresis"`, `"threshold1-4"`, `"feedback1-4"`). Unmatched values trigger error.
+: payload (number | string | boolean) : Number for input, `"kill"` to shut down, boolean for `enable`/`feedback1-4`, number for `hysteresis`/`threshold1-4`.
+
+### Outputs
+: load1 (boolean) : `true` when active, else `false` or `null`.
+: load2 (boolean) : `true` when active, else `false` or `null`.
+: load3 (boolean) : `true` when active, else `false` or `null`.
+: load4 (boolean) : `true` when active, else `false` or `null`.
+
+### Properties
+: name (string) : Display name in editor.
+: enable (boolean) : Enables sequencing.
+: hysteresis (number) : Hysteresis for threshold switching (≥ 0).
+: threshold1 (number) : Threshold for load 1 (≥ 0).
+: threshold2 (number) : Threshold for load 2 (≥ 0, > threshold1).
+: threshold3 (number) : Threshold for load 3 (≥ 0, > threshold2).
+: threshold4 (number) : Threshold for load 4 (≥ 0, > threshold3).
+: feedback1 (boolean) : Feedback for load 1.
+: feedback2 (boolean) : Feedback for load 2.
+: feedback3 (boolean) : Feedback for load 3.
+: feedback4 (boolean) : Feedback for load 4.
+
+### Details
+Sequences four boolean outputs (`load1` to `load4`) based on `msg.payload` (number) crossing `threshold1` to `threshold4` with `hysteresis` 
+and `feedback1-4`. Outputs turn on when input exceeds a threshold and prior feedback is `true` (e.g., `load2` requires `feedback1`). 
+
+Outputs turn off when input falls below `thresholdX - hysteresis` and higher-stage feedback allows. Configurable via editor or `msg.context`. 
+
+`msg.payload = "kill"` shuts down all outputs. `enable = false` disables outputs sequentially (highest to lowest). 
+
+Tracks active stages (`dOn`). Outputs new messages only when a state changes, sending a single non-null message for the lowest stage that changed. 
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

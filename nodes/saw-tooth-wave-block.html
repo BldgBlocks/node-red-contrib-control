@@ -1,0 +1,87 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="saw-tooth-wave-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-lowerLimit" title="Minimum output value"><i class="fa fa-arrow-down"></i> Lower Limit</label>
+        <input type="number" id="node-input-lowerLimit" placeholder="0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-upperLimit" title="Maximum output value (≥ lowerLimit)"><i class="fa fa-arrow-up"></i> Upper Limit</label>
+        <input type="number" id="node-input-upperLimit" placeholder="100" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-period" title="Wave period (positive number, e.g., 10)"><i class="fa fa-clock-o"></i> Period</label>
+        <input type="number" id="node-input-period" placeholder="10" min="0.001" step="any">
+        <select id="node-input-periodUnits">
+            <option value="milliseconds">Milliseconds</option>
+            <option value="seconds">Seconds</option>
+            <option value="minutes">Minutes</option>
+        </select>
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("saw-tooth-wave-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            lowerLimit: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            upperLimit: { value: 100, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
+            period: { value: 10, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0 && isFinite(parseFloat(v)); } },
+            periodUnits: { value: "seconds" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-wave-square",
+        paletteLabel: "saw tooth wave",
+        label: function() {
+            return this.name || "saw tooth wave";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="saw-tooth-wave-block">
+Generates a sawtooth wave output scaled to a configurable range.
+
+### Inputs
+: context (string) : Configures settings (`"lowerLimit"`, `"upperLimit"`, `"period"`). Unmatched values trigger error.
+: payload (number) : Config value for lowerLimit, upperLimit, or period.
+: units (string, optional) : Units for period.
+: Any input triggers wave output.
+
+### Outputs
+: payload (number) : Sawtooth wave value scaled between lowerLimit and upperLimit.
+
+### Properties
+: name (string) : Display name in editor.
+: lowerLimit (number) : Minimum output value.
+: upperLimit (number) : Maximum output value (≥ lowerLimit).
+: period (number) : Wave period (positive, in periodUnits).
+: periodUnits (string) : Units for period (`"milliseconds"`, `"seconds"`, `"minutes"`).
+
+### Details
+Generates a sawtooth wave output, linearly rising from `lowerLimit` to `upperLimit` over `period`, then dropping sharply, triggered by any input. 
+
+Tracks phase (0 to 1) for continuity. Configurable via editor or `msg.context` with numeric `msg.payload` and optional `msg.units`. 
+
+Ensures `upperLimit ≥ lowerLimit` by adjusting limits. Outputs `msg.payload` with wave value; if `period ≤ 0`, outputs `lowerLimit`.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

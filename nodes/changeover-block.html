@@ -1,0 +1,234 @@
+<script type="text/html" data-template-name="changeover-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-algorithm" title="Control algorithm type"><i class="fa fa-cog"></i> Algorithm</label>
+        <select id="node-input-algorithm">
+            <option value="single">Single Setpoint</option>
+            <option value="split">Split Setpoints</option>
+        </select>
+    </div>
+    <div class="form-row single-only">
+        <label for="node-input-setpoint" title="Target temperature setpoint (number from num, msg, flow, or global)"><i class="fa fa-thermometer-half"></i> Setpoint</label>
+        <input type="text" id="node-input-setpoint" class="node-input-typed" placeholder="70">
+        <input type="hidden" id="node-input-setpointType">
+    </div>
+    <div class="form-row single-only">
+        <label for="node-input-deadband" title="Temperature range for no action (positive number)"><i class="fa fa-arrows-v"></i> Deadband</label>
+        <input type="text" id="node-input-deadband" placeholder="2">
+    </div>
+    <div class="form-row split-only" style="display: none;">
+        <label for="node-input-heatingSetpoint" title="Heating setpoint for split algorithm (number from num, msg, flow, or global)"><i class="fa fa-thermometer-empty"></i> Heating Setpoint</label>
+        <input type="text" id="node-input-heatingSetpoint" class="node-input-typed" placeholder="68">
+        <input type="hidden" id="node-input-heatingSetpointType">
+    </div>
+    <div class="form-row split-only" style="display: none;">
+        <label for="node-input-coolingSetpoint" title="Cooling setpoint for split algorithm (number from num, msg, flow, or global)"><i class="fa fa-thermometer-full"></i> Cooling Setpoint</label>
+        <input type="text" id="node-input-coolingSetpoint" class="node-input-typed" placeholder="74">
+        <input type="hidden" id="node-input-coolingSetpointType">
+    </div>
+    <div class="form-row split-only" style="display: none;">
+        <div id="split-setpoint-warning" style="color: red; display: none; margin-top: 5px;">
+            Cooling setpoint must be greater than heating setpoint
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-extent" title="Extra buffer mode switching thresholds (non-negative number)"><i class="fa fa-tachometer"></i> Extent</label>
+        <input type="text" id="node-input-extent" placeholder="1">
+    </div>
+    <div class="form-row">
+        <label for="node-input-swapTime" title="Minimum time before mode change (seconds, minimum 60, from num, msg, flow, or global)"><i class="fa fa-clock-o"></i> Swap Time</label>
+        <input type="text" id="node-input-swapTime" class="node-input-typed" placeholder="300">
+        <input type="hidden" id="node-input-swapTimeType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-minTempSetpoint" title="Minimum allowable setpoint"><i class="fa fa-thermometer-empty"></i> Min Setpoint</label>
+        <input type="text" id="node-input-minTempSetpoint" placeholder="55">
+        <input type="hidden" id="node-input-minTempSetpointType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-maxTempSetpoint" title="Maximum allowable setpoint"><i class="fa fa-thermometer-full"></i> Max Setpoint</label>
+        <input type="text" id="node-input-maxTempSetpoint" placeholder="90">
+        <input type="hidden" id="node-input-maxTempSetpointType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-initWindow" title="Initialization window to collect inputs before mode selection (seconds, non-negative number)"><i class="fa fa-hourglass-start"></i> Init Window</label>
+        <input type="text" id="node-input-initWindow" placeholder="10">
+    </div>
+    <div class="form-row">
+        <label for="node-input-operationMode" title="Operation mode"><i class="fa fa-cogs"></i> Operation Mode</label>
+        <select id="node-input-operationMode">
+            <option value="auto">Auto</option>
+            <option value="heat">Heat</option>
+            <option value="cool">Cool</option>
+        </select>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("changeover-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            algorithm: { value: "single" },
+            setpoint: { value: "70" },
+            setpointType: { value: "num" },
+            deadband: { value: "2" },
+            heatingSetpoint: { value: "68" },
+            heatingSetpointType: { value: "num" },
+            coolingSetpoint: { value: "74" },
+            coolingSetpointType: { value: "num" },
+            extent: { value: "1" },
+            swapTime: { value: "300" },
+            swapTimeType: { value: "num" },
+            minTempSetpoint: { value: "55" },
+            minTempSetpointType: { value: "num"},
+            maxTempSetpoint: { value: "90" },
+            maxTempSetpointType: { value: "num"},
+            initWindow: { value: "10" },
+            operationMode: { value: "auto" }
+        },
+        inputs: 1,
+        outputs: 2,
+        inputLabels: ["temperature"],
+        outputLabels: ["isHeating", "status"],
+        icon: "font-awesome/fa-retweet",
+        paletteLabel: "changeover",
+        label: function() {
+            return this.name || "changeover";
+        },
+        oneditprepare: function() {
+            const node = this;
+            const $algorithm = $("#node-input-algorithm");
+            const $singleFields = $(".single-only");
+            const $splitFields = $(".split-only");
+
+            try {
+                // Initialize typed inputs
+                $("#node-input-setpoint").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-setpointType"
+                }).typedInput("type", node.setpointType || "num").typedInput("value", node.setpoint);
+
+                $("#node-input-heatingSetpoint").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-heatingSetpointType"
+                }).typedInput("type", node.heatingSetpointType || "num").typedInput("value", node.heatingSetpoint);
+
+                $("#node-input-coolingSetpoint").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-coolingSetpointType"
+                }).typedInput("type", node.coolingSetpointType || "num").typedInput("value", node.coolingSetpoint);
+
+                $("#node-input-swapTime").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-swapTimeType"
+                }).typedInput("type", node.swapTimeType || "num").typedInput("value", node.swapTime);
+
+                $("#node-input-minTempSetpoint").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-minTempSetpointType"
+                }).typedInput("type", node.minTempSetpointType || "num").typedInput("value", node.minTempSetpoint);
+
+                $("#node-input-maxTempSetpoint").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-maxTempSetpointType"
+                }).typedInput("type", node.maxTempSetpointType || "num").typedInput("value", node.maxTempSetpoint);
+
+                // Toggle fields based on algorithm
+                function toggleFields() {
+                    if ($algorithm.val() === "single") {
+                        $singleFields.show();
+                        $splitFields.hide();
+                        $("#split-setpoint-warning").hide();
+                    } else {
+                        $singleFields.hide();
+                        $splitFields.show();
+                    }
+                }
+
+                $algorithm.on("change", toggleFields);
+                toggleFields();
+
+                // Validate non-typed inputs
+                $("#node-input-deadband").on("input", function() {
+                    const val = parseFloat($(this).val());
+                    $(this).toggleClass("input-error", isNaN(val) || val <= 0);
+                });
+
+                $("#node-input-extent").on("input", function() {
+                    const val = parseFloat($(this).val());
+                    $(this).toggleClass("input-error", isNaN(val) || val < 0);
+                });
+
+                $("#node-input-initWindow").on("input", function() {
+                    const val = parseFloat($(this).val());
+                    $(this).toggleClass("input-error", isNaN(val) || val < 0);
+                });
+                
+            } catch (err) {
+                console.error("Error in changeover-block oneditprepare:", err);
+            }
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="changeover-block">
+Manages HVAC mode switching between heating and cooling based on temperature inputs and setpoint configurations.
+
+### Inputs
+: context (string) : Configuration commands - (`"operationMode"`, `"algorithm"`, `"setpoint"`, `"deadband"`, `"heatingSetpoint"`, `"coolingSetpoint"`, `"extent"`, `"swapTime"`, `"minTempSetpoint"`, `"maxTempSetpoint"`, `"initWindow"`). Unknown values trigger a warning.
+: payload (number | string) : Temperature for mode evaluation; configuration value with `msg.context`.
+
+### Outputs
+: isHeating (boolean) : `true` for heating, `false` for cooling, with `msg.context = "isHeating"`.
+: status (object) : `{ mode, isHeating, heatingSetpoint, coolingSetpoint, temperature }`.
+
+### Algorithms
+The node supports two algorithms for determining HVAC mode
+
+- **Single Setpoint**
+  - Uses a single `setpoint`, `deadband`, and `extent`.
+  - **Heating** is triggered if the input temperature is below `setpoint - deadband/2 - extent`.
+  - **Cooling** is triggered if the temperature exceeds `setpoint + deadband/2 + extent`.
+  - Example With `setpoint=70`, `deadband=2`, `extent=1`, heating starts below `70 - 2/2 - 1 = 68`, and cooling starts above `70 + 2/2 + 1 = 72`.
+  - The `extent` widens thresholds to prevent nuisance mode changes due to overshoot.
+
+- **Split Setpoint**
+  - Uses separate `heatingSetpoint`, `coolingSetpoint`, and `extent`.
+  - **Heating** is triggered if the temperature is below `heatingSetpoint - extent`.
+  - **Cooling** is triggered if the temperature exceeds `coolingSetpoint + extent`.
+  - Example With `heatingSetpoint=68`, `coolingSetpoint=74`, `extent=1`, heating starts below `68 - 1 = 67`, and cooling starts above `74 + 1 = 75`.
+  - Ensures `coolingSetpoint >= heatingSetpoint` to avoid overlap.
+
+### Details
+Controls HVAC mode (heating or cooling) based on `msg.payload` temperature compared to setpoints. 
+Utilizes a delay on startup for sensor normalization and caches the last temperature to make an immediate decision after the `initWindow` period.
+
+- In **auto** mode, the node switches modes based on the algorithm thresholds, requiring the condition to persist for `swapTime` seconds (minimum 60s). A countdown is shown (e.g., `pending cooling in 120s`).
+- In **heat** or **cool** mode, the node locks to heating or cooling, respectively, ignoring temperature inputs.
+- The `extent` widens switching thresholds to prevent unnecessary mode changes while allowing sharing of `deadband` with global variables and other nodes.
+- Configuration options can be set via the editor or `msg.context`
+- Effective setpoints (`effectiveHeatingThreshold`, `effectiveCoolingThreshold`) are always displayed in "Effective Setpoints" for both new and active nodes, 
+showing the calculated mode-switching thresholds.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

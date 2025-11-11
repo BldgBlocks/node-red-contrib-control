@@ -1,0 +1,59 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="boolean-switch-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("boolean-switch-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" }
+        },
+        inputs: 1,
+        outputs: 3,
+        inputLabels: ["control"],
+        outputLabels: ["outTrue", "outFalse", "outControl"],
+        icon: "font-awesome/fa-toggle-on",
+        paletteLabel: "boolean switch",
+        label: function() {
+            return this.name || "boolean switch";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="boolean-switch-block">
+Routes input flows to one of three outputs based on a boolean switch state.
+
+### Inputs
+: context (string) : Configuration commands (`toggle`, `switch`, `inTrue`, `inFalse`).
+: payload (any) : Flow data for `"inTrue"` or `"inFalse"`.
+
+### Outputs
+: outTrue (msg) : Receives `msg` with `context "inTrue"` when switch is `true`.
+: outFalse (msg) : Receives `msg` with `context "inFalse"` when switch is `false`.
+: outControl (msg) : `msg.payload` set to switch state on toggle.
+
+### Details
+Routes input messages to one of three outputs based on a boolean switch state (`true` or `false`).
+
+Messages with `msg.context = "inTrue"` are sent to `outTrue` when `state = true`, and messages with `msg.context = "inFalse"` are sent to `outFalse` when `state = false`.
+
+State can be controlled directly with the `"switch"` property given a `msg.payload` boolean value.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

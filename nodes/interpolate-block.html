@@ -1,0 +1,74 @@
+<script type="text/html" data-template-name="interpolate-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-points" title="Default points table for interpolation (array of {x, y} objects, ≥2 points)"><i class="fa fa-table"></i> Points</label>
+        <textarea id="node-input-points" placeholder='[{"x": 0, "y": 0}, {"x": 100, "y": 100}]' style="height: 100px;"></textarea>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("interpolate-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            points: {
+                value: JSON.stringify([{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2),
+                required: true,
+                validate: function(v) {
+                    try {
+                        const points = JSON.parse(v);
+                        return Array.isArray(points) && points.length >= 2 &&
+                               points.every(p => typeof p.x === "number" && !isNaN(p.x) &&
+                                                 typeof p.y === "number" && !isNaN(p.y));
+                    } catch (e) {
+                        return false;
+                    }
+                }
+            }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-line-chart",
+        paletteLabel: "interpolate",
+        label: function() {
+            return this.name ? `${this.name} (${this.points ? JSON.parse(this.points).length : 2})` : `interpolate (${this.points ? JSON.parse(this.points).length : 2})`;
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="interpolate-block">
+Linearly interpolates a numeric input using a configurable points table.
+
+### Inputs
+: context (string) : Configures points table (`"points"`).
+: payload (number | array) : Number for interpolation, or array of `{x, y}` objects for points configuration.
+
+### Outputs
+: payload (number) : Interpolated output value.
+
+### Details
+Interpolates a numeric `msg.payload` using a table of `{x, y}` points. 
+
+Points are set via editor or `msg.context = "points"` with an array of ≥2 `{x, y}` objects (x and y as numbers). 
+
+Outputs only when the interpolated value changes. 
+
+Input must be within the x-range of points; out-of-range inputs are rejected. 
+
+### Status
+- Green (dot): Configuration
+- Blue (dot): Output, no alarm
+- Red (dot): Output with alarm
+- Red (ring): Errors
+- Yellow (ring): Unknown context
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

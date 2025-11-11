@@ -1,0 +1,59 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="boolean-to-number-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-nullToZero"><i class="fa fa-cog"></i> Null Mapping</label>
+        <input type="checkbox" id="node-input-nullToZero" style="width: auto; margin-left: 10px;"> Map null to 0
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("boolean-to-number-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            nullToZero: { value: false }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-calculator",
+        paletteLabel: "boolean to number",
+        label: function() {
+            return this.name || "boolean to number";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="boolean-to-number-block">
+Converts a boolean or null input payload to a numeric output.
+
+### Inputs
+: payload (boolean | null) : Value to convert (`true`, `false`, `null`).
+
+### Outputs
+: payload (number) : Converted value `null` to `0` (if `nullToZero`) or `-1`, `false` to `0`, `true` to `1`.
+
+### Details
+Converts `msg.payload` (boolean or null) to a number `null` maps to `0` (if `nullToZero` is `true`) or `-1` (if `false`), `false` to `0`, `true` to `1`. 
+
+Passthrough all other input message properties
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

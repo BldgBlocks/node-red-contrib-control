@@ -1,0 +1,57 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="count-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("count-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["count"],
+        icon: "font-awesome/fa-tally",
+        paletteLabel: "count",
+        label: function() {
+            return this.name || "count";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="count-block">
+Counts boolean rising edges in the input.
+
+### Inputs
+: context (string) : Resets count (`"reset"`). Unmatched values trigger error.
+: payload (boolean) : Input boolean to detect rising edges.
+
+### Outputs
+: payload (number) : Current count of rising edges.
+
+### Properties
+: name (string) : Display name in editor.
+
+### Details
+Counts rising edges (false-to-true transitions) in `msg.payload` (boolean), incrementing the count on each transition. 
+Resets count to 0 via `msg.context = "reset"` with `msg.payload = true`. 
+
+### Status
+- Green (dot): Configuration
+- Blue (dot): Output, no alarm
+- Red (dot): Output with alarm
+- Red (ring): Errors
+- Yellow (ring): Unknown context
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

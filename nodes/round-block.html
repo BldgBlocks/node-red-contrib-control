@@ -1,0 +1,73 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="round-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-precision" title="Rounding precision (0.1 for tenths, 0.5 for halves, 1.0 for whole numbers)"><i class="fa fa-ruler"></i> Precision</label>
+        <select id="node-input-precision">
+            <option value="0.1">0.1 (tenths)</option>
+            <option value="0.5">0.5 (halves)</option>
+            <option value="1.0">1.0 (whole)</option>
+        </select>
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("round-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            precision: { value: "1.0", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["rounded"],
+        icon: "font-awesome/fa-circle-o-notch",
+        paletteLabel: "round",
+        label: function() {
+            return this.name || "";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="round-block">
+Rounds a float in `msg.payload` to the nearest configurable precision (tenth, half, or whole number).
+
+### Inputs
+: payload (number) : Float to round.
+: context (string, optional) : Action (`"precision"` to set precision). Unknown `msg.context` values are ignored.
+: payload (string, for `"precision"`) : Precision value (`"0.1"`, `"0.5"`, `"1.0"`).
+
+### Outputs
+: msg : Original message with `msg.payload` rounded to configured precision.
+
+### Properties
+: name (string) : Display name in editor.
+: precision (string) : Rounding precision (`"0.1"`, `"0.5"`, `"1.0"`).
+
+### Details
+Rounds a float in `msg.payload` to the nearest tenth (0.1), half (0.5), or whole number (1.0), set via editor or `msg.context = "precision"`. 
+
+Operates as a passthrough node, modifying `msg.payload` and forwarding the original message. 
+
+If `msg.payload` is not a finite number, the message is passed unchanged. 
+
+Unknown `msg.context` values are ignored.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

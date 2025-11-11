@@ -1,0 +1,81 @@
+<script type="text/html" data-template-name="thermistor-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-R_fixed" title="Fixed resistor value in ohms for thermistor circuit"><i class="fa fa-wrench"></i> R_fixed (ohms)</label>
+        <input type="number" id="node-input-R_fixed" placeholder="23500" min="0.01" step="0.001">
+    </div>
+    <div class="form-row">
+        <label for="node-input-Vsupply" title="Supply voltage in volts for the thermistor circuit"><i class="fa fa-bolt"></i> Vsupply (volts)</label>
+        <input type="number" id="node-input-Vsupply" placeholder="5.08" min="0.01" step="0.001">
+    </div>
+    <div class="form-row">
+        <label for="node-input-Vref" title="Reference voltage in volts for ADC conversion"><i class="fa fa-bolt"></i> Vref (volts)</label>
+        <input type="number" id="node-input-Vref" placeholder="4.096" min="0.01" step="0.001">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ADC_max" title="Maximum ADC value for raw data conversion"><i class="fa fa-microchip"></i> ADC_max</label>
+        <input type="number" id="node-input-ADC_max" placeholder="32768" min="1" step="1">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("thermistor-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            R_fixed: { value: 23500, required: true, validate: function(v) { return Number(v) > 0; } },
+            Vsupply: { value: 5.08, required: true, validate: function(v) { return Number(v) > 0; } },
+            Vref: { value: 4.096, required: true, validate: function(v) { return Number(v) > 0; } },
+            ADC_max: { value: 32768, required: true, validate: function(v) { return Number(v) > 0; } }
+        },
+        inputs: 1,
+        outputs: 2,
+        inputLabels: ["raw data"],
+        outputLabels: ["voltage", "resistance"],
+        icon: "font-awesome/fa-thermometer",
+        paletteLabel: "thermistor",
+        label: function() {
+            return this.name || "thermistor";
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="thermistor-block">
+Converts a 16-bit raw sensor value into voltage and thermistor resistance.
+
+### Inputs
+: payload (array | buffer | object) : Two-byte array `[highByte, lowByte]`, 2-byte buffer, or object `type "Buffer", data [highByte, lowByte]` representing a 16-bit raw value.
+
+### Outputs
+: payload (number) : Output 1 -> Calculated voltage in volts.
+: payload (number) : Output 2 -> Calculated thermistor resistance in ohms.
+
+### Details
+Converts raw ADC data from a thermistor circuit into voltage and resistance. Calculates
+- Voltage: `(raw * Vref) / ADC_max`, where `raw = (highByte << 8) | lowByte`.
+- Resistance: `R_fixed * (voltage / (Vsupply - voltage))`.
+
+Configuration (set in editor, no runtime changes):
+: R_fixed (number) : Fixed resistor value in ohms
+: Vsupply (number) : Supply voltage in volts
+: Vref (number) : Reference voltage in volts for ADC conversion
+: ADC_max (number) : Maximum ADC value
+: name (string) : Optional display name.
+
+Outputs new messages for both outputs when values change. Stores `lastVoltage` and `lastResistance` in context for persistence.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

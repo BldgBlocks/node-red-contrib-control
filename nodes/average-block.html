@@ -1,0 +1,97 @@
+<script type="text/html" data-template-name="average-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-sampleSize" title="Rolling window size (positive integer, e.g., 10)"><i class="fa fa-list-ol"></i> Window Size</label>
+        <input type="number" id="node-input-sampleSize" placeholder="10" min="1" step="1">
+    </div>
+    <div class="form-row">
+        <label for="node-input-minValid"><i class="fa fa-arrow-down"></i> Minimum Valid</label>
+        <input type="text" id="node-input-minValid" placeholder="150">
+        <input type="hidden" id="node-input-minValidType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-maxValid"><i class="fa fa-arrow-up"></i> Maximum Valid</label>
+        <input type="text" id="node-input-maxValid" placeholder="1">
+        <input type="hidden" id="node-input-maxValidType">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("average-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            sampleSize: {
+                value: 10,
+                required: true,
+                validate: function(v) { return !isNaN(parseInt(v)) && parseInt(v) >= 1; }
+            },
+            minValid: { value: 1, required: true },
+            minValidType: { value: "num" },
+            maxValid: { value: 150, required: true },
+            maxValidType: { value: "num" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["average"],
+        icon: "join.svg",
+        paletteLabel: "average",
+        label: function() {
+            return this.name ? `${this.name} (${this.sampleSize})` : `average (${this.sampleSize})`;
+        },
+        oneditprepare: function() {
+            const node = this;
+
+            try {
+                // Initialize typed inputs
+                $("#node-input-minValid").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-minValidType"
+                }).typedInput("type", node.minValidType || "num").typedInput("value", node.minValid || "1");
+
+                $("#node-input-maxValid").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-maxValidType"
+                }).typedInput("type", node.maxValidType || "num").typedInput("value", node.maxValid || "150");
+            } catch (err) {
+                console.error("Error in hysteresis-block oneditprepare:", err);
+            }
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="average-block">
+Computes a rolling average of numeric inputs within a valid range.
+
+### Inputs
+: context (string) : Configures reset (`"reset"`) or window size (`"sampleSize"`).
+: payload (number | boolean) : Number for averaging, boolean for reset.
+: minValid (number) : Minimum valid range for payload input.
+: maxValid (number) : Maximum valid range for payload input.
+
+### Outputs
+: payload (number | null) : Rolling average, or `null` if no valid inputs.
+
+### Details
+Averages numeric `msg.payload` values over a rolling window (default: 10).
+
+Resets state (`sum`, `count`) via `msg.context = "reset"` with `msg.payload = true`.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

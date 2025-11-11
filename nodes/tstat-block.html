@@ -1,0 +1,311 @@
+<script type="text/html" data-template-name="tstat-block">
+    <style>
+        .input-error {
+            border: 2px solid red !important;
+            background-color: #ffe6e6 !important;
+        }
+    </style>
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-algorithm" title="Algorithm: single setpoint with diff, split setpoints, or specified setpoints"><i class="fa fa-cog"></i> Algorithm</label>
+        <select id="node-input-algorithm">
+            <option value="single">Single Setpoint</option>
+            <option value="split">Split Setpoint</option>
+            <option value="specified">Specified Setpoint</option>
+        </select>
+    </div>
+    <div class="form-row single-setpoint">
+        <label for="node-input-setpoint" title="Target temperature setpoint (number from num, msg, flow, or global)"><i class="fa fa-crosshairs"></i> Setpoint</label>
+        <input type="text" id="node-input-setpoint" laceholder="70">
+        <input type="hidden" id="node-input-setpointType">
+    </div>
+    <div class="form-row split-setpoint" style="display: none;">
+        <label for="node-input-heatingSetpoint" title="Target temperature for heating (number from num, msg, flow, or global)"><i class="fa fa-crosshairs"></i> Heating Setpoint</label>
+        <input type="text" id="node-input-heatingSetpoint" placeholder="68">
+        <input type="hidden" id="node-input-heatingSetpointType">
+    </div>
+    <div class="form-row split-setpoint" style="display: none;">
+        <label for="node-input-coolingSetpoint" title="Target temperature for cooling (number from num, msg, flow, or global)"><i class="fa fa-crosshairs"></i> Cooling Setpoint</label>
+        <input type="text" id="node-input-coolingSetpoint" placeholder="74">
+        <input type="hidden" id="node-input-coolingSetpointType">
+    </div>
+    <div class="form-row split-setpoint" style="display: none;">
+        <div id="split-setpoint-warning" style="color: red; display: none; margin-top: 5px;">
+            Cooling setpoint must be greater than heating setpoint
+        </div>
+    </div>
+    <div class="form-row specified-setpoint" style="display: none;">
+        <label for="node-input-coolingOn" title="Temperature to turn cooling on (number from num, msg, flow, or global)"><i class="fa fa-snowflake-o"></i> Cooling On</label>
+        <input type="text" id="node-input-coolingOn" placeholder="74">
+        <input type="hidden" id="node-input-coolingOnType">
+    </div>
+    <div class="form-row specified-setpoint" style="display: none;">
+        <label for="node-input-coolingOff" title="Temperature to turn cooling off (number from num, msg, flow, or global)"><i class="fa fa-snowflake-o"></i> Cooling Off</label>
+        <input type="text" id="node-input-coolingOff" placeholder="72">
+        <input type="hidden" id="node-input-coolingOffType">
+    </div>
+    <div class="form-row specified-setpoint" style="display: none;">
+        <label for="node-input-heatingOff" title="Temperature to turn heating off (number from num, msg, flow, or global)"><i class="fa fa-fire"></i> Heating Off</label>
+        <input type="text" id="node-input-heatingOff" placeholder="68">
+        <input type="hidden" id="node-input-heatingOffType">
+    </div>
+    <div class="form-row specified-setpoint" style="display: none;">
+        <label for="node-input-heatingOn" title="Temperature to turn heating on (number from num, msg, flow, or global)"><i class="fa fa-fire"></i> Heating On</label>
+        <input type="text" id="node-input-heatingOn" placeholder="66">
+        <input type="hidden" id="node-input-heatingOnType">
+    </div>
+    <div class="form-row specified-setpoint" style="display: none;">
+        <div id="specified-setpoint-warning" style="color: red; display: none; margin-top: 5px;">
+            Cooling setpoints must be greater than or equal to heating setpoints (coolingOn >= coolingOff >= heatingOff >= heatingOn)
+        </div>
+    </div>
+    <div class="form-row single-setpoint">
+        <label for="node-input-diff" title="Differential for hysteresis (positive number, used in single algorithm)"><i class="fa fa-arrows-v"></i> Differential</label>
+        <input type="text" id="node-input-diff" placeholder="2">
+        <input type="hidden" id="node-input-diffType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-anticipator" title="Temperature offset to stop heating/cooling early (non-negative number from num, msg, flow, or global)"><i class="fa fa-tachometer"></i> Anticipator</label>
+        <input type="text" id="node-input-anticipator" placeholder="0.5">
+        <input type="hidden" id="node-input-anticipatorType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ignoreAnticipatorCycles" title="Number of cycles to ignore anticipator after mode change (non-negative integer from num, msg, flow, or global)"><i class="fa fa-repeat"></i> Ignore Anticipator Cycles</label>
+        <input type="text" id="node-input-ignoreAnticipatorCycles" placeholder="1">
+        <input type="hidden" id="node-input-ignoreAnticipatorCyclesType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-isHeating" title="Heating mode (true) or cooling mode (false)"><i class="fa fa-fire"></i> Heating Mode</label>
+        <input type="checkbox" id="node-input-isHeating" style="width: auto; vertical-align: middle;">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("tstat-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            algorithm: { value: "single" },
+            setpoint: { value: "70" },
+            setpointType: { value: "num" },
+            heatingSetpoint: { value: "68" },
+            heatingSetpointType: { value: "num" },
+            coolingSetpoint: { value: "74" },
+            coolingSetpointType: { value: "num" },
+            coolingOn: { value: "74" },
+            coolingOnType: { value: "num" },
+            coolingOff: { value: "72" },
+            coolingOffType: { value: "num" },
+            heatingOff: { value: "68" },
+            heatingOffType: { value: "num" },
+            heatingOn: { value: "66" },
+            heatingOnType: { value: "num" },
+            diff: { value: "2" },
+            diffType: { value: "num" },
+            anticipator: { value: "0.5" },
+            anticipatorType: { value: "num" },
+            ignoreAnticipatorCycles: { value: "1" },
+            ignoreAnticipatorCyclesType: { value: "num" },
+            isHeating: { value: false }
+        },
+        inputs: 1,
+        outputs: 3,
+        outputLabels: ["isHeating", "above", "below"],
+        inputLabels: ["input"],
+        icon: "font-awesome/fa-thermometer-half",
+        paletteLabel: "tstat",
+        label: function() {
+            return this.name || "tstat";
+        },
+        oneditprepare: function() {
+            const node = this;
+            try {
+                const $algorithm = $("#node-input-algorithm");
+                const $singleFields = $(".single-setpoint");
+                const $splitFields = $(".split-setpoint");
+                const $specifiedFields = $(".specified-setpoint");
+
+                $("#node-input-name").val(node.name || "");
+                $("#node-input-algorithm").val(node.algorithm || "single");
+                $("#node-input-isHeating").prop("checked", node.isHeating === true);
+
+                const typedInputs = [
+                    { id: "node-input-setpoint", typeId: "node-input-setpointType", defaultValue: "70", defaultType: "num" },
+                    { id: "node-input-heatingSetpoint", typeId: "node-input-heatingSetpointType", defaultValue: "68", defaultType: "num" },
+                    { id: "node-input-coolingSetpoint", typeId: "node-input-coolingSetpointType", defaultValue: "74", defaultType: "num" },
+                    { id: "node-input-coolingOn", typeId: "node-input-coolingOnType", defaultValue: "74", defaultType: "num" },
+                    { id: "node-input-coolingOff", typeId: "node-input-coolingOffType", defaultValue: "72", defaultType: "num" },
+                    { id: "node-input-heatingOff", typeId: "node-input-heatingOffType", defaultValue: "68", defaultType: "num" },
+                    { id: "node-input-heatingOn", typeId: "node-input-heatingOnType", defaultValue: "66", defaultType: "num" },
+                    { id: "node-input-diff", typeId: "node-input-diffType", defaultValue: "2", defaultType: "num" },
+                    { id: "node-input-anticipator", typeId: "node-input-anticipatorType", defaultValue: "0.5", defaultType: "num" },
+                    { id: "node-input-ignoreAnticipatorCycles", typeId: "node-input-ignoreAnticipatorCyclesType", defaultValue: "1", defaultType: "num" }
+                ];
+
+                typedInputs.forEach(input => {
+                    try {
+                        const fieldName = input.id.replace("node-input-", "");
+                        const storedValue = node[fieldName] !== undefined ? node[fieldName] : input.defaultValue;
+                        const storedType = node[`${fieldName}Type`] || input.defaultType;
+
+                        $(`#${input.id}`).typedInput({
+                            default: input.defaultType,
+                            types: ["num", "msg", "flow", "global"],
+                            typeField: `#${input.typeId}`
+                        }).typedInput("type", storedType)
+                        .typedInput("value", storedValue);
+                    } catch (err) {
+                        console.error(`Error initializing typedInput for ${input.id}:`, err);
+                    }
+                });
+
+
+                function toggleFields() {
+                    const algorithm = $algorithm.val();
+                    if (algorithm === "single") {
+                        $singleFields.show();
+                        $splitFields.hide();
+                        $specifiedFields.hide();
+                        $("#split-setpoint-warning").hide();
+                        $("#specified-setpoint-warning").hide();
+                        $("#node-input-heatingSetpoint").removeClass("input-error");
+                        $("#node-input-coolingSetpoint").removeClass("input-error");
+                        $("#node-input-coolingOn").removeClass("input-error");
+                        $("#node-input-coolingOff").removeClass("input-error");
+                        $("#node-input-heatingOff").removeClass("input-error");
+                        $("#node-input-heatingOn").removeClass("input-error");
+                    } else if (algorithm === "split") {
+                        $singleFields.hide();
+                        $splitFields.show();
+                        $specifiedFields.hide();
+                        $("#specified-setpoint-warning").hide();
+                        $("#node-input-coolingOn").removeClass("input-error");
+                        $("#node-input-coolingOff").removeClass("input-error");
+                        $("#node-input-heatingOff").removeClass("input-error");
+                        $("#node-input-heatingOn").removeClass("input-error");
+                        validateSplitSetpoints();
+                    } else {
+                        $singleFields.hide();
+                        $splitFields.hide();
+                        $specifiedFields.show();
+                        $("#split-setpoint-warning").hide();
+                        $("#node-input-heatingSetpoint").removeClass("input-error");
+                        $("#node-input-coolingSetpoint").removeClass("input-error");
+                        validateSpecifiedSetpoints();
+                    }
+                }
+                
+                $algorithm.on("change", function() {
+                    toggleFields();
+                });
+
+                toggleFields();
+            } catch (err) {
+                console.error("Error in tstat-block oneditprepare:", err.message, err.stack);
+                $("#node-runtime-changes").text("Effective Setpoints: Error initializing UI - check browser console");
+            }
+        },
+        oneditsave: function() {            
+            // Standard config properties are automatically saved by Node-RED
+        },
+        oneditvalidate: function() {
+            return validateInputs();
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="tstat-block">
+Thermostat controller for heating/cooling with single, split, or specified setpoint operation, hysteresis, and anticipation to prevent or allow overshoot for testing.
+
+### Inputs
+: context (string) : Configures node (`"algorithm"`, `"setpoint"`, `"heatingSetpoint"`, `"coolingSetpoint"`, `"coolingOn"`, `"coolingOff"`, `"heatingOff"`, `"heatingOn"`, `"diff"`, `"anticipator"`, `"ignoreAnticipatorCycles"`, `"isHeating"`, `"status"`).
+: payload (number | boolean | string) : Number for temperature or config values, boolean for `isHeating`, string for `algorithm` (`"single"`, `"split"`, `"specified"`).
+
+### Outputs
+All output messages include a `msg.status` object containing runtime information
+: isHeating (boolean) : `true` for heating mode, `false` for cooling mode. Includes `msg.context = "isHeating"`.
+: above (boolean) : `true` if input exceeds cooling on threshold.
+: below (boolean) : `true` if input is below heating on threshold.
+: status (object) : Contains detailed runtime information including
+  - `algorithm` Current algorithm in use
+  - `input` Current temperature input value
+  - `isHeating` Current heating mode
+  - `above/below` Current output states
+  - Algorithm-specific setpoints and values
+  - `modeChanged` If mode recently changed
+  - `cyclesSinceModeChange` Count since last mode change
+  - `effectiveAnticipator` Current anticipator value after mode change adjustments
+
+### Status Monitoring
+Instead of a dedicated status output, all outputs include comprehensive status information
+```json
+{
+  "status": {
+    "algorithm": "single",
+    "input": 68.5,
+    "isHeating": true,
+    "above": false,
+    "below": true,
+    "setpoint": 70,
+    "diff": 2,
+    "anticipator": 0.5,
+    "modeChanged": false,
+    "cyclesSinceModeChange": 3,
+    "effectiveAnticipator": 0.5
+  }
+}
+```
+
+### Algorithms
+- Single Setpoint
+  - Uses `setpoint`, `diff`, and `anticipator`.
+  - Sets `above` if `input > setpoint + diff/2`, clears when `input < setpoint + anticipator`.
+  - Sets `below` if `input < setpoint - diff/2`, clears when `input > setpoint - anticipator`.
+  - For positive `anticipator`, stops early to prevent overshoot. For negative `anticipator`, delays turn-off to overshoot setpoint, lengthen runtime, or straddle setpoint.
+
+- Split Setpoint
+  - Uses `heatingSetpoint`, `coolingSetpoint`, `diff`, and `anticipator`.
+  - For `isHeating = true`
+    - Sets `below` if `input < heatingSetpoint - diff/2`, clears when `input > heatingSetpoint - anticipator`.
+    - `above` is `false`.
+  - For `isHeating = false`
+    - Sets `above` if `input > coolingSetpoint + diff/2`, clears when `input < coolingSetpoint + anticipator`.
+    - `below` is `false`.
+  - Ensures `heatingSetpoint < coolingSetpoint`.
+
+- Specified Setpoint
+  - Uses `coolingOn`, `coolingOff`, `heatingOff`, `heatingOn`, and `anticipator`.
+  - For `isHeating = false`
+    - Sets `above` if `input > coolingOn`, clears when `input < coolingOff + anticipator`.
+    - `below` is `false`.
+  - For `isHeating = true`
+    - Sets `below` if `input < heatingOn`, clears when `input > heatingOff - anticipator`.
+    - `above` is `false`.
+  - Validates `coolingOn >= coolingOff >= heatingOff >= heatingOn`.
+
+### Details
+Compares a numeric temperature input (`msg.payload`) against setpoints to control heating or cooling. 
+
+The `differential` (`diff`) applies to the `single` and `split` setpoint algorithms, providing hysteresis. 
+
+The `anticipator` adjusts turn-off points. Positive values stop early to prevent overshoot (subtracts for heating, adds for cooling); 
+
+The `isHeating` flag (typically from a changeover node) sets output 1 and selects the active setpoint(s).
+
+The `ignoreAnticipatorCycles` setting allows ignoring the anticipator for a specified number of cycles after a mode change to reduce short-cycling due to latent heat effects. 
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

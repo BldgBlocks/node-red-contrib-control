@@ -1,0 +1,111 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="call-status-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-statusTimeout" title="Time to wait for status response (seconds, positive number)"><i class="fa fa-clock-o"></i> Status Timeout</label>
+        <input type="number" id="node-input-statusTimeout" placeholder="30" min="0.01" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-clearDelay" title="Delay before clearing status and alarm after call ends (seconds, positive number)"><i class="fa fa-clock-o"></i> Clear Delay</label>
+        <input type="number" id="node-input-clearDelay" placeholder="10" min="0.01" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-normalOff" title="Expected status when call is off (boolean)"><i class="fa fa-power-off"></i> Normal Off</label>
+        <input type="checkbox" id="node-input-normalOff" style="width: auto; vertical-align: middle;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-normalOn" title="Expected status when call is on (boolean)"><i class="fa fa-power-off"></i> Normal On</label>
+        <input type="checkbox" id="node-input-normalOn" style="width: auto; vertical-align: middle;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-runLostStatus" title="Alarm if status doesn't match normalOn during call (boolean)"><i class="fa fa-exclamation-triangle"></i> Run Lost Status</label>
+        <input type="checkbox" id="node-input-runLostStatus" style="width: auto; vertical-align: middle;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-noStatusOnRun" title="Alarm if no status received during call (boolean)"><i class="fa fa-exclamation-triangle"></i> No Status On Run</label>
+        <input type="checkbox" id="node-input-noStatusOnRun" style="width: auto; vertical-align: middle;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-runLostStatusMessage" title="Message for run lost status alarm (string)"><i class="fa fa-comment"></i> Run Lost Message</label>
+        <input type="text" id="node-input-runLostStatusMessage" placeholder="Status lost during run">
+    </div>
+    <div class="form-row">
+        <label for="node-input-noStatusOnRunMessage" title="Message for no status on run alarm (string)"><i class="fa fa-comment"></i> No Status Message</label>
+        <input type="text" id="node-input-noStatusOnRunMessage" placeholder="No status received during run">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("call-status-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            statusTimeout: { value: 30, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; } },
+            clearDelay: { value: 10, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; } },
+            normalOff: { value: false },
+            normalOn: { value: true },
+            runLostStatus: { value: false },
+            noStatusOnRun: { value: true },
+            runLostStatusMessage: { value: "Status lost during run" },
+            noStatusOnRunMessage: { value: "No status received during run" }
+        },
+        inputs: 1,
+        outputs: 2,
+        inputLabels: ["input"],
+        outputLabels: ["call", "diagnostics"],
+        icon: "font-awesome/fa-phone",
+        paletteLabel: "call status",
+        label: function() {
+            return this.name || "call status";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="call-status-block">
+Issues calls to equipment with status and alarm diagnostics.
+
+### Inputs
+: context (string) : Configuration commands - (`"statusTimeout"`, `"clearDelay"`, `"normalOff"`, `"normalOn"`, `"runLostStatus"`, `"noStatusOnRun"`, `"runLostStatusMessage"`, `"noStatusOnRunMessage"`) or sets status (`"status"`). Unmatched values trigger error.
+: payload (boolean | number | string) : Boolean for call, status, or boolean configs; number for timeouts; string for messages.
+
+### Outputs
+: call (boolean) : Current call state.
+: diagnostics (object) : `{ call; boolean, status; boolean, alarm; boolean, alarmMessage; string, timeout; boolean }`.
+
+### Properties
+: name (string) : Display name in editor.
+: statusTimeout (number) : Time to wait for status response (seconds, > 0).
+: clearDelay (number) : Delay before clearing status and alarm after call ends (seconds, > 0).
+: normalOff (boolean) : Expected status when call is off.
+: normalOn (boolean) : Expected status when call is on.
+: runLostStatus (boolean) : Alarm if status doesn't match `normalOn` during call.
+: noStatusOnRun (boolean) : Alarm if no status received during call.
+: runLostStatusMessage (string) : Message for run lost status alarm.
+: noStatusOnRunMessage (string) : Message for no status on run alarm.
+
+### Details
+Issues a call (`true`) to equipment via output 1 and expects a status response matching `normalOn` within `statusTimeout` seconds. 
+
+Clears status and alarm after `clearDelay` seconds when call ends (`false`), checking against `normalOff`. 
+
+Generates alarms for `runLostStatus` (status mismatch during call) or `noStatusOnRun` (no status within `statusTimeout`) with custom messages. 
+
+Ignores status inputs without an active call.
+
+### Status
+- Green (dot): Configuration
+- Blue (dot): Output, no alarm
+- Red (dot): Output with alarm
+- Red (ring): Errors
+- Yellow (ring): Unknown context
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

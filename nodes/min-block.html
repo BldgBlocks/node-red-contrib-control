@@ -1,0 +1,77 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="min-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-min" title="Minimum value for capping the input number"><i class="fa fa-arrow-down"></i> Min</label>
+        <input type="text" id="node-input-min" placeholder="50" min="0" step="any">
+        <input type="hidden" id="node-input-minType">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("min-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            min: { value: 50, required: true },
+            minType: { value: "num" },
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-arrow-circle-down",
+        paletteLabel: "min",
+        label: function() {
+            return this.name || "min";
+        },
+        oneditprepare: function() {
+            const node = this;
+            
+            // Initialize typed inputs
+            $("#node-input-min").typedInput({
+                default: "num",
+                types: ["num", "msg", "flow", "global"],
+                typeField: "#node-input-minType"
+            }).typedInput("type", node.minType || "num").typedInput("value", node.min);
+            
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="min-block">
+Ensures a numeric input is at least a configurable minimum value.
+
+### Inputs
+: context (string) : Configures minimum value (`"min"`, `"setpoint"`). Unmatched values trigger warning.
+: payload (number) : Input number to cap or new minimum value with `msg.context`.
+
+### Outputs
+: payload (number) : Input number capped at the minimum value.
+: *other* (any) : All input properties preserved, including `msg.context`.
+
+### Properties
+: min (number) : Minimum value for capping.
+
+### Details
+Ensures `msg.payload` (a number) is at least the minimum value, forwarding the input message with updated `msg.payload`. 
+
+Outputs on every valid input, with status indicating whether the output changed.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

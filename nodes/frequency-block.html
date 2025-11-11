@@ -1,0 +1,55 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="frequency-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("frequency-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["stats"],
+        icon: "font-awesome/fa-tachometer",
+        paletteLabel: "frequency",
+        label: function() {
+            return this.name || "frequency";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="frequency-block">
+Measures pulse frequency from boolean rising edges.
+
+### Inputs
+: context (string) : Resets state (`"reset"`). Unmatched values trigger error.
+: payload (boolean) : Input boolean to detect rising edges (`true` for pulse).
+
+### Outputs
+: payload (object) : Pulse rates `{ ppm, pph, ppd }` (pulses per minute, hour, day).
+
+### Details
+Measures pulse frequency from rising edges in `msg.payload` (boolean, `true` for pulse), outputting a message with 
+`msg.payload = { ppm, pph, ppd }` (pulses per minute, hour, day) on the second and subsequent rising edges 
+(first edge sets baseline). Resets state via `msg.context = "reset"` with `msg.payload = true`.
+
+### Status
+- Green (dot): Configuration
+- Blue (dot): Output, no alarm
+- Red (dot): Output with alarm
+- Red (ring): Errors
+- Yellow (ring): Unknown context
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

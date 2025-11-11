@@ -1,0 +1,63 @@
+<script type="text/html" data-template-name="multiply-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-slots" title="Number of input slots (positive integer, e.g., 2)"><i class="fa fa-list-ol"></i> Slots</label>
+        <input type="number" id="node-input-slots" placeholder="2" min="1" step="1">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("multiply-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            slots: {
+                value: 2,
+                required: true,
+                validate: function(v) { return !isNaN(parseInt(v)) && parseInt(v) >= 1; }
+            }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["product"],
+        icon: "font-awesome/fa-times",
+        paletteLabel: "multiply",
+        label: function() {
+            return this.name ? `${this.name} (${this.slots})` : `multiply (${this.slots})`;
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="multiply-block">
+Multiplies numeric inputs from multiple slots.
+
+### Inputs
+: context (string) : Configures reset (`"reset"`), slots (`"slots"`), or identifies input slot (e.g., `"in1"`, `"in2"`).
+: payload (number | boolean) : Number for slot input, boolean for reset, integer for slots configuration.
+
+### Outputs
+: payload (number) : Product of all slot values.
+
+### Details
+Multiplies numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`). 
+
+Slots are set via editor or `msg.context = "slots"` with positive integer. Inputs default to 1, updated via `msg.context = "inX"`. 
+
+Resets inputs to 1 via `msg.context = "reset"` with `msg.payload = true`. Outputs only when the product changes.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

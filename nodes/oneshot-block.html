@@ -1,0 +1,96 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="oneshot-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-duration" title="Duration of true pulse (positive number)"><i class="fa fa-clock-o"></i> Duration</label>
+        <input type="number" id="node-input-duration" placeholder="1000" min="0" step="any">
+        <select id="node-input-durationUnits">
+            <option value="milliseconds">Milliseconds</option>
+            <option value="seconds">Seconds</option>
+            <option value="minutes">Minutes</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-resetRequireTrue" title="Require msg.payload = true for reset"><i class="fa fa-check"></i> Reset Require True</label>
+        <input type="checkbox" id="node-input-resetRequireTrue" style="width: auto; vertical-align: middle;" checked>
+    </div>
+    <div class="form-row">
+        <label for="node-input-resetOnComplete" title="Automatically reset (unlock) after pulse duration"><i class="fa fa-undo"></i> Reset On Complete</label>
+        <input type="checkbox" id="node-input-resetOnComplete" style="width: auto; vertical-align: middle;">
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("oneshot-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            duration: { 
+                value: 1000, 
+                required: true, 
+                validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; } 
+            },
+            durationUnits: { value: "milliseconds" },
+            resetRequireTrue: { value: true },
+            resetOnComplete: { value: false }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["trigger/reset"],
+        outputLabels: ["pulse"],
+        icon: "font-awesome/fa-bolt",
+        paletteLabel: "oneshot",
+        label: function() {
+            return this.name || `oneshot (${this.duration}${this.durationUnits.charAt(0)})`;
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="oneshot-block">
+Outputs a true pulse for a configurable duration when triggered with `msg.payload = true`, then false, and locks until reset.
+
+### Inputs
+: context (string) : Configures node (`"reset"`, `"duration"`). Unmatched values trigger error.
+: payload (boolean | number) : `true` triggers pulse if not locked; number for `"duration"`; boolean for `"reset"`.
+: units (string) : Units for `"duration"` (`"milliseconds"`, `"seconds"`, `"minutes"`).
+
+### Outputs
+: payload (boolean) : `true` for `duration` on trigger, then `false`; `false` on reset or if locked.
+
+### Properties
+: name (string) : Display name in editor.
+: duration (number) : Pulse duration (positive number).
+: durationUnits (string) : Units for duration (`"milliseconds"`, `"seconds"`, `"minutes"`).
+: resetRequireTrue (boolean) : Require `msg.payload = true` for reset.
+: resetOnComplete (boolean) : Automatically reset (unlock) after pulse duration.
+
+### Details
+Generates a `true` pulse for `duration` when triggered with `msg.payload = true`, 
+then outputs `false`. 
+
+Locks until reset via `msg.context = "reset"` (requires `msg.payload = true` if `resetRequireTrue = true`) or 
+automatically if `resetOnComplete = true`. Non-`true` payloads are ignored with no output. 
+
+Duration configurable via editor or `msg.context = "duration"` with `msg.units` (`"milliseconds"`, `"seconds"`, `"minutes"`). 
+
+Tracks `triggerCount` (number of triggers) and displays in status. 
+
+Outputs new `{ payload boolean }` messages for every trigger (`true` then `false`), reset, or locked input. 
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>
