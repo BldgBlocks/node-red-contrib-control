@@ -6,25 +6,27 @@
     </div>
     <div class="form-row">
         <label for="node-input-delayOn"><i class="fa fa-clock-o"></i> On Delay</label>
-        <input type="number" id="node-input-delayOn" placeholder="1000" min="0" step="1">
+        <input type="text" id="node-input-delayOn" placeholder="1000" min="0" step="1">
+        <input type="hidden" id="node-input-delayOnType">
+    </div>
+    <div>
         <select id="node-input-delayOnUnits">
             <option value="milliseconds">Milliseconds</option>
             <option value="seconds">Seconds</option>
             <option value="minutes">Minutes</option>
         </select>
-        <input type="hidden" id="node-input-delayOnType">
-
     </div>
     <div class="form-row">
         <label for="node-input-delayOff"><i class="fa fa-clock-o"></i> Off Delay</label>
-        <input type="number" id="node-input-delayOff" placeholder="1000" min="0" step="1">
+        <input type="text" id="node-input-delayOff" placeholder="1000" min="0" step="1">
+        <input type="hidden" id="node-input-delayOffType">
+    </div>
+    <div>
         <select id="node-input-delayOffUnits">
             <option value="milliseconds">Milliseconds</option>
             <option value="seconds">Seconds</option>
             <option value="minutes">Minutes</option>
         </select>
-        <input type="hidden" id="node-input-delayOffType">
-
     </div>
 </script>
 
@@ -52,6 +54,7 @@
             return this.name || "delay";
         },
         oneditprepare: function() {
+            const node = this;
             try {
                 // Initialize typed inputs
                 $("#node-input-delayOn").typedInput({
@@ -79,7 +82,7 @@ Delays boolean state transitions with configurable on/off delays.
 
 ### Inputs
 : context (string) : Configures node (`"reset"`, `"delayOn"`, `"delayOff"`). Unmatched values ignored silently.
-: payload (boolean | number) : Boolean for state change; number for delay config with `msg.context`.
+: payload (boolean | number) : Boolean for state change, number for delay config with `msg.context`.
 : *units* (string) : Units for delay context config (`"milliseconds"`, `"seconds"`, `"minutes"`).
 
 ### Outputs
@@ -89,14 +92,14 @@ Delays boolean state transitions with configurable on/off delays.
 ### Details
 Delays `msg.payload` boolean transitions, outputting `true` after `delayOn` ms for false-to-true or `false` after `delayOff` ms for true-to-false, 
 if the input state persists. Forwards the input message with updated `msg.payload`, removing `msg.context`. 
-Non-transition inputs (e.g., `true` when `state=true`) or state reversions cancel pending delays without output. 
+Non-transition inputs (e.g., `true` when `state=true`) do not cancel pending delays.
 
 ### Status
-- Green (dot): Configuration
-- Blue (dot): Output, no alarm
-- Red (dot): Output with alarm
-- Red (ring): Errors
-- Yellow (ring): Unknown context
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

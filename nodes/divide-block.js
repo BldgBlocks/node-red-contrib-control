@@ -8,7 +8,7 @@ module.exports = function(RED) {
         node.runtime = {
             name: config.name,
             slots: parseInt(config.slots),
-            inputs: Array(node.runtime.slots).fill(1).map(x => parseFloat(x)),
+            inputs: Array(config.slots).fill(1).map(x => parseFloat(x)),
             lastResult: null
         };
 

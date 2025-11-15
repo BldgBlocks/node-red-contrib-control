@@ -5,24 +5,9 @@ module.exports = function(RED) {
 
         node.runtime = {
             name: config.name || "",
-            state: false
+            state: false,
+            desired: false
         };
-
-        if (isNaN(node.runtime.delayOn) || node.runtime.delayOn < 0) {
-            node.runtime.delayOn = 1000;
-            node.status({ fill: "red", shape: "ring", text: "invalid delayOn" });
-        }
-        if (isNaN(node.runtime.delayOff) || node.runtime.delayOff < 0) {
-            node.runtime.delayOff = 1000;
-            node.status({ fill: "red", shape: "ring", text: "invalid delayOff" });
-        }
-
-        // Set initial status
-        node.status({ 
-            fill: "green", 
-            shape: "dot", 
-            text: `On: ${node.runtime.delayOn}ms, Off: ${node.runtime.delayOff}ms` 
-        });
 
         let timeoutId = null;
 
@@ -54,6 +39,15 @@ module.exports = function(RED) {
                 node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
                 if (done) done(err);
                 return;
+            }
+
+            if (isNaN(node.runtime.delayOn) || node.runtime.delayOn < 0) {
+                node.runtime.delayOn = 1000;
+                node.status({ fill: "red", shape: "ring", text: "invalid delayOn" });
+            }
+            if (isNaN(node.runtime.delayOff) || node.runtime.delayOff < 0) {
+                node.runtime.delayOff = 1000;
+                node.status({ fill: "red", shape: "ring", text: "invalid delayOff" });
             }
 
             if (msg.hasOwnProperty("context")) {
@@ -129,10 +123,15 @@ module.exports = function(RED) {
             }
 
             if (!node.runtime.state && inputValue === true) {
+                if (node.runtime.desired) {
+                    if (done) done();
+                    return;
+                }
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                 }
                 node.status({ fill: "blue", shape: "ring", text: `awaiting true` });
+                node.runtime.desired = true;
                 timeoutId = setTimeout(() => {
                     node.runtime.state = true;
                     msg.payload = true;
@@ -142,10 +141,15 @@ module.exports = function(RED) {
                     timeoutId = null;
                 }, node.runtime.delayOn);
             } else if (node.runtime.state && inputValue === false) {
+                if (node.runtime.desired === false) {
+                    if (done) done();
+                    return;
+                }
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                 }
                 node.status({ fill: "blue", shape: "ring", text: `awaiting false` });
+                node.runtime.desired = false;
                 timeoutId = setTimeout(() => {
                     node.runtime.state = false;
                     msg.payload = false;
@@ -160,7 +164,7 @@ module.exports = function(RED) {
                     timeoutId = null;
                     node.status({ fill: "blue", shape: "ring", text: `canceled awaiting ${node.runtime.state}` });
                 } else {
-                    node.status({ fill: "blue", shape: "ring", text: `awaiting ${inputValue}` });
+                    node.status({ fill: "blue", shape: "ring", text: `no change` });
                 }
             }
 

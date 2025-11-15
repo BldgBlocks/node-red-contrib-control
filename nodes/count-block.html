@@ -45,11 +45,11 @@ Counts rising edges (false-to-true transitions) in `msg.payload` (boolean), incr
 Resets count to 0 via `msg.context = "reset"` with `msg.payload = true`. 
 
 ### Status
-- Green (dot): Configuration
-- Blue (dot): Output, no alarm
-- Red (dot): Output with alarm
-- Red (ring): Errors
-- Yellow (ring): Unknown context
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

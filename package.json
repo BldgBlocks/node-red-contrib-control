@@ -1,6 +1,6 @@
 {
   "name": "@bldgblocks/node-red-contrib-control",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Sedona-inspired control nodes for Node-RED",
   "keywords": [ "node-red", "sedona", "control", "hvac" ],
   "files": ["nodes/*.js", "nodes/*.html"],
@@ -26,7 +26,6 @@
         "contextual-label-block": "nodes/contextual-label-block.js",
         "convert-block": "nodes/convert-block.js",
         "count-block": "nodes/count-block.js",
-        "debounce-block": "nodes/debounce-block.js",
         "delay-block": "nodes/delay-block.js",
         "divide-block": "nodes/divide-block.js",
         "edge-block": "nodes/edge-block.js",

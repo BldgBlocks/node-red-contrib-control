@@ -3,6 +3,8 @@ Sedona-inspired control nodes for stateful logic.
 
 This is a rather large node collection. Contributions are appreciated.
 
+*** If you are reading this, the package was posted very recently and changes will be flowing as I get examples updated. ***
+
 ## Intro
 This is intended for HVAC usage but the logic applies to anything. 
 
