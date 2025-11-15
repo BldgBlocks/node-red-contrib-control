@@ -198,22 +198,310 @@
                         validateSpecifiedSetpoints();
                     }
                 }
-                
+
+                function validateInputs() {
+                    const algorithm = $algorithm.val();
+                    let isValid = true;
+                    let errorMsg = "";
+
+                    // Clear previous error states
+                    $("#node-input-anticipator").removeClass("input-error");
+                    $("#node-input-diff").removeClass("input-error");
+                    $("#node-input-ignoreAnticipatorCycles").removeClass("input-error");
+                    $("#node-input-heatingSetpoint").removeClass("input-error");
+                    $("#node-input-coolingSetpoint").removeClass("input-error");
+                    $("#node-input-coolingOn").removeClass("input-error");
+                    $("#node-input-coolingOff").removeClass("input-error");
+                    $("#node-input-heatingOff").removeClass("input-error");
+                    $("#node-input-heatingOn").removeClass("input-error");
+                    $("#split-setpoint-warning").hide();
+                    $("#specified-setpoint-warning").hide();
+
+                    try {
+                        // In editor, we can only validate numeric values directly
+                        const anticipatorInput = $("#node-input-anticipator").typedInput("value");
+                        const anticipatorValue = typeof anticipatorInput === 'number' ? anticipatorInput : parseFloat(anticipatorInput);
+                        
+                        if (typeof anticipatorInput === 'string' || (typeof anticipatorValue === 'number' && !isNaN(anticipatorValue) && anticipatorValue < -2)) {
+                            $("#node-input-anticipator").addClass("input-error");
+                            errorMsg = "Invalid anticipator";
+                            isValid = false;
+                        }
+
+                        if (algorithm === "single") {
+                            const diffInput = $("#node-input-diff").typedInput("value");
+                            const diffValue = typeof diffInput === 'number' ? diffInput : parseFloat(diffInput);
+                            
+                            if (typeof diffInput === 'string' || (typeof diffValue === 'number' && !isNaN(diffValue) && diffValue <= 0)) {
+                                $("#node-input-diff").addClass("input-error");
+                                errorMsg = "Invalid differential (must be positive)";
+                                isValid = false;
+                            }
+                        }
+
+                        const ignoreCyclesInput = $("#node-input-ignoreAnticipatorCycles").typedInput("value");
+                        const ignoreCyclesValue = typeof ignoreCyclesInput === 'number' ? ignoreCyclesInput : parseInt(ignoreCyclesInput);
+                        
+                        if (typeof ignoreCyclesInput === 'string' || (typeof ignoreCyclesValue === 'number' && !isNaN(ignoreCyclesValue) && ignoreCyclesValue < 0)) {
+                            $("#node-input-ignoreAnticipatorCycles").addClass("input-error");
+                            errorMsg = "Invalid ignore anticipator cycles (must be non-negative)";
+                            isValid = false;
+                        }
+
+                        if (algorithm === "split") {
+                            const heatingSetpointInput = $("#node-input-heatingSetpoint").typedInput("value");
+                            const heatingSetpointValue = typeof heatingSetpointInput === 'number' ? heatingSetpointInput : parseFloat(heatingSetpointInput);
+                            
+                            const coolingSetpointInput = $("#node-input-coolingSetpoint").typedInput("value");
+                            const coolingSetpointValue = typeof coolingSetpointInput === 'number' ? coolingSetpointInput : parseFloat(coolingSetpointInput);
+                            
+                            if ((typeof heatingSetpointInput !== 'string' && typeof coolingSetpointInput !== 'string') && 
+                                (typeof heatingSetpointValue === 'number' && typeof coolingSetpointValue === 'number' && 
+                                !isNaN(heatingSetpointValue) && !isNaN(coolingSetpointValue) && coolingSetpointValue <= heatingSetpointValue)) {
+                                $("#node-input-heatingSetpoint").addClass("input-error");
+                                $("#node-input-coolingSetpoint").addClass("input-error");
+                                $("#split-setpoint-warning").show();
+                                errorMsg = "Cooling setpoint must be greater than heating setpoint";
+                                isValid = false;
+                            }
+                        }
+
+                        if (algorithm === "specified") {
+                            const coolingOnInput = $("#node-input-coolingOn").typedInput("value");
+                            const coolingOnValue = typeof coolingOnInput === 'number' ? coolingOnInput : parseFloat(coolingOnInput);
+                            
+                            const coolingOffInput = $("#node-input-coolingOff").typedInput("value");
+                            const coolingOffValue = typeof coolingOffInput === 'number' ? coolingOffInput : parseFloat(coolingOffInput);
+                            
+                            const heatingOffInput = $("#node-input-heatingOff").typedInput("value");
+                            const heatingOffValue = typeof heatingOffInput === 'number' ? heatingOffInput : parseFloat(heatingOffInput);
+                            
+                            const heatingOnInput = $("#node-input-heatingOn").typedInput("value");
+                            const heatingOnValue = typeof heatingOnInput === 'number' ? heatingOnInput : parseFloat(heatingOnInput);
+                            
+                            if ((typeof coolingOnInput !== 'string' && typeof coolingOffInput !== 'string' && 
+                                typeof heatingOffInput !== 'string' && typeof heatingOnInput !== 'string') &&
+                                (typeof coolingOnValue === 'number' && typeof coolingOffValue === 'number' && 
+                                typeof heatingOffValue === 'number' && typeof heatingOnValue === 'number' &&
+                                !isNaN(coolingOnValue) && !isNaN(coolingOffValue) && !isNaN(heatingOffValue) && !isNaN(heatingOnValue) &&
+                                (coolingOnValue < coolingOffValue || coolingOffValue < heatingOffValue || heatingOffValue < heatingOnValue))) {
+                                $("#node-input-coolingOn").addClass("input-error");
+                                $("#node-input-coolingOff").addClass("input-error");
+                                $("#node-input-heatingOff").addClass("input-error");
+                                $("#node-input-heatingOn").addClass("input-error");
+                                $("#specified-setpoint-warning").show();
+                                errorMsg = "Invalid setpoints (coolingOn >= coolingOff >= heatingOff >= heatingOn)";
+                                isValid = false;
+                            }
+                        }
+
+                    } catch (err) {
+                        console.error("Error validating inputs:", err);
+                        isValid = false;
+                        errorMsg = "Validation error";
+                    }
+
+                    $("#node-runtime-changes").text(isValid ? "Effective Setpoints: Valid" : `Effective Setpoints: ${errorMsg}`);
+                    return isValid;
+                }
+
+
+
                 $algorithm.on("change", function() {
                     toggleFields();
+                    validateInputs();
                 });
 
                 toggleFields();
+
+                $("#node-input-diff").on("change input", function() {
+                    validateInputs();
+                });
+
+                $("#node-input-anticipator").on("change input", function() {
+                    validateInputs();
+                });
+
+                $("#node-input-ignoreAnticipatorCycles").on("change input", function() {
+                    validateInputs();
+                });
+
+                $("#node-input-heatingSetpoint").on("change", validateSplitSetpoints);
+                $("#node-input-coolingSetpoint").on("change", validateSplitSetpoints);
+                $("#node-input-coolingOn").on("change", validateSpecifiedSetpoints);
+                $("#node-input-coolingOff").on("change", validateSpecifiedSetpoints);
+                $("#node-input-heatingOff").on("change", validateSpecifiedSetpoints);
+                $("#node-input-heatingOn").on("change", validateSpecifiedSetpoints);
+
+                function validateSplitSetpoints() {
+                    validateInputs();
+                }
+
+                function validateSpecifiedSetpoints() {
+                    validateInputs();
+                }
+
+                function updateEffectiveSetpoints(runtime = {}) {
+                    const changes = [];
+                    const algorithm = runtime.algorithm || $("#node-input-algorithm").val() || "single";
+
+                    try {
+                        let diffValue, anticipatorValue;
+                        
+                        // Get values from runtime if available
+                        if (runtime.diff !== undefined) {
+                            diffValue = runtime.diff;
+                        } else {
+                            // In editor, we can only parse numeric values directly
+                            const diffInput = $("#node-input-diff").typedInput("value");
+                            diffValue = typeof diffInput === 'number' ? diffInput : parseFloat(diffInput) || 2;
+                        }
+
+                        if (runtime.anticipator !== undefined) {
+                            anticipatorValue = runtime.anticipator;
+                        } else {
+                            const anticipatorInput = $("#node-input-anticipator").typedInput("value");
+                            anticipatorValue = typeof anticipatorInput === 'number' ? anticipatorInput : parseFloat(anticipatorInput) || 0.5;
+                        }
+
+                        if (algorithm === "single") {
+                            let setpointValue;
+                            if (runtime.setpoint !== undefined) {
+                                setpointValue = runtime.setpoint;
+                            } else {
+                                const setpointInput = $("#node-input-setpoint").typedInput("value");
+                                setpointValue = typeof setpointInput === 'number' ? setpointInput : parseFloat(setpointInput) || 70;
+                            }
+
+                            const heatingOn = setpointValue - diffValue / 2;
+                            const heatingOff = setpointValue - anticipatorValue;
+                            const coolingOn = setpointValue + diffValue / 2;
+                            const coolingOff = setpointValue + anticipatorValue;
+                            changes.push(`effectiveHeatingOn: ${heatingOn.toFixed(1)}`);
+                            changes.push(`effectiveHeatingOff: ${heatingOff.toFixed(1)}`);
+                            changes.push(`effectiveCoolingOn: ${coolingOn.toFixed(1)}`);
+                            changes.push(`effectiveCoolingOff: ${coolingOff.toFixed(1)}`);
+                        } else if (algorithm === "split") {
+                            let heatingSetpointValue, coolingSetpointValue;
+                            
+                            if (runtime.heatingSetpoint !== undefined) {
+                                heatingSetpointValue = runtime.heatingSetpoint;
+                            } else {
+                                const heatingSetpointInput = $("#node-input-heatingSetpoint").typedInput("value");
+                                heatingSetpointValue = typeof heatingSetpointInput === 'number' ? heatingSetpointInput : parseFloat(heatingSetpointInput) || 68;
+                            }
+                            
+                            if (runtime.coolingSetpoint !== undefined) {
+                                coolingSetpointValue = runtime.coolingSetpoint;
+                            } else {
+                                const coolingSetpointInput = $("#node-input-coolingSetpoint").typedInput("value");
+                                coolingSetpointValue = typeof coolingSetpointInput === 'number' ? coolingSetpointInput : parseFloat(coolingSetpointInput) || 74;
+                            }
+
+                            const heatingOn = heatingSetpointValue - diffValue / 2;
+                            const heatingOff = heatingSetpointValue - anticipatorValue;
+                            const coolingOn = coolingSetpointValue + diffValue / 2;
+                            const coolingOff = coolingSetpointValue + anticipatorValue;
+                            changes.push(`effectiveHeatingOn: ${heatingOn.toFixed(1)}`);
+                            changes.push(`effectiveHeatingOff: ${heatingOff.toFixed(1)}`);
+                            changes.push(`effectiveCoolingOn: ${coolingOn.toFixed(1)}`);
+                            changes.push(`effectiveCoolingOff: ${coolingOff.toFixed(1)}`);
+                        } else {
+                            let coolingOnValue, coolingOffValue, heatingOffValue, heatingOnValue;
+                            
+                            if (runtime.coolingOn !== undefined) {
+                                coolingOnValue = runtime.coolingOn;
+                            } else {
+                                const coolingOnInput = $("#node-input-coolingOn").typedInput("value");
+                                coolingOnValue = typeof coolingOnInput === 'number' ? coolingOnInput : parseFloat(coolingOnInput) || 74;
+                            }
+                            
+                            if (runtime.coolingOff !== undefined) {
+                                coolingOffValue = runtime.coolingOff;
+                            } else {
+                                const coolingOffInput = $("#node-input-coolingOff").typedInput("value");
+                                coolingOffValue = typeof coolingOffInput === 'number' ? coolingOffInput : parseFloat(coolingOffInput) || 72;
+                            }
+                            
+                            if (runtime.heatingOff !== undefined) {
+                                heatingOffValue = runtime.heatingOff;
+                            } else {
+                                const heatingOffInput = $("#node-input-heatingOff").typedInput("value");
+                                heatingOffValue = typeof heatingOffInput === 'number' ? heatingOffInput : parseFloat(heatingOffInput) || 68;
+                            }
+                            
+                            if (runtime.heatingOn !== undefined) {
+                                heatingOnValue = runtime.heatingOn;
+                            } else {
+                                const heatingOnInput = $("#node-input-heatingOn").typedInput("value");
+                                heatingOnValue = typeof heatingOnInput === 'number' ? heatingOnInput : parseFloat(heatingOnInput) || 66;
+                            }
+
+                            changes.push(`effectiveHeatingOn: ${heatingOnValue.toFixed(1)}`);
+                            changes.push(`effectiveHeatingOff: ${(heatingOffValue - anticipatorValue).toFixed(1)}`);
+                            changes.push(`effectiveCoolingOn: ${coolingOnValue.toFixed(1)}`);
+                            changes.push(`effectiveCoolingOff: ${(coolingOffValue + anticipatorValue).toFixed(1)}`);
+                        }
+
+                    } catch (err) {
+                        console.error("Error in updateEffectiveSetpoints:", err);
+                        changes.push("Error calculating effective setpoints");
+                    }
+
+                    const displayText = `Effective Setpoints:\n${changes.join("\n")}`;
+                    $("#node-runtime-changes").text(displayText);
+                }
+
+                function fetchRuntimeState(attempts = 3, delay = 1000) {
+                    if (!node.id) {
+                        $("#node-runtime-changes").text("Effective Setpoints: Node ID missing");
+                        updateEffectiveSetpoints();
+                        return;
+                    }
+                    
+                    // Use a timeout to ensure the node is fully registered
+                    setTimeout(function() {
+                        $.getJSON(`/tstat-block-runtime/${node.id}`, function(data) {
+                            if (data.error) {
+                                if (attempts > 0) {
+                                    // Retry after delay if node not found yet
+                                    setTimeout(function() {
+                                        fetchRuntimeState(attempts - 1, delay);
+                                    }, delay);
+                                } else {
+                                    $("#node-runtime-changes").text("Effective Setpoints: Node not ready");
+                                    updateEffectiveSetpoints();
+                                }
+                            } else {
+                                updateEffectiveSetpoints(data);
+                            }
+                        }).fail(function(xhr, status, error) {
+                            console.error("Failed to fetch runtime state:", status, error);
+                            if (attempts > 0) {
+                                // Retry after delay on failure
+                                setTimeout(function() {
+                                    fetchRuntimeState(attempts - 1, delay);
+                                }, delay);
+                            } else {
+                                $("#node-runtime-changes").text("Effective Setpoints: Unable to load");
+                                updateEffectiveSetpoints();
+                            }
+                        });
+                    }, 100); // Small delay to ensure node registration
+                }
+
+
+                fetchRuntimeState();
+                validateInputs();
+
+                $("#node-input-algorithm, #node-input-setpoint, #node-input-heatingSetpoint, #node-input-coolingSetpoint, #node-input-coolingOn, #node-input-coolingOff, #node-input-heatingOff, #node-input-heatingOn, #node-input-diff, #node-input-anticipator, #node-input-ignoreAnticipatorCycles").on("change input", function() {
+                    updateEffectiveSetpoints();
+                    validateInputs();
+                });
             } catch (err) {
                 console.error("Error in tstat-block oneditprepare:", err.message, err.stack);
                 $("#node-runtime-changes").text("Effective Setpoints: Error initializing UI - check browser console");
             }
-        },
-        oneditsave: function() {            
-            // Standard config properties are automatically saved by Node-RED
-        },
-        oneditvalidate: function() {
-            return validateInputs();
         }
     });
 </script>
@@ -230,15 +518,15 @@ All output messages include a `msg.status` object containing runtime information
 : isHeating (boolean) : `true` for heating mode, `false` for cooling mode. Includes `msg.context = "isHeating"`.
 : above (boolean) : `true` if input exceeds cooling on threshold.
 : below (boolean) : `true` if input is below heating on threshold.
-: status (object) : Contains detailed runtime information including
-  - `algorithm` Current algorithm in use
-  - `input` Current temperature input value
-  - `isHeating` Current heating mode
-  - `above/below` Current output states
+: status (object) : Contains detailed runtime information including:
+  - `algorithm`: Current algorithm in use
+  - `input`: Current temperature input value
+  - `isHeating`: Current heating mode
+  - `above/below`: Current output states
   - Algorithm-specific setpoints and values
-  - `modeChanged` If mode recently changed
-  - `cyclesSinceModeChange` Count since last mode change
-  - `effectiveAnticipator` Current anticipator value after mode change adjustments
+  - `modeChanged`: If mode recently changed
+  - `cyclesSinceModeChange`: Count since last mode change
+  - `effectiveAnticipator`: Current anticipator value after mode change adjustments
 
 ### Status Monitoring
 Instead of a dedicated status output, all outputs include comprehensive status information
@@ -258,52 +546,59 @@ Instead of a dedicated status output, all outputs include comprehensive status i
     "effectiveAnticipator": 0.5
   }
 }
-```
-
 ### Algorithms
-- Single Setpoint
+- **Single Setpoint**:
   - Uses `setpoint`, `diff`, and `anticipator`.
   - Sets `above` if `input > setpoint + diff/2`, clears when `input < setpoint + anticipator`.
   - Sets `below` if `input < setpoint - diff/2`, clears when `input > setpoint - anticipator`.
-  - For positive `anticipator`, stops early to prevent overshoot. For negative `anticipator`, delays turn-off to overshoot setpoint, lengthen runtime, or straddle setpoint.
+  - For positive `anticipator`, stops early to prevent overshoot. For negative `anticipator` (testing only), delays turn-off to overshoot setpoint.
+  - Example: `setpoint=70`, `diff=2`, `anticipator=-0.5`, `above` if `input > 71`, clears at `< 69.5` (overshoots); `below` if `input < 69`, clears at `> 70.5` (overshoots).
 
-- Split Setpoint
+- **Split Setpoint**:
   - Uses `heatingSetpoint`, `coolingSetpoint`, `diff`, and `anticipator`.
-  - For `isHeating = true`
+  - For `isHeating = true`:
     - Sets `below` if `input < heatingSetpoint - diff/2`, clears when `input > heatingSetpoint - anticipator`.
     - `above` is `false`.
-  - For `isHeating = false`
+  - For `isHeating = false`:
     - Sets `above` if `input > coolingSetpoint + diff/2`, clears when `input < coolingSetpoint + anticipator`.
     - `below` is `false`.
   - Ensures `heatingSetpoint < coolingSetpoint`.
+  - For negative `anticipator`, delays turn-off (e.g., heating off above `heatingSetpoint`).
+  - Example: `heatingSetpoint=68`, `coolingSetpoint=74`, `diff=2`, `anticipator=-0.5`, heating mode sets `below` if `input < 67`, clears at `> 68.5`; cooling mode sets `above` if `input > 75`, clears at `< 73.5`.
 
-- Specified Setpoint
+- **Specified Setpoint**:
   - Uses `coolingOn`, `coolingOff`, `heatingOff`, `heatingOn`, and `anticipator`.
-  - For `isHeating = false`
+  - For `isHeating = false`:
     - Sets `above` if `input > coolingOn`, clears when `input < coolingOff + anticipator`.
     - `below` is `false`.
-  - For `isHeating = true`
+  - For `isHeating = true`:
     - Sets `below` if `input < heatingOn`, clears when `input > heatingOff - anticipator`.
     - `above` is `false`.
   - Validates `coolingOn >= coolingOff >= heatingOff >= heatingOn`.
+  - For negative `anticipator`, delays turn-off (e.g., heating off above `heatingOff`).
+  - Example: `coolingOn=74`, `coolingOff=72`, `heatingOff=68`, `heatingOn=66`, `anticipator=-0.5`, cooling mode sets `above` if `input > 74`, clears at `< 71.5`; heating mode sets `below` if `input < 66`, clears at `> 68.5`.
 
 ### Details
 Compares a numeric temperature input (`msg.payload`) against setpoints to control heating or cooling. 
 
 The `differential` (`diff`) applies to the `single` and `split` setpoint algorithms, providing hysteresis. 
 
-The `anticipator` adjusts turn-off points. Positive values stop early to prevent overshoot (subtracts for heating, adds for cooling); 
+The `anticipator` adjusts turn-off points: positive values stop early to prevent overshoot (subtracts for heating, adds for cooling); 
+negative values (allowed for testing, >= -2) delay turn-off to overshoot setpoint. 
 
 The `isHeating` flag (typically from a changeover node) sets output 1 and selects the active setpoint(s).
 
-The `ignoreAnticipatorCycles` setting allows ignoring the anticipator for a specified number of cycles after a mode change to reduce short-cycling due to latent heat effects. 
+The `ignoreAnticipatorCycles` setting allows ignoring the anticipator for a specified number of cycles after a mode change to reduce short-cycling. 
+
+All numeric inputs (`setpoint`, `heatingSetpoint`, `coolingSetpoint`, `coolingOn`, `coolingOff`, `heatingOff`, `heatingOn`, `diff`, `anticipator`, 
+`ignoreAnticipatorCycles`) support `num`, `msg`, `flow`, or `global` types via `typedInput`.
 
 ### Status
-- Green (dot): Configuration update
-- Blue (dot): State changed
-- Blue (ring): State unchanged
-- Red (ring): Error
-- Yellow (ring): Warning
+- Green (dot): Configuration updates (e.g., `setpoint: 70.0`, `anticipator: 0.5`, `isHeating: true`).
+- Blue (dot): Outputs when state changes (e.g., `in: 65.00, out: heating, above: false, below: true`).
+- Blue (ring): Outputs when state unchanged (e.g., `in: 66.00, out: heating, above: false, below: true`).
+- Red (ring): Errors (e.g., `missing input`, `invalid coolingOff`, `invalid diff, using 2`).
+- Yellow (ring): Warnings (e.g., `unknown context`).
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

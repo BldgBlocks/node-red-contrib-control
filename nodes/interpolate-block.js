@@ -6,7 +6,7 @@ module.exports = function(RED) {
         
         // Initialize runtime state
         node.runtime = {
-            name: config.name || "interpolate",
+            name: config.name,
             points: null,
             lastOutput: null
         };

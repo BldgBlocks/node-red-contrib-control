@@ -14,6 +14,24 @@ module.exports = function(RED) {
             pendingMsg: null
         };
 
+        // Get period
+        let period;
+        try {
+            period = RED.util.evaluateNodeProperty(
+                node.runtime.period,
+                node.runtime.periodType,
+                node
+            );
+            if (isNaN(period) || period < 0) {
+                throw new Error("invalid period");
+            }
+        } catch (err) {
+            node.status({ fill: "red", shape: "ring", text: "invalid period" });
+            send(msg);
+            if (done) done();
+            return;
+        }
+
         // Validate initial config
         if (isNaN(node.runtime.period) || node.runtime.period < 0) {
             node.runtime.period = 0;
@@ -73,25 +91,6 @@ module.exports = function(RED) {
             // Validate input payload
             if (!msg.hasOwnProperty("payload")) {
                 node.status({ fill: "red", shape: "ring", text: "missing payload" });
-                send(msg);
-                if (done) done();
-                return;
-            }
-
-            // Get period
-            let period;
-            try {
-                period = RED.util.evaluateNodeProperty(
-                    node.runtime.period,
-                    node.runtime.periodType,
-                    node,
-                    msg
-                );
-                if (isNaN(period) || period < 0) {
-                    throw new Error("invalid period");
-                }
-            } catch (err) {
-                node.status({ fill: "red", shape: "ring", text: "invalid period" });
                 send(msg);
                 if (done) done();
                 return;

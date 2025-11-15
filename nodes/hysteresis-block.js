@@ -5,42 +5,42 @@ module.exports = function(RED) {
         node.name = config.name;
         node.state = "within";
 
+        // Evaluate typed-inputs
+        try {
+            node.upperLimit = RED.util.evaluateNodeProperty(
+                config.upperLimit, config.upperLimitType, node
+            );
+            node.lowerLimit = RED.util.evaluateNodeProperty(
+                config.lowerLimit, config.lowerLimitType, node
+            );
+            node.upperLimitThreshold = RED.util.evaluateNodeProperty(
+                config.upperLimitThreshold, config.upperLimitThresholdType, node
+            );
+            node.lowerLimitThreshold = RED.util.evaluateNodeProperty(
+                config.lowerLimitThreshold, config.lowerLimitThresholdType, node
+            );
+            
+            // Validate values
+            if (isNaN(node.upperLimit) || isNaN(node.lowerLimit) || 
+                isNaN(node.upperLimitThreshold) || isNaN(node.lowerLimitThreshold) ||
+                node.upperLimit <= node.lowerLimit ||
+                node.upperLimitThreshold < 0 || node.lowerLimitThreshold < 0) {
+                node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
+                if (done) done();
+                return;
+            }
+        } catch(err) {
+            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+            if (done) done(err);
+            return;
+        }
+
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
-                return;
-            }
-
-            // Evaluate typed-inputs
-            try {
-                node.upperLimit = RED.util.evaluateNodeProperty(
-                    config.upperLimit, config.upperLimitType, node, msg
-                );
-                node.lowerLimit = RED.util.evaluateNodeProperty(
-                    config.lowerLimit, config.lowerLimitType, node, msg
-                );
-                node.upperLimitThreshold = RED.util.evaluateNodeProperty(
-                    config.upperLimitThreshold, config.upperLimitThresholdType, node, msg
-                );
-                node.lowerLimitThreshold = RED.util.evaluateNodeProperty(
-                    config.lowerLimitThreshold, config.lowerLimitThresholdType, node, msg
-                );
-                
-                // Validate values
-                if (isNaN(node.upperLimit) || isNaN(node.lowerLimit) || 
-                    isNaN(node.upperLimitThreshold) || isNaN(node.lowerLimitThreshold) ||
-                    node.upperLimit <= node.lowerLimit ||
-                    node.upperLimitThreshold < 0 || node.lowerLimitThreshold < 0) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
-                    if (done) done();
-                    return;
-                }
-            } catch(err) {
-                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-                if (done) done(err);
                 return;
             }
 

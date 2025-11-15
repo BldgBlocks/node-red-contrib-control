@@ -9,35 +9,35 @@ module.exports = function(RED) {
             desired: false
         };
 
+        // Evaluate typed-inputs
+        try {
+            node.runtime.delayOn = RED.util.evaluateNodeProperty(
+                config.delayOn, config.delayOnType, node
+            );
+            node.runtime.delayOn = (parseFloat(node.runtime.delayOn)) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
+
+            node.runtime.delayOff = RED.util.evaluateNodeProperty(
+                config.delayOff, config.delayOffType, node
+            );
+            node.runtime.delayOff = (parseFloat(node.runtime.delayOff)) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
+
+            node.period = parseFloat(node.period);
+            if (isNaN(node.period) || node.period <= 0 || !isFinite(node.period)) {
+                node.period = 1000;
+                node.status({ fill: "yellow", shape: "ring", text: "invalid period, using 1000ms" });
+            }
+        } catch(err) {
+            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+            if (done) done(err);
+            return;
+        }
+
         let timeoutId = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
             if (!msg) {
                 if (done) done();
-                return;
-            }
-
-            // Evaluate typed-inputs
-            try {
-                node.runtime.delayOn = RED.util.evaluateNodeProperty(
-                    config.delayOn, config.delayOnType, node, msg
-                );
-                node.runtime.delayOn = (parseFloat(node.runtime.delayOn)) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
-
-                node.runtime.delayOff = RED.util.evaluateNodeProperty(
-                    config.delayOff, config.delayOffType, node, msg
-                );
-                node.runtime.delayOff = (parseFloat(node.runtime.delayOff)) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
-
-                node.period = parseFloat(node.period);
-                if (isNaN(node.period) || node.period <= 0 || !isFinite(node.period)) {
-                    node.period = 1000;
-                    node.status({ fill: "yellow", shape: "ring", text: "invalid period, using 1000ms" });
-                }
-            } catch(err) {
-                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-                if (done) done(err);
                 return;
             }
 

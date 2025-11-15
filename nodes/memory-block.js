@@ -17,6 +17,12 @@ module.exports = function(RED) {
             storedMsg: null
         };
 
+        // Resolve typed inputs
+        node.runtime.writePeriod = RED.util.evaluateNodeProperty(
+            config.writePeriod, config.writePeriodType, node
+        );
+        node.runtime.writePeriod = parseFloat(node.runtime.writePeriod);
+
         // File path for persistent storage
         const filePath = path.join(RED.settings.userDir, `memory-${node.id}.json`);
 
@@ -80,12 +86,6 @@ module.exports = function(RED) {
                 if (done) done();
                 return;
             }
-
-            // Resolve typed inputs
-            node.runtime.writePeriod = RED.util.evaluateNodeProperty(
-                config.writePeriod, config.writePeriodType, node, msg
-            );
-            node.runtime.writePeriod = parseFloat(node.runtime.writePeriod);
 
             // Initialize output array: [Output 1, Output 2]
             const output = [null, null];

@@ -490,7 +490,6 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            node.status({});
             done();
         });
     }

@@ -8,29 +8,29 @@ module.exports = function(RED) {
             name: config.name,
         };
 
+        // Evaluate typed-inputs
+        try {
+            node.runtime.min = RED.util.evaluateNodeProperty(
+                config.min, config.minType, node
+            );
+            
+            // Validate values
+            if (isNaN(node.runtime.min)) {
+                node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
+                if (done) done();
+                return;
+            }
+        } catch(err) {
+            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+            if (done) done(err);
+            return;
+        }
+
         // Store last output value for status
         let lastOutput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
-
-            // Evaluate typed-inputs
-            try {
-                node.runtime.min = RED.util.evaluateNodeProperty(
-                    config.min, config.minType, node, msg
-                );
-                
-                // Validate values
-                if (isNaN(node.runtime.min)) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
-                    if (done) done();
-                    return;
-                }
-            } catch(err) {
-                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-                if (done) done(err);
-                return;
-            }
 
             // Guard against invalid message
             if (!msg) {

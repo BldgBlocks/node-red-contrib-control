@@ -10,6 +10,28 @@ module.exports = function(RED) {
             lastAvg: null
         };
 
+        // Evaluate all properties
+        try {
+            node.runtime.minValid = RED.util.evaluateNodeProperty(
+                config.minValid, config.minValidType, node
+            );
+
+            node.runtime.maxValid = RED.util.evaluateNodeProperty(
+                config.maxValid, config.maxValidType, node
+            );
+            
+            // Validate values
+            if (isNaN(node.runtime.maxValid) || isNaN(node.runtime.minValid) || node.runtime.maxValid <= node.runtime.minValid ) {
+                node.status({ fill: "red", shape: "ring", text: `invalid evaluated values ${node.runtime.minValid}, ${node.runtime.maxValid}` });
+                if (done) done();
+                return;
+            }
+        } catch(err) {
+            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+            if (done) done(err);
+            return;
+        }
+
         // Validate initial config
         if (isNaN(node.runtime.maxValues) || node.runtime.maxValues < 1) {
             node.runtime.maxValues = 10;
@@ -25,28 +47,6 @@ module.exports = function(RED) {
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
-                return;
-            }
-
-            // Evaluate all properties
-            try {
-                node.runtime.minValid = RED.util.evaluateNodeProperty(
-                    config.minValid, config.minValidType, node, msg
-                );
-
-                node.runtime.maxValid = RED.util.evaluateNodeProperty(
-                    config.maxValid, config.maxValidType, node, msg
-                );
-                
-                // Validate values
-                if (isNaN(node.runtime.maxValid) || isNaN(node.runtime.minValid) || node.runtime.maxValid <= node.runtime.minValid ) {
-                    node.status({ fill: "red", shape: "ring", text: `invalid evaluated values ${node.runtime.minValid}, ${node.runtime.maxValid}` });
-                    if (done) done();
-                    return;
-                }
-            } catch(err) {
-                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-                if (done) done(err);
                 return;
             }
 

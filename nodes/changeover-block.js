@@ -18,6 +18,38 @@ module.exports = function(RED) {
             lastModeChange: 0
         };
 
+        // Resolve typed inputs
+        let minTemp = node.runtime.minTempSetpoint;
+        let maxTemp = node.runtime.maxTempSetpoint;
+
+        if (node.runtime.algorithm === "single") {
+            node.runtime.setpoint = RED.util.evaluateNodeProperty(
+                config.setpoint, config.setpointType, node
+            );
+            node.runtime.setpoint = parseFloat(node.runtime.setpoint);
+        } else {
+            node.runtime.heatingSetpoint = RED.util.evaluateNodeProperty(
+                config.heatingSetpoint, config.heatingSetpointType, node
+            );
+            node.runtime.heatingSetpoint = parseFloat(node.runtime.heatingSetpoint);
+
+            node.runtime.coolingSetpoint = RED.util.evaluateNodeProperty(
+                config.coolingSetpoint, config.coolingSetpointType, node
+            );
+            node.runtime.coolingSetpoint = parseFloat(node.runtime.coolingSetpoint);
+
+            // Validate
+            if (node.runtime.coolingSetpoint < node.runtime.heatingSetpoint) {
+                node.runtime.coolingSetpoint = node.runtime.heatingSetpoint + 4;
+                node.status({ fill: "red", shape: "ring", text: "invalid setpoints, using fallback" });
+            }
+        }
+        
+        node.runtime.swapTime = RED.util.evaluateNodeProperty(
+            config.swapTime, config.swapTimeType, node
+        );
+        node.runtime.swapTime = parseFloat(node.runtime.swapTime);
+
         // Initialize state
         let initComplete = false;
         let conditionStartTime = null;
@@ -32,42 +64,16 @@ module.exports = function(RED) {
                 if (done) done();
                 return;
             }
-
-            // Resolve typed inputs
-            let minTemp = node.runtime.minTempSetpoint;
-            let maxTemp = node.runtime.maxTempSetpoint;
-
-            if (node.runtime.algorithm === "single") {
-                node.runtime.setpoint = RED.util.evaluateNodeProperty(
-                    config.setpoint, config.setpointType, node, msg
-                );
-                node.runtime.setpoint = parseFloat(node.runtime.setpoint);
-            } else {
-                node.runtime.heatingSetpoint = RED.util.evaluateNodeProperty(
-                    config.heatingSetpoint, config.heatingSetpointType, node, msg
-                );
-                node.runtime.heatingSetpoint = parseFloat(node.runtime.heatingSetpoint);
-
-                node.runtime.coolingSetpoint = RED.util.evaluateNodeProperty(
-                    config.coolingSetpoint, config.coolingSetpointType, node, msg
-                );
-                node.runtime.coolingSetpoint = parseFloat(node.runtime.coolingSetpoint);
-
-                // Validate
-                if (node.runtime.coolingSetpoint < node.runtime.heatingSetpoint) {
-                    node.runtime.coolingSetpoint = node.runtime.heatingSetpoint + 4;
-                    node.status({ fill: "red", shape: "ring", text: "invalid setpoints, using fallback" });
-                }
-            }
             
-            node.runtime.swapTime = RED.util.evaluateNodeProperty(
-                config.swapTime, config.swapTimeType, node, msg
-            );
-            node.runtime.swapTime = parseFloat(node.runtime.swapTime);
-
+            // Validate
             if (node.runtime.swapTime < 60) {
                 node.runtime.swapTime = 60;
                 node.status({ fill: "red", shape: "ring", text: "swapTime below 60s, using 60" });
+            }
+
+            if (node.runtime.coolingSetpoint < node.runtime.heatingSetpoint) {
+                node.runtime.coolingSetpoint = node.runtime.heatingSetpoint + 4;
+                node.status({ fill: "red", shape: "ring", text: "invalid setpoints, using fallback" });
             }
 
             if (msg.hasOwnProperty("context")) {

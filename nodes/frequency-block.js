@@ -114,7 +114,7 @@ module.exports = function(RED) {
                 node.status({
                     fill: "blue",
                     shape: "dot",
-                    text: `ppm: ${output.ppm.toFixed(2)}, pph: ${output.pph.toFixed(2)}, ppd: ${output.ppd.toFixed(2)}`
+                    text: `input: ${inputValue}, ppm: ${output.ppm.toFixed(2)}, pph: ${output.pph.toFixed(2)}, ppd: ${output.ppd.toFixed(2)}`
                 });
                 send({ payload: output });
             } else {

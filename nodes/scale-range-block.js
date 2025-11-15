@@ -86,7 +86,7 @@ module.exports = function(RED) {
                 if (shouldOutput) {
                     const out = calculate(node.runtime.lastInput, node.runtime.inMin, node.runtime.inMax, node.runtime.outMin, node.runtime.outMax, node.runtime.clamp);
                     msg.payload = out;
-                    node.status({ fill: "blue", shape: "dot", text: `out: ${out.toFixed(2)}, in: ${node.runtime.lastInput.toFixed(2)}` });
+                    node.status({ fill: "blue", shape: "dot", text: `in: ${node.runtime.lastInput.toFixed(2)}, out: ${out.toFixed(2)}` });
                     send(msg);
                 }
                 if (done) done();
@@ -115,7 +115,7 @@ module.exports = function(RED) {
             node.runtime.lastInput = inputValue;
             const out = calculate(inputValue, node.runtime.inMin, node.runtime.inMax, node.runtime.outMin, node.runtime.outMax, node.runtime.clamp);
             msg.payload = out;
-            node.status({ fill: "blue", shape: "dot", text: `out: ${out.toFixed(2)}, in: ${inputValue.toFixed(2)}` });
+            node.status({ fill: "blue", shape: "dot", text: `in: ${inputValue.toFixed(2)}, out: ${out.toFixed(2)}` });
             send(msg);
 
             if (done) done();

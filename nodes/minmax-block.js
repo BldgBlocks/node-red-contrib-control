@@ -8,34 +8,34 @@ module.exports = function(RED) {
             name: config.name,
         };
 
+        // Evaluate typed-inputs
+        try {
+            node.runtime.min = RED.util.evaluateNodeProperty(
+                config.min, config.minType, node
+            );
+
+            node.runtime.max = RED.util.evaluateNodeProperty(
+                config.max, config.maxType, node
+            );
+            
+
+            // Validate min and max at startup
+            if (isNaN(node.runtime.min) || isNaN(node.runtime.max) || node.runtime.min > node.runtime.max) {
+                node.status({ fill: "red", shape: "dot", text: `invalid min/max` });
+                if (done) done();
+                return;
+            }
+        } catch(err) {
+            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+            if (done) done(err);
+            return;
+        }
+
         // Store last output value for status
         let lastOutput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
-
-            // Evaluate typed-inputs
-            try {
-                node.runtime.min = RED.util.evaluateNodeProperty(
-                    config.min, config.minType, node, msg
-                );
-
-                node.runtime.max = RED.util.evaluateNodeProperty(
-                    config.max, config.maxType, node, msg
-                );
-                
-
-                // Validate min and max at startup
-                if (isNaN(node.runtime.min) || isNaN(node.runtime.max) || node.runtime.min > node.runtime.max) {
-                    node.status({ fill: "red", shape: "dot", text: `invalid min/max` });
-                    if (done) done();
-                    return;
-                }
-            } catch(err) {
-                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-                if (done) done(err);
-                return;
-            }
 
             // Guard against invalid message
             if (!msg) {
@@ -65,7 +65,7 @@ module.exports = function(RED) {
                         node.status({ fill: "yellow", shape: "dot", text: `Context update aborted. Payload more than max` });
                     }
                 } else if (msg.context === "max") {
-                    if (value > node.runtime.max) {
+                    if (value > node.runtime.min) {
                         node.runtime.max = value;
                         node.status({ fill: "green", shape: "dot", text: `max: ${node.runtime.max}` });
                     } else {
