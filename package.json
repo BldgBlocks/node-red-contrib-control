@@ -64,10 +64,10 @@
   "license": "MIT",  
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git"
+    "url": "git+https://github.com/BldgBlocks/node-red-contrib-control.git"
   },
-  "homepage": "https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control#readme",
+  "homepage": "https://github.com/BldgBlocks/node-red-contrib-control#readme",
   "bugs": {
-    "url": "https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control/issues"
+    "url": "https://github.com/BldgBlocks/node-red-contrib-control/issues"
   }
 }

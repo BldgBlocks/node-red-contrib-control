@@ -18,6 +18,12 @@
     <div class="form-row single-only">
         <label for="node-input-deadband" title="Temperature range for no action (positive number)"><i class="fa fa-arrows-v"></i> Deadband</label>
         <input type="text" id="node-input-deadband" placeholder="2">
+        <input type="hidden" id="node-input-deadbandType">
+    </div>
+    <div class="form-row split-only" style="display: none;">
+        <div id="deadband-warning" style="color: red; display: none; margin-top: 5px;">
+            Invalid
+        </div>
     </div>
     <div class="form-row split-only" style="display: none;">
         <label for="node-input-heatingSetpoint" title="Heating setpoint for split algorithm (number from num, msg, flow, or global)"><i class="fa fa-thermometer-empty"></i> Heating Setpoint</label>
@@ -34,9 +40,15 @@
             Cooling setpoint must be greater than heating setpoint
         </div>
     </div>
-    <div class="form-row">
+    <div class="form-row split-only">
         <label for="node-input-extent" title="Extra buffer mode switching thresholds (non-negative number)"><i class="fa fa-tachometer"></i> Extent</label>
         <input type="text" id="node-input-extent" placeholder="1">
+        <input type="hidden" id="node-input-extentType">
+    </div>
+    <div class="form-row split-only" style="display: none;">
+        <div id="extent-warning" style="color: red; display: none; margin-top: 5px;">
+            Invalid
+        </div>
     </div>
     <div class="form-row">
         <label for="node-input-swapTime" title="Minimum time before mode change (seconds, minimum 60, from num, msg, flow, or global)"><i class="fa fa-clock-o"></i> Swap Time</label>
@@ -56,6 +68,11 @@
     <div class="form-row">
         <label for="node-input-initWindow" title="Initialization window to collect inputs before mode selection (seconds, non-negative number)"><i class="fa fa-hourglass-start"></i> Init Window</label>
         <input type="text" id="node-input-initWindow" placeholder="10">
+    </div>
+    <div class="form-row split-only" style="display: none;">
+        <div id="initWindow-warning" style="color: red; display: none; margin-top: 5px;">
+            Invalid
+        </div>
     </div>
     <div class="form-row">
         <label for="node-input-operationMode" title="Operation mode"><i class="fa fa-cogs"></i> Operation Mode</label>
@@ -132,6 +149,18 @@
                     typeField: "#node-input-swapTimeType"
                 }).typedInput("type", node.swapTimeType || "num").typedInput("value", node.swapTime);
 
+                $("#node-input-deadband").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-deadbandType"
+                }).typedInput("type", node.deadbandType || "num").typedInput("value", node.deadband);
+
+                $("#node-input-extent").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-extentType"
+                }).typedInput("type", node.extentType || "num").typedInput("value", node.extent);
+
                 $("#node-input-minTempSetpoint").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
@@ -149,7 +178,6 @@
                     if ($algorithm.val() === "single") {
                         $singleFields.show();
                         $splitFields.hide();
-                        $("#split-setpoint-warning").hide();
                     } else {
                         $singleFields.hide();
                         $splitFields.show();
@@ -158,22 +186,6 @@
 
                 $algorithm.on("change", toggleFields);
                 toggleFields();
-
-                // Validate non-typed inputs
-                $("#node-input-deadband").on("input", function() {
-                    const val = parseFloat($(this).val());
-                    $(this).toggleClass("input-error", isNaN(val) || val <= 0);
-                });
-
-                $("#node-input-extent").on("input", function() {
-                    const val = parseFloat($(this).val());
-                    $(this).toggleClass("input-error", isNaN(val) || val < 0);
-                });
-
-                $("#node-input-initWindow").on("input", function() {
-                    const val = parseFloat($(this).val());
-                    $(this).toggleClass("input-error", isNaN(val) || val < 0);
-                });
                 
             } catch (err) {
                 console.error("Error in changeover-block oneditprepare:", err);
@@ -200,7 +212,7 @@ The node supports two algorithms for determining HVAC mode
   - Uses a single `setpoint`, `deadband`, and `extent`.
   - **Heating** is triggered if the input temperature is below `setpoint - deadband/2 - extent`.
   - **Cooling** is triggered if the temperature exceeds `setpoint + deadband/2 + extent`.
-  - Example With `setpoint=70`, `deadband=2`, `extent=1`, heating starts below `70 - 2/2 - 1 = 68`, and cooling starts above `70 + 2/2 + 1 = 72`.
+  - Example With `setpoint=70`, `deadband=2``, heating starts below `70 - 2/2 = 68`, and cooling starts above `70 + 2/2 = 72`.
   - The `extent` widens thresholds to prevent nuisance mode changes due to overshoot.
 
 - **Split Setpoint**

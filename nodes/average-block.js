@@ -10,7 +10,7 @@ module.exports = function(RED) {
             lastAvg: null
         };
 
-        // Evaluate all properties
+        // Evaluate typed inputs
         try {
             node.runtime.minValid = RED.util.evaluateNodeProperty(
                 config.minValid, config.minValidType, node
