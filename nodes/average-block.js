@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function AverageBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -10,34 +12,15 @@ module.exports = function(RED) {
             lastAvg: null
         };
 
-        // Evaluate typed inputs
-        try {
-            node.runtime.minValid = RED.util.evaluateNodeProperty(
-                config.minValid, config.minValidType, node
-            );
+        const typedProperties = ['minValid', 'maxValid'];
 
-            node.runtime.maxValid = RED.util.evaluateNodeProperty(
-                config.maxValid, config.maxValidType, node
-            );
-            
-            // Validate values
-            if (isNaN(node.runtime.maxValid) || isNaN(node.runtime.minValid) || node.runtime.maxValid <= node.runtime.minValid ) {
-                node.status({ fill: "red", shape: "ring", text: `invalid evaluated values ${node.runtime.minValid}, ${node.runtime.maxValid}` });
-                if (done) done();
-                return;
-            }
-        } catch(err) {
-            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-            if (done) done(err);
-            return;
-        }
-
-        // Validate initial config
-        if (isNaN(node.runtime.maxValues) || node.runtime.maxValues < 1) {
-            node.runtime.maxValues = 10;
-            node.status({ fill: "red", shape: "ring", text: "invalid window size, using 10" });
-        } else {
-            node.status({ shape: "dot", text: `name: ${config.name}, window: ${config.sampleSize}` });
+        // Evaluate typed-input properties    
+        try {     
+            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
+            node.runtime.minValid = parseFloat(evaluatedValues.minValid);
+            node.runtime.maxValid = parseFloat(evaluatedValues.maxValid);
+        } catch (err) {
+            node.error(`Error evaluating properties: ${err.message}`);
         }
 
         node.on("input", function(msg, send, done) {
@@ -46,6 +29,30 @@ module.exports = function(RED) {
             // Guard against invalid msg
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }    
+
+            // Update typed-input properties if needed
+            try {                    
+                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
+                node.runtime.minValid = parseFloat(evaluatedValues.minValid);
+                node.runtime.maxValid = parseFloat(evaluatedValues.maxValid);
+            } catch (err) {
+                node.error(`Error evaluating properties: ${err.message}`);
+                if (done) done();
+                return;
+            }
+
+            // Acceptable fallbacks
+            if (isNaN(node.runtime.maxValues) || node.runtime.maxValues < 1) {
+                node.runtime.maxValues = 10;
+                node.status({ fill: "red", shape: "ring", text: "invalid window size, using 10" });
+            }
+
+            // Validate values
+            if (isNaN(node.runtime.maxValid) || isNaN(node.runtime.minValid) || node.runtime.maxValid <= node.runtime.minValid ) {
+                node.status({ fill: "red", shape: "ring", text: `invalid evaluated values ${node.runtime.minValid}, ${node.runtime.maxValid}` });
                 if (done) done();
                 return;
             }

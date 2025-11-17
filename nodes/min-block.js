@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function MinBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -10,20 +12,10 @@ module.exports = function(RED) {
 
         // Evaluate typed-inputs
         try {
-            node.runtime.min = RED.util.evaluateNodeProperty(
-                config.min, config.minType, node
-            );
-            
-            // Validate values
-            if (isNaN(node.runtime.min)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
-                if (done) done();
-                return;
-            }
+            node.runtime.min = RED.util.evaluateNodeProperty( config.min, config.minType, node );
+            node.runtime.min = parseFloat(node.runtime.min);
         } catch(err) {
             node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-            if (done) done(err);
-            return;
         }
 
         // Store last output value for status
@@ -35,6 +27,25 @@ module.exports = function(RED) {
             // Guard against invalid message
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Evaluate typed-inputs if needed
+            try {
+                if (utils.requiresEvaluation(config.minType)) {
+                    node.runtime.min = RED.util.evaluateNodeProperty( config.min, config.minType, node, msg );
+                    node.runtime.min = parseFloat(node.runtime.min);
+                }
+            } catch(err) {
+                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+                if (done) done(err);
+                return;
+            }
+
+            // Validate
+            if (isNaN(node.runtime.min)) {
+                node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
                 if (done) done();
                 return;
             }

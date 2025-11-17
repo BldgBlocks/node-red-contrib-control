@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function ChangeoverBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -14,36 +16,23 @@ module.exports = function(RED) {
             lastModeChange: 0
         };
 
-        // Evaluate typed inputs
-        try {
-            node.runtime.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node ));
-            
-            node.runtime.heatingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.heatingSetpoint, config.heatingSetpointType, node ));
+        const typedProperties = ['setpoint', 'heatingSetpoint', 'coolingSetpoint', 'swapTime', 'deadband', 
+            'extent', 'minTempSetpoint', 'maxTempSetpoint'];
 
-            node.runtime.coolingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.coolingSetpoint, config.coolingSetpointType, node ));
-        
-            node.runtime.swapTime = parseFloat(RED.util.evaluateNodeProperty( config.swapTime, config.swapTimeType, node ));
-        
-            node.runtime.deadband = parseFloat(RED.util.evaluateNodeProperty( config.deadband, config.deadbandType, node ));
-        
-            node.runtime.extent = parseFloat(RED.util.evaluateNodeProperty( config.extent, config.extentType, node ));
-        
-            node.runtime.minTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.minTempSetpoint, config.minTempSetpointType, node ));
-        
-            node.runtime.maxTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.maxTempSetpoint, config.maxTempSetpointType, node ));
-
-
-            // Validate
-            if (node.runtime.coolingSetpoint < node.runtime.heatingSetpoint 
-                || node.runtime.maxTempSetpoint < node.runtime.minTempSetpoint 
-                || node.runtime.deadband <= 0 || node.runtime.extent < 0) {
-                node.status({ fill: "red", shape: "ring", text: "error validating properties, check setpoints" });
-                if (done) done(err);
-                return;
-            }
-        } catch(err) {
-            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-            if (done) done(err);
+        // Evaluate typed-input properties    
+        try {            
+            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
+            node.runtime.setpoint = parseFloat(evaluatedValues.setpoint);
+            node.runtime.heatingSetpoint = parseFloat(evaluatedValues.heatingSetpoint);
+            node.runtime.coolingSetpoint = parseFloat(evaluatedValues.coolingSetpoint);
+            node.runtime.swapTime = parseFloat(evaluatedValues.swapTime);
+            node.runtime.deadband = parseFloat(evaluatedValues.deadband);
+            node.runtime.extent = parseFloat(evaluatedValues.extent);
+            node.runtime.minTempSetpoint = parseFloat(evaluatedValues.minTempSetpoint);
+            node.runtime.maxTempSetpoint = parseFloat(evaluatedValues.maxTempSetpoint);
+        } catch (err) {
+            node.error(`Error evaluating properties: ${err.message}`);
+            if (done) done();
             return;
         }
 
@@ -60,9 +49,34 @@ module.exports = function(RED) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
                 return;
+            }     
+
+            // Update typed-input properties if needed
+            try {    
+                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
+                node.runtime.setpoint = parseFloat(evaluatedValues.setpoint);
+                node.runtime.heatingSetpoint = parseFloat(evaluatedValues.heatingSetpoint);
+                node.runtime.coolingSetpoint = parseFloat(evaluatedValues.coolingSetpoint);
+                node.runtime.swapTime = parseFloat(evaluatedValues.swapTime);
+                node.runtime.deadband = parseFloat(evaluatedValues.deadband);
+                node.runtime.extent = parseFloat(evaluatedValues.extent);
+                node.runtime.minTempSetpoint = parseFloat(evaluatedValues.minTempSetpoint);
+                node.runtime.maxTempSetpoint = parseFloat(evaluatedValues.maxTempSetpoint);                
+            } catch (err) {
+                node.error(`Error evaluating properties: ${err.message}`);
+                if (done) done();
+                return;
+            }
+
+            // Validate
+            if (node.runtime.coolingSetpoint < node.runtime.heatingSetpoint 
+                || node.runtime.maxTempSetpoint < node.runtime.minTempSetpoint 
+                || node.runtime.deadband <= 0 || node.runtime.extent < 0) {
+                node.status({ fill: "red", shape: "ring", text: "error validating properties, check setpoints" });
+                if (done) done(err);
+                return;
             }
             
-            // Validate
             if (node.runtime.swapTime < 60) {
                 node.runtime.swapTime = 60;
                 node.status({ fill: "red", shape: "ring", text: "swapTime below 60s, using 60" });
@@ -321,26 +335,27 @@ module.exports = function(RED) {
 
         function buildOutputs() {
             const isHeating = node.runtime.currentMode === "heating";
-            let heatingSetpoint, coolingSetpoint;
+            let effectiveHeatingSetpoint, effectiveCoolingSetpoint;
             if (node.runtime.algorithm === "single") {
-                heatingSetpoint = node.runtime.setpoint - node.runtime.deadband / 2;
-                coolingSetpoint = node.runtime.setpoint + node.runtime.deadband / 2;
+                effectiveHeatingSetpoint = node.runtime.setpoint - node.runtime.deadband / 2;
+                effectiveCoolingSetpoint = node.runtime.setpoint + node.runtime.deadband / 2;
             } else {
-                heatingSetpoint = node.runtime.heatingSetpoint;
-                coolingSetpoint = node.runtime.coolingSetpoint;
+                effectiveHeatingSetpoint = node.runtime.heatingSetpoint;
+                effectiveCoolingSetpoint = node.runtime.coolingSetpoint;
             }
 
             return [
-                { payload: isHeating, context: "isHeating" },
-                {
-                    payload: {
+                { 
+                    payload: isHeating,
+                    context: "isHeating", 
+                    status: {
                         mode: node.runtime.currentMode,
                         isHeating,
-                        heatingSetpoint,
-                        coolingSetpoint,
+                        heatingSetpoint: effectiveHeatingSetpoint,
+                        coolingSetpoint: effectiveCoolingSetpoint,
                         temperature: node.runtime.lastTemperature
                     }
-                }
+                },
             ];
         }
 
