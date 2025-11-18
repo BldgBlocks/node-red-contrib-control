@@ -137,7 +137,7 @@ module.exports = function(RED) {
                 send(msg);
 
                 // Start filter period if applicable
-                if (period > 0) {
+                if (node.runtime.period > 0) {
                     node.runtime.blockTimer = setTimeout(() => {
                         node.runtime.blockTimer = null;
                         if (node.runtime.pendingMsg) {
@@ -161,7 +161,7 @@ module.exports = function(RED) {
                         } else {
                             node.status({});
                         }
-                    }, period);
+                    }, node.runtime.period);
                 }
             } else {
                 node.status({
