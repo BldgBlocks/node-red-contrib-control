@@ -3,6 +3,8 @@ const path = require("path");
 const fsSync = require("fs");
 
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function MemoryBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -18,9 +20,7 @@ module.exports = function(RED) {
         };
 
         // Resolve typed inputs
-        node.runtime.writePeriod = RED.util.evaluateNodeProperty(
-            config.writePeriod, config.writePeriodType, node
-        );
+        node.runtime.writePeriod = RED.util.evaluateNodeProperty( config.writePeriod, config.writePeriodType, node );
         node.runtime.writePeriod = parseFloat(node.runtime.writePeriod);
 
         // File path for persistent storage
@@ -85,6 +85,12 @@ module.exports = function(RED) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
                 return;
+            }
+
+            // Evaluate typed-inputs if needed
+            if (utils.requiresEvaluation(node.runtime.writePeriodType)) {
+                node.runtime.writePeriod = RED.util.evaluateNodeProperty( config.writePeriod, config.writePeriodType, node, msg );
+                node.runtime.writePeriod = parseFloat(node.runtime.writePeriod);
             }
 
             // Initialize output array: [Output 1, Output 2]

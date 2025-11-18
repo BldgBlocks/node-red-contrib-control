@@ -60,8 +60,8 @@ Filters redundant messages based on value changes and a configurable period.
 
 ### Details
 Filters messages based on value changes (deep comparison) and a filter period. When `period = 0`, outputs the input message only if `msg.payload` 
-differs from the last output value. When `period > 0`, outputs the first message, suppresses all messages during the period (including blips), 
-and after the period, outputs only if the value differs from the last output. Supports complex payloads (objects, arrays) via deep comparison. 
+differs from the last output value. When `period > 0`, outputs the first message, suppresses all messages during the period (including blips). 
+Supports complex payloads (objects, arrays) via deep comparison. 
 Configuration
 - `msg.context = "period"` Sets period (ms), no output.
 - `msg.context = "status"` Outputs `{ period, periodType }`.

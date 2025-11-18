@@ -1,44 +1,44 @@
-const validConversions = [
-    "F to C", 
-    "C to F", 
-    "K to C",
-    "C to K", 
-    "K to F",
-    "F to K",
-    "R to F",
-    "F to R",
-    "decimal to %", 
-    "% to decimal", 
-    "Pa to inH₂O", 
-    "inH₂O to Pa", 
-    "Pa to inHg", 
-    "inHg to Pa", 
-    "Pa to bar", 
-    "bar to Pa", 
-    "Pa to psi", 
-    "psi to Pa",
-    "m to ft",
-    "ft to m",
-    "m to in",
-    "in to m",
-    "mm to in",
-    "in to mm",
-    "kg to lb",
-    "lb to kg",
-    "L to gal",
-    "gal to L",
-    "kW to hp",
-    "hp to kW",
-    "rad to deg",
-    "deg to rad",
-    "s to min",
-    "min to s"
-];
-
 module.exports = function(RED) {
     function ConvertBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
+
+        const validConversions = [
+            "F to C", 
+            "C to F", 
+            "K to C",
+            "C to K", 
+            "K to F",
+            "F to K",
+            "R to F",
+            "F to R",
+            "decimal to %", 
+            "% to decimal", 
+            "Pa to inH₂O", 
+            "inH₂O to Pa", 
+            "Pa to inHg", 
+            "inHg to Pa", 
+            "Pa to bar", 
+            "bar to Pa", 
+            "Pa to psi", 
+            "psi to Pa",
+            "m to ft",
+            "ft to m",
+            "m to in",
+            "in to m",
+            "mm to in",
+            "in to mm",
+            "kg to lb",
+            "lb to kg",
+            "L to gal",
+            "gal to L",
+            "kW to hp",
+            "hp to kW",
+            "rad to deg",
+            "deg to rad",
+            "s to min",
+            "min to s"
+        ];
 
         // Initialize runtime state
         node.runtime = {
@@ -87,7 +87,7 @@ module.exports = function(RED) {
 
             const inputValue = parseFloat(msg.payload);
             if (isNaN(inputValue) || !isFinite(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+                node.status({ fill: "red", shape: "ring", text: `Invalid payload` });
                 if (done) done();
                 return;
             }
@@ -96,62 +96,62 @@ module.exports = function(RED) {
             let output, inUnit, outUnit;
             switch (node.runtime.conversion) {
                 case "F to C":
-                    output = (msg.payload - 32) * 5 / 9;
+                    output = (inputValue - 32) * 5 / 9;
                     inUnit = "°F";
                     outUnit = "°C";
                     break;
                 case "C to F":
-                    output = (msg.payload * 9 / 5) + 32;
+                    output = (inputValue * 9 / 5) + 32;
                     inUnit = "°C";
                     outUnit = "°F";
                     break;
                 case "decimal to %":
-                    output = msg.payload * 100;
+                    output = inputValue * 100;
                     inUnit = "";
                     outUnit = "%";
                     break;
                 case "% to decimal":
-                    output = msg.payload / 100;
+                    output = inputValue / 100;
                     inUnit = "%";
                     outUnit = "";
                     break;
                 case "Pa to inH₂O":
-                    output = msg.payload * 0.00401463;
+                    output = inputValue * 0.00401463;
                     inUnit = "Pa";
                     outUnit = "inH₂O";
                     break;
                 case "inH₂O to Pa":
-                    output = msg.payload / 0.00401463;
+                    output = inputValue / 0.00401463;
                     inUnit = "inH₂O";
                     outUnit = "Pa";
                     break;
                 case "Pa to inHg":
-                    output = msg.payload * 0.0002953;
+                    output = inputValue * 0.0002953;
                     inUnit = "Pa";
                     outUnit = "inHg";
                     break;
                 case "inHg to Pa":
-                    output = msg.payload / 0.0002953;
+                    output = inputValue / 0.0002953;
                     inUnit = "inHg";
                     outUnit = "Pa";
                     break;
                 case "Pa to bar":
-                    output = msg.payload * 0.00001;
+                    output = inputValue * 0.00001;
                     inUnit = "Pa";
                     outUnit = "bar";
                     break;
                 case "bar to Pa":
-                    output = msg.payload / 0.00001;
+                    output = inputValue / 0.00001;
                     inUnit = "bar";
                     outUnit = "Pa";
                     break;
                 case "Pa to psi":
-                    output = msg.payload * 0.000145038;
+                    output = inputValue * 0.000145038;
                     inUnit = "Pa";
                     outUnit = "psi";
                     break;
                 case "psi to Pa":
-                    output = msg.payload / 0.000145038;
+                    output = inputValue / 0.000145038;
                     inUnit = "psi";
                     outUnit = "Pa";
                     break;

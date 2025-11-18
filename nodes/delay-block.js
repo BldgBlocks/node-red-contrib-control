@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function DelayBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -9,31 +11,15 @@ module.exports = function(RED) {
             desired: false
         };
 
-        // Evaluate typed-inputs
-        try {
-            node.runtime.delayOn = RED.util.evaluateNodeProperty(
-                config.delayOn, config.delayOnType, node
-            );
-            node.runtime.delayOn = (parseFloat(node.runtime.delayOn)) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
+        const typedProperties = ['delayOn', 'delayOff'];
 
-            node.runtime.delayOff = RED.util.evaluateNodeProperty(
-                config.delayOff, config.delayOffType, node
-            );
-            node.runtime.delayOff = (parseFloat(node.runtime.delayOff)) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
-
-            if (isNaN(node.runtime.delayOn) || node.runtime.delayOn <= 0 || !isFinite(node.runtime.delayOn)) {
-                node.runtime.delayOn = 1000;
-                node.status({ fill: "yellow", shape: "ring", text: "invalid period, using 1000ms" });
-            }
-
-            if (isNaN(node.runtime.delayOff) || node.runtime.delayOff <= 0 || !isFinite(node.runtime.delayOff)) {
-                node.runtime.delayOff = 1000;
-                node.status({ fill: "yellow", shape: "ring", text: "invalid period, using 1000ms" });
-            }
-        } catch(err) {
-            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-            if (done) done(err);
-            return;
+        // Evaluate typed-input properties    
+        try {   
+            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
+            node.runtime.delayOn = (parseFloat(evaluatedValues.delayOn)) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
+            node.runtime.delayOff = (parseFloat(evaluatedValues.delayOff)) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
+        } catch (err) {
+            node.error(`Error evaluating properties: ${err.message}`);
         }
 
         let timeoutId = null;
@@ -43,8 +29,20 @@ module.exports = function(RED) {
             if (!msg) {
                 if (done) done();
                 return;
+            }    
+
+            // Update typed-input properties if needed
+            try {   
+                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
+                node.runtime.delayOn = parseFloat(evaluatedValues.delayOn) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
+                node.runtime.delayOff = parseFloat(evaluatedValues.delayOff) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
+            } catch (err) {
+                node.error(`Error evaluating properties: ${err.message}`);
+                if (done) done();
+                return;
             }
 
+            // Acceptable fallbacks
             if (isNaN(node.runtime.delayOn) || node.runtime.delayOn < 0) {
                 node.runtime.delayOn = 1000;
                 node.status({ fill: "red", shape: "ring", text: "invalid delayOn" });
@@ -170,6 +168,11 @@ module.exports = function(RED) {
                 } else {
                     node.status({ fill: "blue", shape: "ring", text: `no change` });
                 }
+                
+                // No state change, pass the message through
+                node.runtime.state = inputValue;
+                desired = inputValue;
+                send(msg);
             }
 
             if (done) done();

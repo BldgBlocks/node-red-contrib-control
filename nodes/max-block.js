@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+    
     function MaxBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -6,24 +8,14 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name
-        };
+        };       
 
         // Evaluate typed-inputs
         try {
-            node.runtime.max = RED.util.evaluateNodeProperty(
-                config.max, config.maxType, node
-            );
-            
-            // Validate values
-            if (isNaN(node.runtime.max)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
-                if (done) done();
-                return;
-            }
+            node.runtime.max = RED.util.evaluateNodeProperty( config.max, config.maxType, node );
+            node.runtime.max = parseFloat(node.runtime.max);
         } catch(err) {
             node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-            if (done) done(err);
-            return;
         }
 
         // Store last output value for status
@@ -35,6 +27,25 @@ module.exports = function(RED) {
             // Guard against invalid message
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Evaluate typed-inputs if needed
+            try {
+                if (utils.requiresEvaluation(config.maxType)) {
+                    node.runtime.max = RED.util.evaluateNodeProperty( config.max, config.maxType, node, msg );
+                    node.runtime.max = parseFloat(node.runtime.max);
+                }
+            } catch(err) {
+                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+                if (done) done(err);
+                return;
+            }
+
+            // Validate values
+            if (isNaN(node.runtime.max)) {
+                node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
                 if (done) done();
                 return;
             }

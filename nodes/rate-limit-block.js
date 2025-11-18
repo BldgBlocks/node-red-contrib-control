@@ -58,11 +58,7 @@ module.exports = function(RED) {
                 node.runtime.lastUpdate = now;
                 const msg = RED.util.cloneMessage(node.runtime.lastInputMsg);
                 msg.payload = node.runtime.currentValue;
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `mode: rate-limit, out: ${node.runtime.currentValue.toFixed(2)}`
-                });
+                node.status({ fill: "blue", shape: "dot", text: `mode: rate-limit, out: ${node.runtime.currentValue.toFixed(2)}` });
                 node.send(msg);
             }
         }
@@ -101,11 +97,7 @@ module.exports = function(RED) {
                         }
                         node.runtime.mode = msg.payload;
                         startTimer();
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `mode: ${node.runtime.mode}`
-                        });
+                        node.status({ fill: "green", shape: "dot", text: `mode: ${node.runtime.mode}` });
                         break;
                     case "rate":
                         const rate = parseFloat(msg.payload);
@@ -115,11 +107,7 @@ module.exports = function(RED) {
                             return;
                         }
                         node.runtime.rate = rate;
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `rate: ${node.runtime.rate.toFixed(2)}`
-                        });
+                        node.status({ fill: "green", shape: "dot", text: `rate: ${node.runtime.rate.toFixed(2)}` });
                         break;
                     case "interval":
                         const interval = parseInt(msg.payload);
@@ -130,11 +118,7 @@ module.exports = function(RED) {
                         }
                         node.runtime.interval = interval;
                         startTimer();
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `interval: ${node.runtime.interval}`
-                        });
+                        node.status({ fill: "green", shape: "dot", text: `interval: ${node.runtime.interval}` });
                         break;
                     case "threshold":
                         const threshold = parseFloat(msg.payload);
@@ -144,11 +128,7 @@ module.exports = function(RED) {
                             return;
                         }
                         node.runtime.threshold = threshold;
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `threshold: ${node.runtime.threshold.toFixed(2)}`
-                        });
+                        node.status({ fill: "green", shape: "dot", text: `threshold: ${node.runtime.threshold.toFixed(2)}` });
                         break;
                     default:
                         node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
@@ -171,38 +151,24 @@ module.exports = function(RED) {
 
             if (node.runtime.mode === "rate-limit") {
                 node.runtime.targetValue = inputValue;
-                node.status({
-                    fill: "green",
-                    shape: "dot",
-                    text: `mode: rate-limit, target: ${node.runtime.targetValue.toFixed(2)}`
-                });
+                node.status({ fill: "green", shape: "dot", text: `mode: rate-limit, target: ${node.runtime.targetValue.toFixed(2)}` });
                 updateRateLimitOutput();
                 startTimer();
             } else if (node.runtime.mode === "threshold") {
                 const diff = Math.abs(inputValue - node.runtime.currentValue);
-                node.runtime.currentValue = inputValue;
                 if (diff > node.runtime.threshold) {
                     msg.payload = inputValue;
-                    node.status({
-                        fill: "blue",
-                        shape: "dot",
-                        text: `mode: threshold, out: ${node.runtime.currentValue.toFixed(2)}`
-                    });
+                    node.runtime.currentValue = inputValue;
+                    node.status({ fill: "blue", shape: "dot", text: `mode: threshold, out: ${node.runtime.currentValue.toFixed(2)}` });
                     send(msg);
                 } else {
-                    node.status({
-                        fill: "blue",
-                        shape: "ring",
-                        text: `mode: threshold, out: ${node.runtime.currentValue.toFixed(2)}`
+                    node.status({ fill: "blue", shape: "ring", text: `mode: threshold, out: ${node.runtime.currentValue.toFixed(2)}`
                     });
                 }
             } else if (node.runtime.mode === "full-value") {
                 node.runtime.currentValue = inputValue;
                 msg.payload = inputValue;
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `mode: full-value, out: ${node.runtime.currentValue.toFixed(2)}`
+                node.status({ fill: "blue", shape: "dot", text: `mode: full-value, out: ${node.runtime.currentValue.toFixed(2)}`
                 });
                 send(msg);
             }

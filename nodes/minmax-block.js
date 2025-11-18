@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function MinMaxBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -6,29 +8,17 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name,
-        };
+        };       
+        
+        const typedProperties = ['min', 'max'];
 
-        // Evaluate typed-inputs
-        try {
-            node.runtime.min = RED.util.evaluateNodeProperty(
-                config.min, config.minType, node
-            );
-
-            node.runtime.max = RED.util.evaluateNodeProperty(
-                config.max, config.maxType, node
-            );
-            
-
-            // Validate min and max at startup
-            if (isNaN(node.runtime.min) || isNaN(node.runtime.max) || node.runtime.min > node.runtime.max) {
-                node.status({ fill: "red", shape: "dot", text: `invalid min/max` });
-                if (done) done();
-                return;
-            }
-        } catch(err) {
-            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-            if (done) done(err);
-            return;
+        // Evaluate typed-input properties    
+        try {      
+            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
+            node.runtime.min = parseFloat(evaluatedValues.min);
+            node.runtime.max = parseFloat(evaluatedValues.max);
+        } catch (err) {
+            node.error(`Error evaluating properties: ${err.message}`);
         }
 
         // Store last output value for status
@@ -40,6 +30,24 @@ module.exports = function(RED) {
             // Guard against invalid message
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+
+            // Update typed-input properties if needed
+            try {    
+                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
+                node.runtime.min = parseFloat(evaluatedValues.min);
+                node.runtime.max = parseFloat(evaluatedValues.max);
+            } catch (err) {
+                node.error(`Error evaluating properties: ${err.message}`);
+                if (done) done();
+                return;
+            }
+
+            // Validate min and max at startup
+            if (isNaN(node.runtime.min) || isNaN(node.runtime.max) || node.runtime.min > node.runtime.max) {
+                node.status({ fill: "red", shape: "dot", text: `invalid min/max` });
                 if (done) done();
                 return;
             }

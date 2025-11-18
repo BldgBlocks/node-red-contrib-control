@@ -1,38 +1,23 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function HysteresisBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
         node.name = config.name;
         node.state = "within";
 
-        // Evaluate typed-inputs
-        try {
-            node.upperLimit = RED.util.evaluateNodeProperty(
-                config.upperLimit, config.upperLimitType, node
-            );
-            node.lowerLimit = RED.util.evaluateNodeProperty(
-                config.lowerLimit, config.lowerLimitType, node
-            );
-            node.upperLimitThreshold = RED.util.evaluateNodeProperty(
-                config.upperLimitThreshold, config.upperLimitThresholdType, node
-            );
-            node.lowerLimitThreshold = RED.util.evaluateNodeProperty(
-                config.lowerLimitThreshold, config.lowerLimitThresholdType, node
-            );
-            
-            // Validate values
-            if (isNaN(node.upperLimit) || isNaN(node.lowerLimit) || 
-                isNaN(node.upperLimitThreshold) || isNaN(node.lowerLimitThreshold) ||
-                node.upperLimit <= node.lowerLimit ||
-                node.upperLimitThreshold < 0 || node.lowerLimitThreshold < 0) {
-                node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
-                if (done) done();
-                return;
-            }
-        } catch(err) {
-            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-            if (done) done(err);
-            return;
+        const typedProperties = ['upperLimit', 'lowerLimit', 'upperLimitThreshold', 'lowerLimitThreshold'];
+
+        // Evaluate typed-input properties    
+        try {      
+            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
+            node.upperLimit = parseFloat(evaluatedValues.upperLimit);
+            node.lowerLimit = parseFloat(evaluatedValues.lowerLimit);
+            node.upperLimitThreshold = parseFloat(evaluatedValues.upperLimitThreshold);
+            node.lowerLimitThreshold = parseFloat(evaluatedValues.lowerLimitThreshold);
+        } catch (err) {
+            node.error(`Error evaluating properties: ${err.message}`);
         }
 
         node.on("input", function(msg, send, done) {
@@ -40,6 +25,19 @@ module.exports = function(RED) {
 
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                if (done) done();
+                return;
+            }
+            
+            // Update typed-input properties if needed
+            try {           
+                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
+                node.upperLimit = parseFloat(evaluatedValues.upperLimit);
+                node.lowerLimit = parseFloat(evaluatedValues.lowerLimit);
+                node.upperLimitThreshold = parseFloat(evaluatedValues.upperLimitThreshold);
+                node.lowerLimitThreshold = parseFloat(evaluatedValues.lowerLimitThreshold);
+            } catch (err) {
+                node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
                 return;
             }

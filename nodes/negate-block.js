@@ -10,13 +10,6 @@ module.exports = function(RED) {
             lastOutput: null
         };
 
-        // Set initial status
-        node.status({
-            fill: "green",
-            shape: "dot",
-            text: `name: ${node.runtime.name}`
-        });
-
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
@@ -50,17 +43,7 @@ module.exports = function(RED) {
                 outputValue = !inputValue;
                 statusText = `in: ${inputValue}, out: ${outputValue}`;
             } else {
-                let errorText;
-                if (inputValue === null) {
-                    errorText = "invalid input: null";
-                } else if (Array.isArray(inputValue)) {
-                    errorText = "invalid input: array";
-                } else if (typeof inputValue === "string") {
-                    errorText = "invalid input: string";
-                } else {
-                    errorText = "invalid input type";
-                }
-                node.status({ fill: "red", shape: "ring", text: errorText });
+                node.status({ fill: "red", shape: "ring", text: "Unsupported type" });
                 if (done) done();
                 return;
             }
@@ -73,11 +56,9 @@ module.exports = function(RED) {
                 text: statusText
             });
 
-            if (!isUnchanged) {
-                node.runtime.lastOutput = outputValue;
-                msg.payload = outputValue;
-                send(msg);
-            }
+            node.runtime.lastOutput = outputValue;
+            msg.payload = outputValue;
+            send(msg);
 
             if (done) done();
         });

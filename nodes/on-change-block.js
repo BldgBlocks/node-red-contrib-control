@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function OnChangeBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -6,38 +8,17 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name,
-            period: Number(config.period),
-            periodType: config.periodType,
             lastValue: null,
-            periodValue: null,
             blockTimer: null,
             pendingMsg: null
         };
 
-        // Get period
-        let period;
+        // Evaluate typed-input properties
         try {
-            period = RED.util.evaluateNodeProperty(
-                node.runtime.period,
-                node.runtime.periodType,
-                node
-            );
-            if (isNaN(period) || period < 0) {
-                throw new Error("invalid period");
-            }
+            node.runtime.period = RED.util.evaluateNodeProperty( node.runtime.period, node.runtime.periodType, node );
+            node.runtime.period = parseFloat(node.runtime.period);
         } catch (err) {
-            node.status({ fill: "red", shape: "ring", text: "invalid period" });
-            send(msg);
-            if (done) done();
-            return;
-        }
-
-        // Validate initial config
-        if (isNaN(node.runtime.period) || node.runtime.period < 0) {
-            node.runtime.period = 0;
-            node.status({ fill: "red", shape: "ring", text: "invalid period, using 0" });
-        } else {
-            node.status({ fill: "green", shape: "dot", text: `name: ${node.runtime.name || "on change"}, period: ${node.runtime.period.toFixed(0)} ms` });
+            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
         }
 
         node.on("input", function(msg, send, done) {
@@ -48,6 +29,24 @@ module.exports = function(RED) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
                 return;
+            }
+
+            // Evaluate typed-input properties if needed
+            try {
+                if (utils.requiresEvaluation(node.runtime.periodType)) {
+                    node.runtime.period = RED.util.evaluateNodeProperty( node.runtime.period, node.runtime.periodType, node, msg );
+                    node.runtime.period = parseFloat(node.runtime.period);
+                }
+            } catch (err) {
+                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+                if (done) done();
+                return;
+            }
+
+            // Acceptable fallbacks
+            if (isNaN(node.runtime.period) || node.runtime.period < 0) {
+                node.runtime.period = 0;
+                node.status({ fill: "red", shape: "ring", text: "invalid period, using 0" });
             }
 
             // Handle context updates
@@ -127,10 +126,9 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Check if value changed
-            if (!isEqual(currentValue, node.runtime.lastValue)) {
+            // Allow no-change output if period > 0, othewise only on change
+            if (!isEqual(currentValue, node.runtime.lastValue) || node.runtime.period > 0) {
                 node.runtime.lastValue = RED.util.cloneMessage(currentValue);
-                node.runtime.periodValue = RED.util.cloneMessage(currentValue);
                 node.status({
                     fill: "blue",
                     shape: "dot",
@@ -146,7 +144,6 @@ module.exports = function(RED) {
                             const pendingValue = node.runtime.pendingMsg.payload;
                             if (!isEqual(pendingValue, node.runtime.lastValue)) {
                                 node.runtime.lastValue = RED.util.cloneMessage(pendingValue);
-                                node.runtime.periodValue = RED.util.cloneMessage(pendingValue);
                                 node.status({
                                     fill: "blue",
                                     shape: "dot",
@@ -157,7 +154,7 @@ module.exports = function(RED) {
                                 node.status({
                                     fill: "blue",
                                     shape: "ring",
-                                    text: `unchanged: ${JSON.stringify(pendingValue).slice(0, 20)}`
+                                    text: `Filter period expired`
                                 });
                             }
                             node.runtime.pendingMsg = null;
