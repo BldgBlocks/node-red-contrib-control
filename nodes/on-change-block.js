@@ -9,13 +9,12 @@ module.exports = function(RED) {
         node.runtime = {
             name: config.name,
             lastValue: null,
-            blockTimer: null,
-            pendingMsg: null
+            blockTimer: null
         };
 
         // Evaluate typed-input properties
         try {
-            node.runtime.period = RED.util.evaluateNodeProperty( node.runtime.period, node.runtime.periodType, node );
+            node.runtime.period = RED.util.evaluateNodeProperty( config.period, config.periodType, node );
             node.runtime.period = parseFloat(node.runtime.period);
         } catch (err) {
             node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
@@ -45,14 +44,13 @@ module.exports = function(RED) {
 
             // Acceptable fallbacks
             if (isNaN(node.runtime.period) || node.runtime.period < 0) {
-                node.runtime.period = 0;
+                node.runtime.period = config.period;
                 node.status({ fill: "red", shape: "ring", text: "invalid period, using 0" });
             }
 
             // Handle context updates
             if (msg.hasOwnProperty("context") && typeof msg.context === "string") {
-                const contextLower = msg.context.toLowerCase();
-                if (contextLower === "period") {
+                if (msg.context === "period") {
                     if (!msg.hasOwnProperty("payload")) {
                         node.status({ fill: "red", shape: "ring", text: "missing payload for period" });
                         if (done) done();
@@ -74,7 +72,7 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                if (contextLower === "status") {
+                if (msg.context === "status") {
                     send({
                         payload: {
                             period: node.runtime.period,
@@ -114,9 +112,8 @@ module.exports = function(RED) {
                 return false;
             }
 
-            // Handle input during filter period
+            // Block if in filter period
             if (node.runtime.blockTimer) {
-                node.runtime.pendingMsg = RED.util.cloneMessage(msg);
                 node.status({
                     fill: "blue",
                     shape: "ring",
@@ -126,49 +123,27 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Allow no-change output if period > 0, othewise only on change
-            if (!isEqual(currentValue, node.runtime.lastValue) || node.runtime.period > 0) {
-                node.runtime.lastValue = RED.util.cloneMessage(currentValue);
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `out: ${JSON.stringify(currentValue).slice(0, 20)}`
-                });
-                send(msg);
-
-                // Start filter period if applicable
-                if (node.runtime.period > 0) {
-                    node.runtime.blockTimer = setTimeout(() => {
-                        node.runtime.blockTimer = null;
-                        if (node.runtime.pendingMsg) {
-                            const pendingValue = node.runtime.pendingMsg.payload;
-                            if (!isEqual(pendingValue, node.runtime.lastValue)) {
-                                node.runtime.lastValue = RED.util.cloneMessage(pendingValue);
-                                node.status({
-                                    fill: "blue",
-                                    shape: "dot",
-                                    text: `out: ${JSON.stringify(pendingValue).slice(0, 20)}`
-                                });
-                                send(node.runtime.pendingMsg);
-                            } else {
-                                node.status({
-                                    fill: "blue",
-                                    shape: "ring",
-                                    text: `Filter period expired`
-                                });
-                            }
-                            node.runtime.pendingMsg = null;
-                        } else {
-                            node.status({});
-                        }
-                    }, node.runtime.period);
+            // period === 0 means only ever on change, not equal outside of filter period sends an update message
+            if (isEqual(currentValue, node.runtime.lastValue)) {
+                if (node.runtime.period === 0) {
+                    if (done) done();
+                    return;
                 }
-            } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `unchanged: ${JSON.stringify(currentValue).slice(0, 20)}`
-                });
+            }
+
+            node.runtime.lastValue = currentValue;
+            send(msg);
+
+            // Start filter period if applicable
+            if (node.runtime.period > 0) {
+                node.runtime.blockTimer = setTimeout(() => {
+                    node.runtime.blockTimer = null;
+                    node.status({
+                        fill: "blue",
+                        shape: "ring",
+                        text: `Filter period expired`
+                    });
+                }, node.runtime.period);
             }
 
             if (done) done();
