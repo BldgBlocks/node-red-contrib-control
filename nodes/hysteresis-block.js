@@ -7,15 +7,12 @@ module.exports = function(RED) {
         node.name = config.name;
         node.state = "within";
 
-        const typedProperties = ['upperLimit', 'lowerLimit', 'upperLimitThreshold', 'lowerLimitThreshold'];
-
         // Evaluate typed-input properties    
         try {      
-            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
-            node.upperLimit = parseFloat(evaluatedValues.upperLimit);
-            node.lowerLimit = parseFloat(evaluatedValues.lowerLimit);
-            node.upperLimitThreshold = parseFloat(evaluatedValues.upperLimitThreshold);
-            node.lowerLimitThreshold = parseFloat(evaluatedValues.lowerLimitThreshold);
+            node.upperLimit = parseFloat(RED.util.evaluateNodeProperty( config.upperLimit, config.upperLimitType, node ));
+            node.lowerLimit = parseFloat(RED.util.evaluateNodeProperty( config.lowerLimit, config.lowerLimitType, node ));
+            node.upperLimitThreshold = parseFloat(RED.util.evaluateNodeProperty( config.upperLimitThreshold, config.upperLimitThresholdType, node ));
+            node.lowerLimitThreshold = parseFloat(RED.util.evaluateNodeProperty( config.lowerLimitThreshold, config.lowerLimitThresholdType, node ));
         } catch (err) {
             node.error(`Error evaluating properties: ${err.message}`);
         }
@@ -31,11 +28,18 @@ module.exports = function(RED) {
             
             // Update typed-input properties if needed
             try {           
-                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
-                node.upperLimit = parseFloat(evaluatedValues.upperLimit);
-                node.lowerLimit = parseFloat(evaluatedValues.lowerLimit);
-                node.upperLimitThreshold = parseFloat(evaluatedValues.upperLimitThreshold);
-                node.lowerLimitThreshold = parseFloat(evaluatedValues.lowerLimitThreshold);
+                if (utils.requiresEvaluation(config.upperLimitType)) {
+                    node.upperLimit = parseFloat(RED.util.evaluateNodeProperty( config.upperLimit, config.upperLimitType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.lowerLimitType)) {
+                    node.lowerLimit = parseFloat(RED.util.evaluateNodeProperty( config.lowerLimit, config.lowerLimitType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.upperLimitThresholdType)) {
+                    node.upperLimitThreshold = parseFloat(RED.util.evaluateNodeProperty( config.upperLimitThreshold, config.upperLimitThresholdType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.lowerLimitThresholdType)) {
+                    node.lowerLimitThreshold = parseFloat(RED.util.evaluateNodeProperty( config.lowerLimitThreshold, config.lowerLimitThresholdType, node, msg ));
+                }
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();

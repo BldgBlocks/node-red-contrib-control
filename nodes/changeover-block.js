@@ -1,3 +1,5 @@
+//const { parse } = require('echarts/types/src/export/api/time.js');
+
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
 
@@ -16,20 +18,16 @@ module.exports = function(RED) {
             lastModeChange: 0
         };
 
-        const typedProperties = ['setpoint', 'heatingSetpoint', 'coolingSetpoint', 'swapTime', 'deadband', 
-            'extent', 'minTempSetpoint', 'maxTempSetpoint'];
-
         // Evaluate typed-input properties    
-        try {            
-            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
-            node.runtime.setpoint = parseFloat(evaluatedValues.setpoint);
-            node.runtime.heatingSetpoint = parseFloat(evaluatedValues.heatingSetpoint);
-            node.runtime.coolingSetpoint = parseFloat(evaluatedValues.coolingSetpoint);
-            node.runtime.swapTime = parseFloat(evaluatedValues.swapTime);
-            node.runtime.deadband = parseFloat(evaluatedValues.deadband);
-            node.runtime.extent = parseFloat(evaluatedValues.extent);
-            node.runtime.minTempSetpoint = parseFloat(evaluatedValues.minTempSetpoint);
-            node.runtime.maxTempSetpoint = parseFloat(evaluatedValues.maxTempSetpoint);
+        try {     
+            node.runtime.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node ));
+            node.runtime.heatingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.heatingSetpoint, config.heatingSetpointType, node ));
+            node.runtime.coolingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.coolingSetpoint, config.coolingSetpointType, node ));
+            node.runtime.swapTime = parseFloat(RED.util.evaluateNodeProperty( config.swapTime, config.swapTimeType, node ));
+            node.runtime.deadband = parseFloat(RED.util.evaluateNodeProperty( config.deadband, config.deadbandType, node ));
+            node.runtime.extent = parseFloat(RED.util.evaluateNodeProperty( config.extent, config.extentType, node ));
+            node.runtime.minTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.minTempSetpoint, config.minTempSetpointType, node ));
+            node.runtime.maxTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.maxTempSetpoint, config.maxTempSetpointType, node ));            
         } catch (err) {
             node.error(`Error evaluating properties: ${err.message}`);
             if (done) done();
@@ -53,15 +51,30 @@ module.exports = function(RED) {
 
             // Update typed-input properties if needed
             try {    
-                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
-                node.runtime.setpoint = parseFloat(evaluatedValues.setpoint);
-                node.runtime.heatingSetpoint = parseFloat(evaluatedValues.heatingSetpoint);
-                node.runtime.coolingSetpoint = parseFloat(evaluatedValues.coolingSetpoint);
-                node.runtime.swapTime = parseFloat(evaluatedValues.swapTime);
-                node.runtime.deadband = parseFloat(evaluatedValues.deadband);
-                node.runtime.extent = parseFloat(evaluatedValues.extent);
-                node.runtime.minTempSetpoint = parseFloat(evaluatedValues.minTempSetpoint);
-                node.runtime.maxTempSetpoint = parseFloat(evaluatedValues.maxTempSetpoint);                
+                if (utils.requiresEvaluation(config.setpointType)) {
+                    node.runtime.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.heatingSetpointType)) {
+                    node.runtime.heatingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.heatingSetpoint, config.heatingSetpointType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.coolingSetpointType)) {
+                    node.runtime.coolingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.coolingSetpoint, config.coolingSetpointType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.swapTimeType)) {
+                    node.runtime.swapTime = parseFloat(RED.util.evaluateNodeProperty( config.swapTime, config.swapTimeType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.deadbandType)) {
+                    node.runtime.deadband = parseFloat(RED.util.evaluateNodeProperty( config.deadband, config.deadbandType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.extentType)) {
+                    node.runtime.extent = parseFloat(RED.util.evaluateNodeProperty( config.extent, config.extentType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.minTempSetpointType)) {
+                    node.runtime.minTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.minTempSetpoint, config.minTempSetpointType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.maxTempSetpointType)) {
+                    node.runtime.maxTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.maxTempSetpoint, config.maxTempSetpointType, node, msg )); 
+                }             
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();

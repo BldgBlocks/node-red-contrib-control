@@ -301,7 +301,7 @@ module.exports = function(RED) {
 
             // Output calculation
             let pv = pGain + intGain + dGain;
-            if (node.runtime.directAction) pv = -pv;
+            //if (node.runtime.directAction) pv = -pv;
             pv = Math.min(Math.max(pv, node.runtime.outMin || -Infinity), node.runtime.outMax || Infinity);
 
             // Rate of change limit

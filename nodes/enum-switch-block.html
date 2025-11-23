@@ -1,0 +1,157 @@
+<script type="text/html" data-template-name="enum-switch-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-property" title="Property to evaluate"><i class="fa fa-code"></i> Property</label>
+        <input type="text" id="node-input-property" placeholder="property">
+        <input type="hidden" id="node-input-propertyType">
+        <input type="hidden" id="node-input-outputs">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-cogs"></i> Rules</label>
+        <div id="node-input-rules-container" style="border: 1px solid #999; padding: 5px; margin: 5px 0; max-height: 200px; overflow-y: auto;">
+            <input type="hidden" id="node-input-rules">
+            <div class="rule-template" style="display: none;">
+                <div class="form-row rule-item" style="margin-bottom: 5px; padding: 5px; border-bottom: 1px solid #eee; display: flex; align-items: center;">
+                    <input type="text" class="node-input-rule-value" placeholder="value to match" style="flex: 1; margin-right: 5px;">
+                    <button class="red-ui-button delete-rule" style="width: auto; padding: 0 8px;">
+                        <i class="fa fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="node-input-rules-list"></div>
+            <button id="node-input-add-rule" class="red-ui-button" style="width: 100%; margin-top: 5px;">
+                <i class="fa fa-plus"></i> Add Rule
+            </button>
+        </div>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("enum-switch-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            property: { value: "payload" },
+            propertyType: { value: "msg" },
+            rules: { value: "[]" },
+            outputs: { value: 1 }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: function(index) {
+            try {
+                const rules = JSON.parse(this.rules || "[]");
+                if (rules[index]) {
+                    return rules[index].value || `rule ${index + 1}`;
+                }
+                return "";
+            } catch (e) {
+                return "";
+            }
+        },
+        icon: "font-awesome/fa-exchange",
+        paletteLabel: "enum switch",
+        label: function() {
+            const rules = JSON.parse(this.rules || "[]");
+            return this.name ? this.name : `enum switch (${rules.length} rules)`;
+        },
+        oneditprepare: function() {
+            const node = this;
+            const rulesContainer = $("#node-input-rules-list");
+            const template = $(".rule-template").clone().removeClass("rule-template").show();
+            
+            // Initialize typed inputs
+            $("#node-input-property").typedInput({
+                default: "msg",
+                types: ["msg", "flow", "global"],
+                typeField: "#node-input-propertyType"
+            }).typedInput("type", node.propertyType || "msg").typedInput("value", node.property);
+
+            // Parse existing rules
+            let rules = [];
+            try {
+                rules = JSON.parse(node.rules || "[]");
+            } catch (e) {
+                rules = [];
+            }
+            
+            // Render existing rules
+            rules.forEach(function(rule, index) {
+                const ruleItem = template.clone();
+                ruleItem.find(".node-input-rule-value").val(rule.value || "");
+                rulesContainer.append(ruleItem);
+            });
+            
+            // Add new rule button click
+            $("#node-input-add-rule").on("click", function() {
+                const ruleItem = template.clone();
+                rulesContainer.append(ruleItem);
+            });
+            
+            // Delete rule button click
+            rulesContainer.on("click", ".delete-rule", function() {
+                $(this).closest(".rule-item").remove();
+            });
+        },
+
+        oneditsave: function() {
+            const rules = [];
+            $("#node-input-rules-list .rule-item").each(function() {
+                const value = $(this).find(".node-input-rule-value").val().trim();
+                if (value) {
+                    rules.push({ value: value });
+                }
+            });
+            
+            $("#node-input-rules").val(JSON.stringify(rules));            
+            $("#node-input-outputs").val(rules.length);
+        },
+        oneditresize: function(size) {
+            $("#node-input-rules-container").height(size.height - 200);
+        }
+    });
+</script>
+
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="enum-switch-block">
+Route input to the appropriate output based on switch values.
+
+### Inputs
+: payload (string) : `string` for comparison.
+
+### Outputs
+: payload (boolean) : Boolean output based on matching switch value.
+
+### Properties
+: slots (integer) : Number of input slots (≥ 2).
+
+### Details
+Similar to the NodeRED switch node, but single purpose, with the important difference:
+1. Outputting boolean based on matching string input.
+2. Updating all outputs `true`/`false` on each input message. (updating false being the key difference)
+
+NodeRED `switch` node only outputs on matching cases, and does not update non-matching outputs unless you create opposing rules for each case, 
+which can be messy. Use case is to drive multiple boolean outputs based on a single string input, e.g., controlling visibility of multiple UI elements, 
+or routing logic based on a given mode.
+
+Supports string, number, and boolean comparisons. Input type is inferred from the incoming message payload type.
+
+Preserves original message structure, only modifying the payload to `true` or `false`.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

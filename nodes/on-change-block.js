@@ -14,8 +14,7 @@ module.exports = function(RED) {
 
         // Evaluate typed-input properties
         try {
-            node.runtime.period = RED.util.evaluateNodeProperty( config.period, config.periodType, node );
-            node.runtime.period = parseFloat(node.runtime.period);
+            node.runtime.period = parseFloat(RED.util.evaluateNodeProperty( config.period, config.periodType, node ));
         } catch (err) {
             node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
         }
@@ -33,8 +32,7 @@ module.exports = function(RED) {
             // Evaluate typed-input properties if needed
             try {
                 if (utils.requiresEvaluation(node.runtime.periodType)) {
-                    node.runtime.period = RED.util.evaluateNodeProperty( node.runtime.period, node.runtime.periodType, node, msg );
-                    node.runtime.period = parseFloat(node.runtime.period);
+                    node.runtime.period = parseFloat(RED.util.evaluateNodeProperty( config.period, config.periodType, node, msg ));
                 }
             } catch (err) {
                 node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });

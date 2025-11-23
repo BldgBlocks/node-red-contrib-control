@@ -12,13 +12,10 @@ module.exports = function(RED) {
             lastAvg: null
         };
 
-        const typedProperties = ['minValid', 'maxValid'];
-
         // Evaluate typed-input properties    
         try {     
-            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
-            node.runtime.minValid = parseFloat(evaluatedValues.minValid);
-            node.runtime.maxValid = parseFloat(evaluatedValues.maxValid);
+            node.runtime.minValid = parseFloat(RED.util.evaluateNodeProperty( config.minValid, config.minValidType, node ));
+            node.runtime.maxValid = parseFloat(RED.util.evaluateNodeProperty( config.maxValid, config.maxValidType, node ));
         } catch (err) {
             node.error(`Error evaluating properties: ${err.message}`);
         }
@@ -35,9 +32,12 @@ module.exports = function(RED) {
 
             // Update typed-input properties if needed
             try {                    
-                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
-                node.runtime.minValid = parseFloat(evaluatedValues.minValid);
-                node.runtime.maxValid = parseFloat(evaluatedValues.maxValid);
+                if (utils.requiresEvaluation(config.minValidType)) {
+                    node.runtime.minValid = parseFloat(RED.util.evaluateNodeProperty( config.minValid, config.minValidType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.maxValidType)) {
+                    node.runtime.maxValid = parseFloat(RED.util.evaluateNodeProperty( config.maxValid, config.maxValidType, node, msg ));
+                }
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();

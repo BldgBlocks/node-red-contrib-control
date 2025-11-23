@@ -10,24 +10,18 @@ module.exports = function(RED) {
         node.algorithm = config.algorithm;
         node.name = config.name;
 
-        function shouldEvaluate(type) { return type === "flow" || type === "global" || type === "msg"; }
-
-        const typedProperties = ['setpoint', 'heatingSetpoint', 'coolingSetpoint', 'coolingOn', 'coolingOff', 
-            'heatingOff', 'heatingOn', 'diff', 'anticipator', 'ignoreAnticipatorCycles'];
-
         // Evaluate typed-input properties    
         try {            
-            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
-            node.setpoint = parseFloat(evaluatedValues.setpoint);
-            node.heatingSetpoint = parseFloat(evaluatedValues.heatingSetpoint);
-            node.coolingSetpoint = parseFloat(evaluatedValues.coolingSetpoint);
-            node.coolingOn = parseFloat(evaluatedValues.coolingOn);
-            node.coolingOff = parseFloat(evaluatedValues.coolingOff);
-            node.heatingOff = parseFloat(evaluatedValues.heatingOff);
-            node.heatingOn = parseFloat(evaluatedValues.heatingOn);
-            node.diff = parseFloat(evaluatedValues.diff);
-            node.anticipator = parseFloat(evaluatedValues.anticipator);
-            node.ignoreAnticipatorCycles = Math.floor(evaluatedValues.ignoreAnticipatorCycles);
+            node.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node ));
+            node.heatingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.heatingSetpoint, config.heatingSetpointType, node ));
+            node.coolingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.coolingSetpoint, config.coolingSetpointType, node ));
+            node.coolingOn = parseFloat(RED.util.evaluateNodeProperty( config.coolingOn, config.coolingOnType, node ));
+            node.coolingOff = parseFloat(RED.util.evaluateNodeProperty( config.coolingOff, config.coolingOffType, node ));
+            node.heatingOff = parseFloat(RED.util.evaluateNodeProperty( config.heatingOff, config.heatingOffType, node ));
+            node.heatingOn = parseFloat(RED.util.evaluateNodeProperty( config.heatingOn, config.heatingOnType, node ));
+            node.diff = parseFloat(RED.util.evaluateNodeProperty( config.diff, config.diffType, node ));
+            node.anticipator = parseFloat(RED.util.evaluateNodeProperty( config.anticipator, config.anticipatorType, node ));
+            node.ignoreAnticipatorCycles = Math.floor(RED.util.evaluateNodeProperty( config.ignoreAnticipatorCycles, config.ignoreAnticipatorCyclesType, node ));        
         } catch (err) {
             node.error(`Error evaluating properties: ${err.message}`);
         }
@@ -51,17 +45,36 @@ module.exports = function(RED) {
             
             // Update typed-input properties if needed
             try {      
-                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
-                node.setpoint = parseFloat(evaluatedValues.setpoint);
-                node.heatingSetpoint = parseFloat(evaluatedValues.heatingSetpoint);
-                node.coolingSetpoint = parseFloat(evaluatedValues.coolingSetpoint);
-                node.coolingOn = parseFloat(evaluatedValues.coolingOn);
-                node.coolingOff = parseFloat(evaluatedValues.coolingOff);
-                node.heatingOff = parseFloat(evaluatedValues.heatingOff);
-                node.heatingOn = parseFloat(evaluatedValues.heatingOn);
-                node.diff = parseFloat(evaluatedValues.diff);
-                node.anticipator = parseFloat(evaluatedValues.anticipator);
-                node.ignoreAnticipatorCycles = Math.floor(evaluatedValues.ignoreAnticipatorCycles);
+                if (utils.requiresEvaluation(config.setpointType)) {
+                    node.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node, msg ));                    
+                }
+                if (utils.requiresEvaluation(config.heatingSetpointType)) {
+                    node.heatingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.heatingSetpoint, config.heatingSetpointType, node, msg ));                    
+                }
+                if (utils.requiresEvaluation(config.coolingSetpointType)) {
+                    node.coolingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.coolingSetpoint, config.coolingSetpointType, node, msg ));                    
+                }
+                if (utils.requiresEvaluation(config.coolingOnType)) {
+                    node.coolingOn = parseFloat(RED.util.evaluateNodeProperty( config.coolingOn, config.coolingOnType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.coolingOffType)) {
+                    node.coolingOff = parseFloat(RED.util.evaluateNodeProperty( config.coolingOff, config.coolingOffType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.heatingOffType)) {
+                    node.heatingOff = parseFloat(RED.util.evaluateNodeProperty( config.heatingOff, config.heatingOffType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.heatingOnType)) {
+                    node.heatingOn = parseFloat(RED.util.evaluateNodeProperty( config.heatingOn, config.heatingOnType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.diffType)) {
+                    node.diff = parseFloat(RED.util.evaluateNodeProperty( config.diff, config.diffType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.anticipatorType)) {
+                    node.anticipator = parseFloat(RED.util.evaluateNodeProperty( config.anticipator, config.anticipatorType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.ignoreAnticipatorCyclesType)) {
+                    node.ignoreAnticipatorCycles = Math.floor(RED.util.evaluateNodeProperty( config.ignoreAnticipatorCycles, config.ignoreAnticipatorCyclesType, node, msg ));
+                }
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();

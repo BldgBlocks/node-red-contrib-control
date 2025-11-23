@@ -13,15 +13,13 @@ module.exports = function(RED) {
         node.runtime = {
             name: config.name,
             writePeriod: config.writePeriod,
-            writePeriodType: config.writePeriodType,
             transferProperty: config.transferProperty,
             writeOnUpdate: config.writeOnUpdate === true,
             storedMsg: null
         };
 
         // Resolve typed inputs
-        node.runtime.writePeriod = RED.util.evaluateNodeProperty( config.writePeriod, config.writePeriodType, node );
-        node.runtime.writePeriod = parseFloat(node.runtime.writePeriod);
+        node.runtime.writePeriod = parseFloat(RED.util.evaluateNodeProperty( config.writePeriod, config.writePeriodType, node ));
 
         // File path for persistent storage
         const filePath = path.join(RED.settings.userDir, `memory-${node.id}.json`);
@@ -88,9 +86,8 @@ module.exports = function(RED) {
             }
 
             // Evaluate typed-inputs if needed
-            if (utils.requiresEvaluation(node.runtime.writePeriodType)) {
-                node.runtime.writePeriod = RED.util.evaluateNodeProperty( config.writePeriod, config.writePeriodType, node, msg );
-                node.runtime.writePeriod = parseFloat(node.runtime.writePeriod);
+            if (utils.requiresEvaluation(config.writePeriodType)) {
+                node.runtime.writePeriod = parseFloat(RED.util.evaluateNodeProperty( config.writePeriod, config.writePeriodType, node, msg ));
             }
 
             // Initialize output array: [Output 1, Output 2]

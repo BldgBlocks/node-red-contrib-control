@@ -12,8 +12,7 @@ module.exports = function(RED) {
 
         // Evaluate typed-inputs
         try {
-            node.runtime.max = RED.util.evaluateNodeProperty( config.max, config.maxType, node );
-            node.runtime.max = parseFloat(node.runtime.max);
+            node.runtime.max = parseFloat( RED.util.evaluateNodeProperty( config.max, config.maxType, node ));
         } catch(err) {
             node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
         }
@@ -34,8 +33,7 @@ module.exports = function(RED) {
             // Evaluate typed-inputs if needed
             try {
                 if (utils.requiresEvaluation(config.maxType)) {
-                    node.runtime.max = RED.util.evaluateNodeProperty( config.max, config.maxType, node, msg );
-                    node.runtime.max = parseFloat(node.runtime.max);
+                    node.runtime.max = parseFloat( RED.util.evaluateNodeProperty( config.max, config.maxType, node, msg ));
                 }
             } catch(err) {
                 node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });

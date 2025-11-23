@@ -11,13 +11,10 @@ module.exports = function(RED) {
             desired: false
         };
 
-        const typedProperties = ['delayOn', 'delayOff'];
-
         // Evaluate typed-input properties    
         try {   
-            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
-            node.runtime.delayOn = (parseFloat(evaluatedValues.delayOn)) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
-            node.runtime.delayOff = (parseFloat(evaluatedValues.delayOff)) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
+            node.runtime.delayOn = parseFloat(RED.util.evaluateNodeProperty( config.delayOn, config.delayOnType, node )) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
+            node.runtime.delayOff = parseFloat(RED.util.evaluateNodeProperty( config.delayOff, config.delayOffType, node )) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
         } catch (err) {
             node.error(`Error evaluating properties: ${err.message}`);
         }
@@ -33,9 +30,12 @@ module.exports = function(RED) {
 
             // Update typed-input properties if needed
             try {   
-                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
-                node.runtime.delayOn = parseFloat(evaluatedValues.delayOn) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
-                node.runtime.delayOff = parseFloat(evaluatedValues.delayOff) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
+                if (utils.requiresEvaluation(config.delayOnType)) {
+                    node.runtime.delayOn = parseFloat(RED.util.evaluateNodeProperty( config.delayOn, config.delayOnType, node, msg )) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
+                }
+                if (utils.requiresEvaluation(config.delayOffType)) {
+                    node.runtime.delayOff = parseFloat(RED.util.evaluateNodeProperty( config.delayOff, config.delayOffType, node, msg )) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
+                }
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();

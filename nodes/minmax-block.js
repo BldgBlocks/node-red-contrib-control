@@ -9,14 +9,11 @@ module.exports = function(RED) {
         node.runtime = {
             name: config.name,
         };       
-        
-        const typedProperties = ['min', 'max'];
 
         // Evaluate typed-input properties    
         try {      
-            const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, null, true);
-            node.runtime.min = parseFloat(evaluatedValues.min);
-            node.runtime.max = parseFloat(evaluatedValues.max);
+            node.runtime.min = parseFloat(RED.util.evaluateNodeProperty( config.min, config.minType, node ));
+            node.runtime.max = parseFloat(RED.util.evaluateNodeProperty( config.max, config.maxType, node ));
         } catch (err) {
             node.error(`Error evaluating properties: ${err.message}`);
         }
@@ -35,10 +32,13 @@ module.exports = function(RED) {
             }
 
             // Update typed-input properties if needed
-            try {    
-                const evaluatedValues = utils.evaluateProperties(node, config, typedProperties, msg);
-                node.runtime.min = parseFloat(evaluatedValues.min);
-                node.runtime.max = parseFloat(evaluatedValues.max);
+            try {
+                if (utils.requiresEvaluation(config.minType)) {
+                    node.runtime.min = parseFloat(RED.util.evaluateNodeProperty( config.min, config.minType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.maxType)) {
+                    node.runtime.max = parseFloat(RED.util.evaluateNodeProperty( config.max, config.maxType, node, msg ));
+                }
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();

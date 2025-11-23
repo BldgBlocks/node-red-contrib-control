@@ -39,29 +39,6 @@ module.exports = function(RED) {
             const prevSwitch = node.runtime.switch;
 
             switch (msg.context) {
-                case "slots":
-                    const slotValue = parseInt(msg.payload, 10);
-                    if (isNaN(slotValue) || slotValue < 1) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid slots" });
-                        if (done) done();
-                        return;
-                    }
-                    node.runtime.slots = slotValue;
-                    const newInputs = Array(node.runtime.slots).fill(0);
-                    for (let i = 0; i < Math.min(node.runtime.inputs.length, node.runtime.slots); i++) {
-                        newInputs[i] = node.runtime.inputs[i];
-                    }
-                    node.runtime.inputs = newInputs;
-                    if (node.runtime.switch > node.runtime.slots) {
-                        node.runtime.switch = 1;
-                        shouldOutput = true;
-                    }
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `slots: ${node.runtime.slots}`
-                    });
-                    break;
                 case "switch":
                     const switchValue = parseInt(msg.payload, 10);
                     if (isNaN(switchValue) || switchValue < 1 || switchValue > node.runtime.slots) {

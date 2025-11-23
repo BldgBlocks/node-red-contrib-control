@@ -12,8 +12,7 @@ module.exports = function(RED) {
 
         // Evaluate typed-inputs
         try {
-            node.runtime.min = RED.util.evaluateNodeProperty( config.min, config.minType, node );
-            node.runtime.min = parseFloat(node.runtime.min);
+            node.runtime.min = parseFloat(RED.util.evaluateNodeProperty( config.min, config.minType, node ));
         } catch(err) {
             node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
         }
@@ -34,8 +33,7 @@ module.exports = function(RED) {
             // Evaluate typed-inputs if needed
             try {
                 if (utils.requiresEvaluation(config.minType)) {
-                    node.runtime.min = RED.util.evaluateNodeProperty( config.min, config.minType, node, msg );
-                    node.runtime.min = parseFloat(node.runtime.min);
+                    node.runtime.min = parseFloat(RED.util.evaluateNodeProperty( config.min, config.minType, node, msg ));
                 }
             } catch(err) {
                 node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
