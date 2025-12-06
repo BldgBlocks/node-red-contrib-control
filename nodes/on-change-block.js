@@ -70,16 +70,6 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                if (msg.context === "status") {
-                    send({
-                        payload: {
-                            period: node.runtime.period,
-                            periodType: node.runtime.periodType
-                        }
-                    });
-                    if (done) done();
-                    return;
-                }
                 // Ignore unknown context
             }
 
@@ -115,7 +105,7 @@ module.exports = function(RED) {
                 node.status({
                     fill: "blue",
                     shape: "ring",
-                    text: `filtered: ${JSON.stringify(currentValue).slice(0, 20)}`
+                    text: `filtered: ${JSON.stringify(currentValue).slice(0, 20)} |`
                 });
                 if (done) done();
                 return;
@@ -139,7 +129,7 @@ module.exports = function(RED) {
                     node.status({
                         fill: "blue",
                         shape: "ring",
-                        text: `Filter period expired`
+                        text: `filtered: ${JSON.stringify(currentValue).slice(0, 20)}` // remove ' |' to indicate end of filter period
                     });
                 }, node.runtime.period);
             }

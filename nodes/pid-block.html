@@ -6,23 +6,28 @@
     </div>
     <div class="form-row">
         <label for="node-input-kp" title="Proportional gain (number)"><i class="fa fa-sliders"></i> Kp</label>
-        <input type="number" id="node-input-kp" placeholder="0" step="any">
+        <input type="text" id="node-input-kp" placeholder="0" step="any">
+        <input type="hidden" id="node-input-kpType">
     </div>
     <div class="form-row">
         <label for="node-input-ki" title="Integral gain (number)"><i class="fa fa-sliders"></i> Ki</label>
-        <input type="number" id="node-input-ki" placeholder="0" step="any">
+        <input type="text" id="node-input-ki" placeholder="0" step="any">
+        <input type="hidden" id="node-input-kiType">
     </div>
     <div class="form-row">
         <label for="node-input-kd" title="Derivative gain (number)"><i class="fa fa-sliders"></i> Kd</label>
-        <input type="number" id="node-input-kd" placeholder="0" step="any">
+        <input type="text" id="node-input-kd" placeholder="0" step="any">
+        <input type="hidden" id="node-input-kdType">
     </div>
     <div class="form-row">
         <label for="node-input-setpoint" title="Target setpoint (number)"><i class="fa fa-crosshairs"></i> Setpoint</label>
-        <input type="number" id="node-input-setpoint" placeholder="0" step="any">
+        <input type="text" id="node-input-setpoint" placeholder="0" step="any">
+        <input type="hidden" id="node-input-setpointType">
     </div>
     <div class="form-row">
         <label for="node-input-deadband" title="Deadband range around setpoint (non-negative number)"><i class="fa fa-arrows-h"></i> Deadband</label>
-        <input type="number" id="node-input-deadband" placeholder="0" step="any" min="0">
+        <input type="text" id="node-input-deadband" placeholder="0" step="any" min="0">
+        <input type="hidden" id="node-input-deadbandType">
     </div>
     <div class="form-row">
         <label for="node-input-dbBehavior" title="Deadband behavior: ReturnToZero or HoldLastResult"><i class="fa fa-cog"></i> Deadband Behavior</label>
@@ -33,15 +38,18 @@
     </div>
     <div class="form-row">
         <label for="node-input-outMin" title="Minimum output limit (number, less than outMax, leave empty for no limit)"><i class="fa fa-arrow-down"></i> Out Min</label>
-        <input type="number" id="node-input-outMin" placeholder="No min" step="any">
+        <input type="text" id="node-input-outMin" placeholder="No min" step="any">
+        <input type="hidden" id="node-input-outMinType">
     </div>
     <div class="form-row">
         <label for="node-input-outMax" title="Maximum output limit (number, greater than outMin, leave empty for no limit)"><i class="fa fa-arrow-up"></i> Out Max</label>
-        <input type="number" id="node-input-outMax" placeholder="No max" step="any">
+        <input type="text" id="node-input-outMax" placeholder="No max" step="any">
+        <input type="hidden" id="node-input-outMaxType">
     </div>
     <div class="form-row">
         <label for="node-input-maxChange" title="Maximum output change per cycle (non-negative number)"><i class="fa fa-exchange"></i> Max Change</label>
-        <input type="number" id="node-input-maxChange" placeholder="0" step="any" min="0">
+        <input type="text" id="node-input-maxChange" placeholder="0" step="any" min="0">
+        <input type="hidden" id="node-input-maxChangeType">
     </div>
     <div class="form-row">
         <label for="node-input-directAction" title="Direct (true) or reverse (false) action"><i class="fa fa-exchange"></i> Direct Action</label>
@@ -49,11 +57,8 @@
     </div>
     <div class="form-row">
         <label for="node-input-run" title="Enable (true) or disable (false) PID calculation"><i class="fa fa-play"></i> Run</label>
-        <input type="checkbox" id="node-input-run" style="width: auto; vertical-align: middle;" checked>
-    </div>
-    <div class="form-row">
-        <label><i class="fa fa-info-circle"></i> Changed Runtime Values</label>
-        <pre id="node-runtime-changes" style="color: #555; white-space: pre-wrap;">Changed Values: None</pre>
+        <input type="text" id="node-input-run" style="width: auto; vertical-align: middle;" checked>
+        <input type="hidden" id="node-input-runType">
     </div>
 </script>
 
@@ -64,17 +69,26 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            kp: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
-            ki: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
-            kd: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
-            setpoint: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
-            deadband: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0 && isFinite(parseFloat(v)); } },
+            kp: { value: 0, required: true },
+            kpType: { value: "num" },
+            ki: { value: 0, required: true },
+            kiType: { value: "num" },
+            kd: { value: 0, required: true },
+            kdType: { value: "num" },
+            setpoint: { value: 0, required: true },
+            setpointType: { value: "num" },
+            deadband: { value: 0, required: true },
+            deadbandType: { value: "num" },
             dbBehavior: { value: "ReturnToZero" },
-            outMin: { value: null, validate: function(v) { return v === "" || (!isNaN(parseFloat(v)) && isFinite(parseFloat(v))); } },
-            outMax: { value: null, validate: function(v) { return v === "" || (!isNaN(parseFloat(v)) && isFinite(parseFloat(v))); } },
-            maxChange: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0 && isFinite(parseFloat(v)); } },
+            outMin: { value: null },
+            outMinType: { value: "num" },
+            outMax: { value: null },
+            outMaxType: { value: "num" },
+            maxChange: { value: 0, required: true },
+            maxChangeType: { value: "num" },
             directAction: { value: false },
-            run: { value: true }
+            run: { value: true },
+            runType: { value: "bool" }
         },
         inputs: 1,
         outputs: 1,
@@ -87,59 +101,67 @@
         },
         oneditprepare: function() {
             const node = this;
-            $("#node-input-name").val(node.name || "");
-            $("#node-input-kp").val(node.kp || 0);
-            $("#node-input-ki").val(node.ki || 0);
-            $("#node-input-kd").val(node.kd || 0);
-            $("#node-input-setpoint").val(node.setpoint || 0);
-            $("#node-input-deadband").val(node.deadband || 0);
-            $("#node-input-dbBehavior").val(node.dbBehavior || "ReturnToZero");
-            $("#node-input-outMin").val(node.outMin == null ? "" : node.outMin);
-            $("#node-input-outMax").val(node.outMax == null ? "" : node.outMax);
-            $("#node-input-maxChange").val(node.maxChange || 0);
-            $("#node-input-directAction").prop("checked", !!node.directAction);
-            $("#node-input-run").prop("checked", node.run !== false);
 
-            $.getJSON(`/pid-block-runtime/${this.id}?t=${Date.now()}`, function(data) {
-                const changes = [];
-                if (data.name) changes.push(`name: ${data.name}`);
-                if (data.kp !== parseFloat(node.kp || 0)) changes.push(`kp: ${data.kp.toFixed(2)}`);
-                if (data.ki !== parseFloat(node.ki || 0)) changes.push(`ki: ${data.ki.toFixed(2)}`);
-                if (data.kd !== parseFloat(node.kd || 0)) changes.push(`kd: ${data.kd.toFixed(2)}`);
-                if (data.setpoint !== parseFloat(node.setpoint || 0)) changes.push(`setpoint: ${data.setpoint.toFixed(2)}`);
-                if (data.deadband !== parseFloat(node.deadband || 0)) changes.push(`deadband: ${data.deadband.toFixed(2)}`);
-                if (data.dbBehavior !== (node.dbBehavior || "ReturnToZero")) changes.push(`dbBehavior: ${data.dbBehavior}`);
-                if (data.outMin != null && data.outMin !== parseFloat(node.outMin || null)) changes.push(`outMin: ${data.outMin.toFixed(2)}`);
-                if (data.outMax != null && data.outMax !== parseFloat(node.outMax || null)) changes.push(`outMax: ${data.outMax.toFixed(2)}`);
-                if (data.maxChange !== parseFloat(node.maxChange || 0)) changes.push(`maxChange: ${data.maxChange.toFixed(2)}`);
-                if (data.directAction !== !!node.directAction) changes.push(`directAction: ${data.directAction}`);
-                if (data.run !== (node.run !== false)) changes.push(`run: ${data.run}`);
-                $("#node-runtime-changes").text(changes.length > 0 ? `Changed Values:\n${changes.join("\n")}` : "Changed Values: None");
-            }).fail(function() {
-                $("#node-runtime-changes").text("Changed Values: Unknown");
-            });
-        },
-        oneditsave: function() {
-            // Standard config properties are automatically saved by Node-RED
-        },
-        oneditvalidate: function() {
-            const kp = parseFloat($("#node-input-kp").val());
-            const ki = parseFloat($("#node-input-ki").val());
-            const kd = parseFloat($("#node-input-kd").val());
-            const setpoint = parseFloat($("#node-input-setpoint").val());
-            const deadband = parseFloat($("#node-input-deadband").val());
-            const outMin = $("#node-input-outMin").val() === "" ? null : parseFloat($("#node-input-outMin").val());
-            const outMax = $("#node-input-outMax").val() === "" ? null : parseFloat($("#node-input-outMax").val());
-            const maxChange = parseFloat($("#node-input-maxChange").val());
-            return !isNaN(kp) && isFinite(kp) &&
-                   !isNaN(ki) && isFinite(ki) &&
-                   !isNaN(kd) && isFinite(kd) &&
-                   !isNaN(setpoint) && isFinite(setpoint) &&
-                   !isNaN(deadband) && isFinite(deadband) && deadband >= 0 &&
-                   (outMin === null || (!isNaN(outMin) && isFinite(outMin))) &&
-                   (outMax === null || (!isNaN(outMax) && isFinite(outMax))) &&
-                   (outMin === null || outMax === null || outMax > outMin) &&
-                   !isNaN(maxChange) && isFinite(maxChange) && maxChange >= 0;
+            try {
+                // Initialize typed inputs
+                $("#node-input-kp").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-kpType"
+                }).typedInput("type", node.kpType || "num").typedInput("value", node.kp);
+
+                $("#node-input-ki").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-kiType"
+                }).typedInput("type", node.kiType || "num").typedInput("value", node.ki);
+
+                $("#node-input-kd").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-kdType"
+                }).typedInput("type", node.kdType || "num").typedInput("value", node.kd);
+
+                $("#node-input-setpoint").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-setpointType"
+                }).typedInput("type", node.setpointType || "num").typedInput("value", node.setpoint);
+
+                $("#node-input-deadband").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-deadbandType"
+                }).typedInput("type", node.deadbandType || "num").typedInput("value", node.deadband);
+
+                $("#node-input-outMin").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-outMinType"
+                }).typedInput("type", node.outMinType || "num").typedInput("value", node.outMin);
+
+                $("#node-input-outMax").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-outMaxType"
+                }).typedInput("type", node.outMaxType || "num").typedInput("value", node.outMax);
+
+                $("#node-input-maxChange").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-maxChangeType"
+                }).typedInput("type", node.maxChangeType || "num").typedInput("value", node.maxChange);
+
+                $("#node-input-run").typedInput({
+                    default: "bool",
+                    types: ["bool", "msg", "flow", "global"],
+                    typeField: "#node-input-runType"
+                }).typedInput("type", node.runType || "bool").typedInput("value", node.run);
+
+            } catch (err) {
+                console.error("Error in oneditprepare:", err);
+            }
+
         }
     });
 </script>
@@ -193,11 +215,11 @@ Ziegler-Nichols tuning sets `kp = 0.6*Ku`, `ki = 2*kp/Tu`, `kd = kp*Tu/8` after 
 - Invalid config at startup: Red status (`invalid config` or specific), resets to defaults.
 
 ### Status
-- Green (dot): Configuration, reset, or tuning (e.g., `setpoint: 50.00`, `reset`, `tune: completed, Kp=1.20, Ki=0.40, Kd=0.90`).
-- Blue (dot): Output change (e.g., `in: 25.00, out: 50.00, setpoint: 50.00`).
-- Blue (ring): Output unchanged (e.g., `in: 25.00, out: 50.00, setpoint: 50.00`).
-- Red (ring): Errors (e.g., `invalid input`, `invalid setpoint`).
-- Yellow (ring): Unknown context (e.g., `unknown context`).
+- Green (dot): Configuration, reset, or tuning
+- Blue (dot): Output change
+- Blue (ring): Output unchanged
+- Red (ring): Errors
+- Yellow (ring): Unknown context
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

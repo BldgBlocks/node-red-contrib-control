@@ -5,15 +5,12 @@
     </div>
     <div class="form-row">
         <label for="node-input-algorithm" title="Algorithm: single setpoint with diff, split setpoints, or specified setpoints"><i class="fa fa-cog"></i> Algorithm</label>
-        <select id="node-input-algorithm">
-            <option value="single">Single Setpoint</option>
-            <option value="split">Split Setpoint</option>
-            <option value="specified">Specified Setpoint</option>
-        </select>
+        <input type="text" id="node-input-algorithm" placeholder="single">
+        <input type="hidden" id="node-input-algorithmType">
     </div>
     <div class="form-row single-setpoint">
         <label for="node-input-setpoint" title="Target temperature setpoint (number from num, msg, flow, or global)"><i class="fa fa-crosshairs"></i> Setpoint</label>
-        <input type="text" id="node-input-setpoint" laceholder="70">
+        <input type="text" id="node-input-setpoint" placeholder="70">
         <input type="hidden" id="node-input-setpointType">
     </div>
     <div class="form-row split-setpoint" style="display: none;">
@@ -63,7 +60,8 @@
     </div>
     <div class="form-row">
         <label for="node-input-isHeating" title="Heating mode (true) or cooling mode (false)"><i class="fa fa-fire"></i> Heating Mode</label>
-        <input type="checkbox" id="node-input-isHeating" style="width: auto; vertical-align: middle;">
+        <input type="text" id="node-input-isHeating" style="width: auto; vertical-align: middle;">
+        <input type="hidden" id="node-input-isHeatingType">
     </div>
 </script>
 
@@ -74,6 +72,7 @@
         defaults: {
             name: { value: "" },
             algorithm: { value: "single" },
+            algorithmType: { value: "dropdown" },
             setpoint: { value: "70" },
             setpointType: { value: "num" },
             heatingSetpoint: { value: "68" },
@@ -94,7 +93,8 @@
             anticipatorType: { value: "num" },
             ignoreAnticipatorCycles: { value: "1" },
             ignoreAnticipatorCyclesType: { value: "num" },
-            isHeating: { value: false }
+            isHeating: { value: false },
+            isHeatingType: { value: "bool" }
         },
         inputs: 1,
         outputs: 3,
@@ -112,41 +112,85 @@
                 const $singleFields = $(".single-setpoint");
                 const $splitFields = $(".split-setpoint");
                 const $specifiedFields = $(".specified-setpoint");
+                
+                $("#node-input-algorithm").typedInput({
+                    default: "dropdown",
+                    types: [{
+                        value: "dropdown",
+                        options: [
+                            { value: "single", label: "Single"},
+                            { value: "split", label: "Split"},
+                            { value: "specified", label: "Specified"},
+                        ]
+                    }, "msg", "flow", "global"],
+                    typeField: "#node-input-algorithmType"
+                }).typedInput("type", node.algorithmType).typedInput("value", node.algorithm);
 
-                $("#node-input-name").val(node.name || "");
-                $("#node-input-algorithm").val(node.algorithm || "single");
-                $("#node-input-isHeating").prop("checked", node.isHeating === true);
+                $("#node-input-setpoint").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-setpointType"
+                }).typedInput("type", node.setpointType || "num").typedInput("value", node.setpoint);
 
-                const typedInputs = [
-                    { id: "node-input-setpoint", typeId: "node-input-setpointType", defaultValue: "70", defaultType: "num" },
-                    { id: "node-input-heatingSetpoint", typeId: "node-input-heatingSetpointType", defaultValue: "68", defaultType: "num" },
-                    { id: "node-input-coolingSetpoint", typeId: "node-input-coolingSetpointType", defaultValue: "74", defaultType: "num" },
-                    { id: "node-input-coolingOn", typeId: "node-input-coolingOnType", defaultValue: "74", defaultType: "num" },
-                    { id: "node-input-coolingOff", typeId: "node-input-coolingOffType", defaultValue: "72", defaultType: "num" },
-                    { id: "node-input-heatingOff", typeId: "node-input-heatingOffType", defaultValue: "68", defaultType: "num" },
-                    { id: "node-input-heatingOn", typeId: "node-input-heatingOnType", defaultValue: "66", defaultType: "num" },
-                    { id: "node-input-diff", typeId: "node-input-diffType", defaultValue: "2", defaultType: "num" },
-                    { id: "node-input-anticipator", typeId: "node-input-anticipatorType", defaultValue: "0.5", defaultType: "num" },
-                    { id: "node-input-ignoreAnticipatorCycles", typeId: "node-input-ignoreAnticipatorCyclesType", defaultValue: "1", defaultType: "num" }
-                ];
+                $("#node-input-heatingSetpoint").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-heatingSetpointType"
+                }).typedInput("type", node.heatingSetpointType || "num").typedInput("value", node.heatingSetpoint);
 
-                typedInputs.forEach(input => {
-                    try {
-                        const fieldName = input.id.replace("node-input-", "");
-                        const storedValue = node[fieldName] !== undefined ? node[fieldName] : input.defaultValue;
-                        const storedType = node[`${fieldName}Type`] || input.defaultType;
+                $("#node-input-coolingSetpoint").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-coolingSetpointType"
+                }).typedInput("type", node.coolingSetpointType || "num").typedInput("value", node.coolingSetpoint);
 
-                        $(`#${input.id}`).typedInput({
-                            default: input.defaultType,
-                            types: ["num", "msg", "flow", "global"],
-                            typeField: `#${input.typeId}`
-                        }).typedInput("type", storedType)
-                        .typedInput("value", storedValue);
-                    } catch (err) {
-                        console.error(`Error initializing typedInput for ${input.id}:`, err);
-                    }
-                });
+                $("#node-input-coolingOn").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-coolingOnType"
+                }).typedInput("type", node.coolingOnType || "num").typedInput("value", node.coolingOn);
 
+                $("#node-input-coolingOff").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-coolingOffType"
+                }).typedInput("type", node.coolingOffType || "num").typedInput("value", node.coolingOff);
+
+                $("#node-input-heatingOff").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-heatingOffType"
+                }).typedInput("type", node.heatingOffType || "num").typedInput("value", node.heatingOff);
+
+                $("#node-input-heatingOn").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-heatingOnType"
+                }).typedInput("type", node.heatingOnType || "num").typedInput("value", node.heatingOn);
+
+                $("#node-input-diff").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-diffType"
+                }).typedInput("type", node.diffType || "num").typedInput("value", node.diff);
+                
+                $("#node-input-anticipator").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-anticipatorType"
+                }).typedInput("type", node.anticipatorType || "num").typedInput("value", node.anticipator);
+
+                $("#node-input-ignoreAnticipatorCycles").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-ignoreAnticipatorCyclesType"
+                }).typedInput("type", node.ignoreAnticipatorCyclesType || "num").typedInput("value", node.ignoreAnticipatorCycles);
+
+                $("#node-input-isHeating").typedInput({
+                    default: "bool",
+                    types: ["bool", "msg", "flow", "global"],
+                    typeField: "#node-input-isHeatingType"
+                }).typedInput("type", node.isHeatingType || "bool").typedInput("value", node.isHeating);
 
                 function toggleFields() {
                     const algorithm = $algorithm.val();
@@ -201,7 +245,7 @@ All output messages include a `msg.status` object containing runtime information
   - `effectiveAnticipator`: Current anticipator value after mode change adjustments
 
 ### Status Monitoring
-Instead of a dedicated status output, all outputs include comprehensive status information
+All outputs include comprehensive status information in `msg.status`. Example:
 ```json
 {
   "status": {
@@ -218,6 +262,8 @@ Instead of a dedicated status output, all outputs include comprehensive status i
     "effectiveAnticipator": 0.5
   }
 }
+```
+
 ### Algorithms
 - **Single Setpoint**:
   - Uses `setpoint`, `diff`, and `anticipator`.

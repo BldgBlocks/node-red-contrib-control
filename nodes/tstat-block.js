@@ -21,7 +21,9 @@ module.exports = function(RED) {
             node.heatingOn = parseFloat(RED.util.evaluateNodeProperty( config.heatingOn, config.heatingOnType, node ));
             node.diff = parseFloat(RED.util.evaluateNodeProperty( config.diff, config.diffType, node ));
             node.anticipator = parseFloat(RED.util.evaluateNodeProperty( config.anticipator, config.anticipatorType, node ));
-            node.ignoreAnticipatorCycles = Math.floor(RED.util.evaluateNodeProperty( config.ignoreAnticipatorCycles, config.ignoreAnticipatorCyclesType, node ));        
+            node.ignoreAnticipatorCycles = Math.floor(RED.util.evaluateNodeProperty( config.ignoreAnticipatorCycles, config.ignoreAnticipatorCyclesType, node )); 
+            node.isHeating = RED.util.evaluateNodeProperty( config.isHeating, config.isHeatingType, node );       
+            node.algorithm = RED.util.evaluateNodeProperty( config.algorithm, config.algorithmType, node );
         } catch (err) {
             node.error(`Error evaluating properties: ${err.message}`);
         }
@@ -74,6 +76,12 @@ module.exports = function(RED) {
                 }
                 if (utils.requiresEvaluation(config.ignoreAnticipatorCyclesType)) {
                     node.ignoreAnticipatorCycles = Math.floor(RED.util.evaluateNodeProperty( config.ignoreAnticipatorCycles, config.ignoreAnticipatorCyclesType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.isHeatingType)) {
+                    node.isHeating = RED.util.evaluateNodeProperty( config.isHeating, config.isHeatingType, node, msg );       
+                }
+                if (utils.requiresEvaluation(config.algorithmType)) {
+                    node.algorithm = RED.util.evaluateNodeProperty( config.algorithm, config.algorithmType, node, msg );
                 }
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
@@ -197,14 +205,14 @@ module.exports = function(RED) {
             }
 
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing input" });
+                node.status({ fill: "red", shape: "ring", text: "missing payload" });
                 if (done) done();
                 return;
             }
 
             const input = parseFloat(msg.payload);
             if (isNaN(input)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
                 if (done) done();
                 return;
             }
@@ -236,31 +244,52 @@ module.exports = function(RED) {
 
             lastAbove = above;
             lastBelow = below;
+            let delta = 0;
+            let hiValue = 0;
+            let loValue = 0;
+            let hiOffValue = 0;
+            let loOffValue = 0;
+            let activeHeatingSetpoint = 0;
+            let activeCoolingSetpoint = 0;
 
             // Main thermostat logic
+            // The Tstat node does not control heating/cooling mode, only operates heating or cooling according to the mode set and respective setpoints.
             if (node.algorithm === "single") {
-                const delta = node.diff / 2;
-                const hiValue = node.setpoint + delta;
-                const loValue = node.setpoint - delta;
-                const hiOffValue = node.setpoint + effectiveAnticipator;
-                const loOffValue = node.setpoint - effectiveAnticipator;
+                // Note:
+                // Make sure your mode selection is handled upstream and does not osciallate modes.
+                // This was changed to allow for broader anticipator authority, or even negative (overshoot) so duty cycle can be better managed.
+                // So the same setpoint can be used year round and maintain tight control. 
+                // Alternatively, you would need a larger diff value to prevent oscillation.
+                delta = node.diff / 2;
+                hiValue = node.setpoint + delta;
+                loValue = node.setpoint - delta;
+                hiOffValue = node.setpoint + effectiveAnticipator;
+                loOffValue = node.setpoint - effectiveAnticipator;
+                activeHeatingSetpoint = node.setpoint;
+                activeCoolingSetpoint = node.setpoint;
 
-                if (input > hiValue) {
-                    above = true;
-                    below = false;
-                } else if (input < loValue) {
+                if (isHeating) {
+                    if (input < loValue) {
+                        below = true;
+                    } else if (below && input > loOffValue) {
+                        below = false;
+                    }
                     above = false;
-                    below = true;
-                } else if (above && input < hiOffValue) {
-                    above = false;
-                } else if (below && input > loOffValue) {
+                } else {
+                    if (input > hiValue) {
+                        above = true;
+                    } else if (above && input < hiOffValue) {
+                        above = false;
+                    }
                     below = false;
                 }
             } else if (node.algorithm === "split") {
+                    activeHeatingSetpoint = node.heatingSetpoint;
+                    activeCoolingSetpoint = node.coolingSetpoint;
                 if (node.isHeating) {
-                    const delta = node.diff / 2;
-                    const loValue = node.heatingSetpoint - delta;
-                    const loOffValue = node.heatingSetpoint - effectiveAnticipator;
+                    delta = node.diff / 2;
+                    loValue = node.heatingSetpoint - delta;
+                    loOffValue = node.heatingSetpoint - effectiveAnticipator;
 
                     if (input < loValue) {
                         below = true;
@@ -269,9 +298,9 @@ module.exports = function(RED) {
                     }
                     above = false;
                 } else {
-                    const delta = node.diff / 2;
-                    const hiValue = node.coolingSetpoint + delta;
-                    const hiOffValue = node.coolingSetpoint + effectiveAnticipator;
+                    delta = node.diff / 2;
+                    hiValue = node.coolingSetpoint + delta;
+                    hiOffValue = node.coolingSetpoint + effectiveAnticipator;
 
                     if (input > hiValue) {
                         above = true;
@@ -281,6 +310,8 @@ module.exports = function(RED) {
                     below = false;
                 }
             } else if (node.algorithm === "specified") {
+                activeHeatingSetpoint = node.heatingOn;
+                activeCoolingSetpoint = node.coolingOn;
                 if (node.isHeating) {
                     if (input < node.heatingOn) {
                         below = true;
@@ -311,20 +342,25 @@ module.exports = function(RED) {
             };
 
             // Add algorithm-specific status
+            statusInfo.activeHeatingSetpoint = activeHeatingSetpoint;
+            statusInfo.activeCoolingSetpoint = activeCoolingSetpoint;
+            statusInfo.diff = node.diff;
+            statusInfo.anticipator = node.anticipator;
+            statusInfo.loValue = loValue;
+            statusInfo.hiValue = hiValue;
+            statusInfo.loOffValue = loOffValue;
+            statusInfo.hiOffValue = hiOffValue;
+
             if (node.algorithm === "single") {
                 statusInfo.setpoint = node.setpoint;
-                statusInfo.diff = node.diff;
-                statusInfo.anticipator = node.anticipator;
             } else if (node.algorithm === "split") {
                 statusInfo.heatingSetpoint = node.heatingSetpoint;
                 statusInfo.coolingSetpoint = node.coolingSetpoint;
-                statusInfo.diff = node.diff;
-                statusInfo.anticipator = node.anticipator;
             } else {
-                statusInfo.coolingOn = node.coolingOn;
-                statusInfo.coolingOff = node.coolingOff;
-                statusInfo.heatingOff = node.heatingOff;
-                statusInfo.heatingOn = node.heatingOn;
+                statusInfo.hiValue = node.coolingOn;
+                statusInfo.hiOffValue = node.coolingOff;
+                statusInfo.loOffValue = node.heatingOff;
+                statusInfo.loValue = node.heatingOn;
                 statusInfo.anticipator = node.anticipator;
             }
 

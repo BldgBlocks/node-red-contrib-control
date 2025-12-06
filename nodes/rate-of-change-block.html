@@ -1,0 +1,110 @@
+<script type="text/html" data-template-name="rate-of-change-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-sampleSize" title="Number of samples to track (minimum 2)"><i class="fa fa-list-ol"></i> Sample Size</label>
+        <input type="number" id="node-input-sampleSize" placeholder="10" min="2" step="1">
+    </div>
+    <div class="form-row">
+        <label for="node-input-units" title="Time units for rate calculation"><i class="fa fa-clock-o"></i> Rate Units</label>
+        <select id="node-input-units">
+            <option value="seconds">Seconds</option>
+            <option value="minutes" selected>Minutes</option>
+            <option value="hours">Hours</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-minValid"><i class="fa fa-arrow-down"></i> Minimum Valid Temp</label>
+        <input type="text" id="node-input-minValid" placeholder="-40">
+        <input type="hidden" id="node-input-minValidType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-maxValid"><i class="fa fa-arrow-up"></i> Maximum Valid Temp</label>
+        <input type="text" id="node-input-maxValid" placeholder="150">
+        <input type="hidden" id="node-input-maxValidType">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("rate-of-change-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            sampleSize: {
+                value: 10,
+                required: true,
+                validate: function(v) { return !isNaN(parseInt(v)) && parseInt(v) >= 2; }
+            },
+            units: { value: "minutes" },
+            minValid: { value: -40, required: true },
+            minValidType: { value: "num" },
+            maxValid: { value: 150, required: true },
+            maxValidType: { value: "num" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["rate"],
+        icon: "font-awesome/fa-bar-chart",
+        paletteLabel: "rate of change",
+        label: function() {
+            return this.name ? `${this.name} (${this.sampleSize} samples)` : `RoC (${this.sampleSize})`;
+        },
+        oneditprepare: function() {
+            const node = this;
+
+            try {
+                // Initialize typed inputs
+                $("#node-input-minValid").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-minValidType"
+                }).typedInput("type", node.minValidType || "num").typedInput("value", node.minValid || "-40");
+
+                $("#node-input-maxValid").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-maxValidType"
+                }).typedInput("type", node.maxValidType || "num").typedInput("value", node.maxValid || "150");
+                
+                // Set units dropdown
+                $("#node-input-units").val(node.units || "minutes");
+            } catch (err) {
+                console.error("Error in oneditprepare:", err);
+            }
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="rate-of-change-block">
+Calculates the rate of temperature change over time for HVAC applications.
+
+### Inputs
+: context (string) : Configures reset (`"reset"`), sample size (`"sampleSize"`), or units (`"units"`).
+: payload (number) : Temperature value for rate calculation.
+: timestamp (optional) : Custom timestamp for the reading.
+
+### Outputs
+: payload (number | null) : Rate of change in temperature per time unit.
+: samples (number) : Current number of samples in buffer.
+: units (string) : Rate units ("°/s", "°/min", "°/hr").
+: currentValue (number) : Most recent temperature value.
+: timeSpan (number) : Time span of sample buffer in seconds.
+
+### Details
+Tracks temperature changes over a rolling window of samples. Calculates rate as (last_value - first_value) / time_difference.
+
+Useful for detecting HVAC issues like temperature droop, defrost cycles, or rapid changes.
+
+### Configuration
+- Reset via `msg.context = "reset"` with `msg.payload = true`
+- Change sample size via `msg.context = "sampleSize"` with numeric payload
+- Change units via `msg.context = "units"` with "seconds", "minutes", or "hours"
+
+### Status
+- Shows current rate with units
+- Color indicates state change
+</script>

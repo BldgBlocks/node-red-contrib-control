@@ -47,7 +47,7 @@ module.exports = function(RED) {
             // Acceptable fallbacks
             if (isNaN(node.runtime.maxValues) || node.runtime.maxValues < 1) {
                 node.runtime.maxValues = 10;
-                node.status({ fill: "red", shape: "ring", text: "invalid window size, using 10" });
+                node.status({ fill: "yellow", shape: "ring", text: "invalid window size, using 10" });
             }
 
             // Validate values

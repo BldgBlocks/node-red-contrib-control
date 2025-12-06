@@ -1,0 +1,55 @@
+<!-- UI Template Section -->
+<script type="text/html" data-template-name="latch-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+    RED.nodes.registerType("latch-block", {
+        category: "control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            state: { value: false }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["output"],
+        icon: "font-awesome/fa-toggle-on",
+        paletteLabel: "latch",
+        label: function() {
+            return this.name || "latch";
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="latch-block">
+Latch output based on control messages.
+
+### Inputs
+: context (string) : Configuration commands (`set`, `reset`).
+: payload (boolean) : `true` to set latch, `false` to reset latch when paired with appropriate `context`.
+
+### Outputs
+: output (msg) : `msg.payload` `true` or `false` based on latch state.
+
+### Details
+Set or reset the latch state based on input messages. `msg.context` = `"set"` with `msg.payload` = `true` 
+sets the latch `true`, while `msg.context` = `"reset"` with `msg.payload` = `true` resets it to `false`.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

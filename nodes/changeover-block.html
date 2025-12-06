@@ -5,10 +5,8 @@
     </div>
     <div class="form-row">
         <label for="node-input-algorithm" title="Control algorithm type"><i class="fa fa-cog"></i> Algorithm</label>
-        <select id="node-input-algorithm">
-            <option value="single">Single Setpoint</option>
-            <option value="split">Split Setpoints</option>
-        </select>
+        <input type="text" id="node-input-algorithm" class="node-input-typed" placeholder="single">
+        <input type="hidden" id="node-input-algorithmType">
     </div>
     <div class="form-row single-only">
         <label for="node-input-setpoint" title="Target temperature setpoint (number from num, msg, flow, or global)"><i class="fa fa-thermometer-half"></i> Setpoint</label>
@@ -50,6 +48,18 @@
             Invalid
         </div>
     </div>
+
+    <div class="form-row specified-only" style="display: none;">
+        <label for="node-input-coolingOn" title="Temperature to turn cooling on (number from num, msg, flow, or global)"><i class="fa fa-snowflake-o"></i> Cooling On</label>
+        <input type="text" id="node-input-coolingOn" placeholder="74">
+        <input type="hidden" id="node-input-coolingOnType">
+    </div>
+    <div class="form-row specified-only" style="display: none;">
+        <label for="node-input-heatingOn" title="Temperature to turn heating on (number from num, msg, flow, or global)"><i class="fa fa-fire"></i> Heating On</label>
+        <input type="text" id="node-input-heatingOn" placeholder="66">
+        <input type="hidden" id="node-input-heatingOnType">
+    </div>
+
     <div class="form-row">
         <label for="node-input-swapTime" title="Minimum time before mode change (seconds, minimum 60, from num, msg, flow, or global)"><i class="fa fa-clock-o"></i> Swap Time</label>
         <input type="text" id="node-input-swapTime" class="node-input-typed" placeholder="300">
@@ -76,11 +86,8 @@
     </div>
     <div class="form-row">
         <label for="node-input-operationMode" title="Operation mode"><i class="fa fa-cogs"></i> Operation Mode</label>
-        <select id="node-input-operationMode">
-            <option value="auto">Auto</option>
-            <option value="heat">Heat</option>
-            <option value="cool">Cool</option>
-        </select>
+        <input type="text" id="node-input-operationMode" placeholder="auto">
+        <input type="hidden" id="node-input-operationModeType">
     </div>
 </script>
 
@@ -91,6 +98,7 @@
         defaults: {
             name: { value: "" },
             algorithm: { value: "single" },
+            algorithmType: { value: "dropdown" },
             setpoint: { value: "70" },
             setpointType: { value: "num" },
             deadband: { value: "2" },
@@ -98,6 +106,10 @@
             heatingSetpointType: { value: "num" },
             coolingSetpoint: { value: "74" },
             coolingSetpointType: { value: "num" },
+            coolingOn: { value: "74" },
+            coolingOnType: { value: "num" },
+            heatingOn: { value: "66" },
+            heatingOnType: { value: "num" },
             extent: { value: "1" },
             swapTime: { value: "300" },
             swapTimeType: { value: "num" },
@@ -106,7 +118,8 @@
             maxTempSetpoint: { value: "90" },
             maxTempSetpointType: { value: "num"},
             initWindow: { value: "10" },
-            operationMode: { value: "auto" }
+            operationMode: { value: "auto" },
+            operationModeType: { value: "dropdown" },
         },
         inputs: 1,
         outputs: 1,
@@ -122,9 +135,37 @@
             const $algorithm = $("#node-input-algorithm");
             const $singleFields = $(".single-only");
             const $splitFields = $(".split-only");
+            const $specifiedFields = $(".specified-only");
 
             try {
                 // Initialize typed inputs
+                
+                $("#node-input-operationMode").typedInput({
+                    default: "dropdown",
+                    types: [{
+                        value: "dropdown",
+                        options: [
+                            { value: "auto", label: "Auto"},
+                            { value: "heat", label: "Heat"},
+                            { value: "cool", label: "Cool"},
+                        ]
+                    }, "msg", "flow", "global"],
+                    typeField: "#node-input-operationModeType"
+                }).typedInput("type", node.operationModeType).typedInput("value", node.operationMode);
+                
+                $("#node-input-algorithm").typedInput({
+                    default: "dropdown",
+                    types: [{
+                        value: "dropdown",
+                        options: [
+                            { value: "single", label: "Single"},
+                            { value: "split", label: "Split"},
+                            { value: "specified", label: "Specified"},
+                        ]
+                    }, "msg", "flow", "global"],
+                    typeField: "#node-input-algorithmType"
+                }).typedInput("type", node.algorithmType).typedInput("value", node.algorithm);
+
                 $("#node-input-setpoint").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
@@ -142,6 +183,18 @@
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-coolingSetpointType"
                 }).typedInput("type", node.coolingSetpointType || "num").typedInput("value", node.coolingSetpoint);
+
+                $("#node-input-heatingOn").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-heatingOnType"
+                }).typedInput("type", node.heatingOnType || "num").typedInput("value", node.heatingOn);
+
+                $("#node-input-coolingOn").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-coolingOnType"
+                }).typedInput("type", node.coolingOnType || "num").typedInput("value", node.coolingOn);
 
                 $("#node-input-swapTime").typedInput({
                     default: "num",
@@ -178,9 +231,20 @@
                     if ($algorithm.val() === "single") {
                         $singleFields.show();
                         $splitFields.hide();
-                    } else {
+                        $specifiedFields.hide();
+                    } else if ($algorithm.val() === "split") {
                         $singleFields.hide();
                         $splitFields.show();
+                        $specifiedFields.hide();
+                    } else if ($algorithm.val() === "specified") {
+                        $singleFields.hide();
+                        $splitFields.hide();
+                        $specifiedFields.show();
+                    } else {
+                        $algorithm.val("single");
+                        $singleFields.show();
+                        $splitFields.hide();
+                        $specifiedFields.hide();
                     }
                 }
 
@@ -188,7 +252,7 @@
                 toggleFields();
                 
             } catch (err) {
-                console.error("Error in changeover-block oneditprepare:", err);
+                console.error("Error in oneditprepare:", err);
             }
         }
     });

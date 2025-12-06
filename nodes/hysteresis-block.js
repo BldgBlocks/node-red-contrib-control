@@ -84,7 +84,7 @@ module.exports = function(RED) {
 
             // Add validation to ensure numbers
             if (isNaN(upperTurnOn) || isNaN(upperTurnOff) || isNaN(lowerTurnOn) || isNaN(lowerTurnOff)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid boundary calculation" });
+                node.status({ fill: "red", shape: "ring", text: "invalid limits calculation" });
                 if (done) done();
                 return;
             }

@@ -1,22 +1,15 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function PIDBlockNode(config) {
         RED.nodes.createNode(this, config);
+
         const node = this;
 
-        // Initialize runtime state
+        // Initialize runtime state        
         node.runtime = {
-            name: config.name || "",
-            kp: parseFloat(config.kp) || 0,
-            ki: parseFloat(config.ki) || 0,
-            kd: parseFloat(config.kd) || 0,
-            setpoint: parseFloat(config.setpoint) || 0,
-            deadband: parseFloat(config.deadband) || 0,
-            dbBehavior: config.dbBehavior || "ReturnToZero",
-            outMin: config.outMin ? parseFloat(config.outMin) : null,
-            outMax: config.outMax ? parseFloat(config.outMax) : null,
-            maxChange: parseFloat(config.maxChange) || 0,
-            directAction: !!config.directAction,
-            run: config.run !== false,
+            name: config.name,
+            dbBehavior: config.dbBehavior,
             errorSum: 0,
             lastError: 0,
             lastDError: 0,
@@ -25,36 +18,35 @@ module.exports = function(RED) {
             tuneMode: false,
             tuneData: { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 }
         };
-
-        // Validate initial config
-        if (isNaN(node.runtime.kp) || isNaN(node.runtime.ki) || isNaN(node.runtime.kd) ||
-            isNaN(node.runtime.setpoint) || isNaN(node.runtime.deadband) || isNaN(node.runtime.maxChange) ||
-            !isFinite(node.runtime.kp) || !isFinite(node.runtime.ki) || !isFinite(node.runtime.kd) ||
-            !isFinite(node.runtime.setpoint) || !isFinite(node.runtime.deadband) || !isFinite(node.runtime.maxChange)) {
-            node.status({ fill: "red", shape: "ring", text: "invalid config" });
-            node.runtime.kp = node.runtime.ki = node.runtime.kd = node.runtime.setpoint = node.runtime.deadband = node.runtime.maxChange = 0;
-        }
-        if (node.runtime.deadband < 0 || node.runtime.maxChange < 0) {
-            node.status({ fill: "red", shape: "ring", text: "invalid deadband or maxChange" });
-            node.runtime.deadband = node.runtime.maxChange = 0;
-        }
-        if (node.runtime.outMin != null && node.runtime.outMax != null && node.runtime.outMax <= node.runtime.outMin) {
-            node.status({ fill: "red", shape: "ring", text: "invalid output range" });
-            node.runtime.outMin = node.runtime.outMax = null;
-        }
-        if (!["ReturnToZero", "HoldLastResult"].includes(node.runtime.dbBehavior)) {
-            node.status({ fill: "red", shape: "ring", text: "invalid dbBehavior" });
-            node.runtime.dbBehavior = "ReturnToZero";
+        
+        try {      
+            node.runtime.kp = parseFloat(RED.util.evaluateNodeProperty( config.kp, config.kpType, node ));
+            node.runtime.ki = parseFloat(RED.util.evaluateNodeProperty( config.ki, config.kiType, node ));
+            node.runtime.kd = parseFloat(RED.util.evaluateNodeProperty( config.kd, config.kdType, node ));
+            node.runtime.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node ));
+            node.runtime.deadband = parseFloat(RED.util.evaluateNodeProperty( config.deadband, config.deadbandType, node ));
+            node.runtime.outMin = parseFloat(RED.util.evaluateNodeProperty( config.outMin, config.outMinType, node ));
+            node.runtime.outMax = parseFloat(RED.util.evaluateNodeProperty( config.outMax, config.outMaxType, node ));
+            node.runtime.maxChange = parseFloat(RED.util.evaluateNodeProperty( config.maxChange, config.maxChangeType, node ));
+            node.runtime.run = RED.util.evaluateNodeProperty( config.run, config.runType, node ) === true;
+        } catch (err) {
+            node.error(`Error evaluating properties: ${err.message}`);
         }
 
         // Initialize internal variables
-        let storekp = node.runtime.kp;
-        let storeki = node.runtime.ki;
-        let storemin = node.runtime.outMin;
-        let storemax = node.runtime.outMax;
-        let kpkiConst = node.runtime.kp * node.runtime.ki;
-        let minInt = kpkiConst === 0 ? 0 : (node.runtime.outMin || -Infinity) * kpkiConst;
-        let maxInt = kpkiConst === 0 ? 0 : (node.runtime.outMax || Infinity) * kpkiConst;
+        let storekp = parseFloat(config.kp) || 0;
+        let storeki = parseFloat(config.ki) || 0;
+        let storekd = parseFloat(config.kd) || 0;
+        let storesetpoint = parseFloat(config.setpoint) || 0;
+        let storedeadband = parseFloat(config.deadband) || 0;
+        let storeOutMin = config.outMin ? parseFloat(config.outMin) : null;
+        let storeOutMax = config.outMax ? parseFloat(config.outMax) : null;
+        let storemaxChange = parseFloat(config.maxChange) || 0;
+        let storerun = !!config.run;  // convert to boolean
+
+        let kpkiConst = storekp * storeki;
+        let minInt = kpkiConst === 0 ? 0 : (storeOutMin || -Infinity) * kpkiConst;
+        let maxInt = kpkiConst === 0 ? 0 : (storeOutMax || Infinity) * kpkiConst;
         let lastOutput = null;
 
         node.on("input", function(msg, send, done) {
@@ -65,6 +57,60 @@ module.exports = function(RED) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
                 return;
+            }
+
+            // Evaluate typed-input properties    
+            try {      
+                if (utils.requiresEvaluation(config.kpType)) {
+                    node.runtime.kp = parseFloat(RED.util.evaluateNodeProperty( config.kp, config.kpType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.kiType)) {
+                    node.runtime.ki = parseFloat(RED.util.evaluateNodeProperty( config.ki, config.kiType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.kdType)) {
+                    node.runtime.kd = parseFloat(RED.util.evaluateNodeProperty( config.kd, config.kdType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.setpointType)) {
+                    node.runtime.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.deadbandType)) {
+                    node.runtime.deadband = parseFloat(RED.util.evaluateNodeProperty( config.deadband, config.deadbandType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.outMinType)) {
+                    node.runtime.outMin = parseFloat(RED.util.evaluateNodeProperty( config.outMin, config.outMinType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.outMaxType)) {
+                    node.runtime.outMax = parseFloat(RED.util.evaluateNodeProperty( config.outMax, config.outMaxType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.maxChangeType)) {
+                    node.runtime.maxChange = parseFloat(RED.util.evaluateNodeProperty( config.maxChange, config.maxChangeType, node, msg ));
+                }
+                if (utils.requiresEvaluation(config.runType)) {
+                    node.runtime.run = RED.util.evaluateNodeProperty( config.run, config.runType, node, msg ) === true;
+                }
+            } catch (err) {
+                node.error(`Error evaluating properties: ${err.message}`);
+            }
+
+            // Validate config
+            if (isNaN(node.runtime.kp) || isNaN(node.runtime.ki) || isNaN(node.runtime.kd) ||
+                isNaN(node.runtime.setpoint) || isNaN(node.runtime.deadband) || isNaN(node.runtime.maxChange) ||
+                !isFinite(node.runtime.kp) || !isFinite(node.runtime.ki) || !isFinite(node.runtime.kd) ||
+                !isFinite(node.runtime.setpoint) || !isFinite(node.runtime.deadband) || !isFinite(node.runtime.maxChange)) {
+                node.status({ fill: "red", shape: "ring", text: "invalid config" });
+                node.runtime.kp = node.runtime.ki = node.runtime.kd = node.runtime.setpoint = node.runtime.deadband = node.runtime.maxChange = 0;
+            }
+            if (node.runtime.deadband < 0 || node.runtime.maxChange < 0) {
+                node.status({ fill: "red", shape: "ring", text: "invalid deadband or maxChange" });
+                node.runtime.deadband = node.runtime.maxChange = 0;
+            }
+            if (node.runtime.outMin != null && node.runtime.outMax != null && node.runtime.outMax <= node.runtime.outMin) {
+                node.status({ fill: "red", shape: "ring", text: "invalid output range" });
+                node.runtime.outMin = node.runtime.outMax = null;
+            }
+            if (!["ReturnToZero", "HoldLastResult"].includes(node.runtime.dbBehavior)) {
+                node.status({ fill: "red", shape: "ring", text: "invalid dbBehavior" });
+                node.runtime.dbBehavior = "ReturnToZero";
             }
 
             // Handle context updates
@@ -156,14 +202,14 @@ module.exports = function(RED) {
             }
 
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing input" });
+                node.status({ fill: "red", shape: "ring", text: "missing payload" });
                 if (done) done();
                 return;
             }
 
             const input = parseFloat(msg.payload);
             if (isNaN(input) || !isFinite(input)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
                 if (done) done();
                 return;
             }
@@ -173,7 +219,18 @@ module.exports = function(RED) {
             let interval = (currentTime - node.runtime.lastTime) / 1000; // Seconds
             node.runtime.lastTime = currentTime;
 
-            let outputMsg = { payload: 0, diagnostics: {} };
+            let outputMsg = { payload: 0 };
+            outputMsg.diagnostics = { 
+                setpoint: node.runtime.setpoint,
+                interval,
+                lastOutput,
+                run: node.runtime.run, 
+                directAction: node.runtime.directAction,
+                kp: node.runtime.kp, 
+                ki: node.runtime.ki, 
+                kd: node.runtime.kd 
+            };
+
             if (!node.runtime.run || interval <= 0 || node.runtime.kp === 0) {
                 if (lastOutput !== 0) {
                     lastOutput = 0;
@@ -182,7 +239,6 @@ module.exports = function(RED) {
                         shape: "dot",
                         text: `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.runtime.setpoint.toFixed(2)}`
                     });
-                    send(outputMsg);
                 } else {
                     node.status({
                         fill: "blue",
@@ -190,6 +246,7 @@ module.exports = function(RED) {
                         text: `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.runtime.setpoint.toFixed(2)}`
                     });
                 }
+                send(outputMsg);
                 if (done) done();
                 return;
             }
@@ -218,7 +275,7 @@ module.exports = function(RED) {
             }
 
             // Update internal constraints
-            if (node.runtime.kp !== storekp || node.runtime.ki !== storeki || node.runtime.outMin !== storemin || node.runtime.outMax !== storemax) {
+            if (node.runtime.kp !== storekp || node.runtime.ki !== storeki || node.runtime.outMin !== storeOutMin || node.runtime.outMax !== storeOutMax) {
                 if (node.runtime.kp !== storekp && node.runtime.kp !== 0 && storekp !== 0) {
                     node.runtime.errorSum = node.runtime.errorSum * storekp / node.runtime.kp;
                 }
@@ -230,8 +287,8 @@ module.exports = function(RED) {
                 maxInt = kpkiConst === 0 ? 0 : (node.runtime.outMax || Infinity) * kpkiConst;
                 storekp = node.runtime.kp;
                 storeki = node.runtime.ki;
-                storemin = node.runtime.outMin;
-                storemax = node.runtime.outMax;
+                storeOutMin = node.runtime.outMin;
+                storeOutMax = node.runtime.outMax;
             }
 
             // Calculate error
@@ -272,6 +329,7 @@ module.exports = function(RED) {
                         shape: "dot",
                         text: `tune: completed, Kp=${node.runtime.kp.toFixed(2)}, Ki=${node.runtime.ki.toFixed(2)}, Kd=${node.runtime.kd.toFixed(2)}`
                     });
+
                     send(outputMsg);
                     if (done) done();
                     return;
@@ -302,7 +360,7 @@ module.exports = function(RED) {
             // Output calculation
             let pv = pGain + intGain + dGain;
             //if (node.runtime.directAction) pv = -pv;
-            pv = Math.min(Math.max(pv, node.runtime.outMin || -Infinity), node.runtime.outMax || Infinity);
+            pv = Math.min(Math.max(pv, node.runtime.outMin), node.runtime.outMax);
 
             // Rate of change limit
             if (node.runtime.maxChange !== 0) {
@@ -316,7 +374,18 @@ module.exports = function(RED) {
             }
 
             outputMsg.payload = node.runtime.result;
-            outputMsg.diagnostics = { pGain, intGain, dGain, error, errorSum: node.runtime.errorSum };
+            outputMsg.diagnostics = { 
+                pGain, 
+                intGain, 
+                dGain, 
+                error, 
+                errorSum: node.runtime.errorSum, 
+                run: node.runtime.run, 
+                directAction: node.runtime.directAction,
+                kp: node.runtime.kp, 
+                ki: node.runtime.ki, 
+                kd: node.runtime.kd 
+            };
 
             const outputChanged = !lastOutput || lastOutput !== outputMsg.payload;
             if (outputChanged) {
@@ -326,7 +395,6 @@ module.exports = function(RED) {
                     shape: "dot",
                     text: `in: ${input.toFixed(2)}, out: ${node.runtime.result.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`
                 });
-                send(outputMsg);
             } else {
                 node.status({
                     fill: "blue",
@@ -335,73 +403,15 @@ module.exports = function(RED) {
                 });
             }
 
+            send(outputMsg);
+
             if (done) done();
         });
 
         node.on("close", function(done) {
-            node.runtime = {
-                name: config.name || "",
-                kp: parseFloat(config.kp) || 0,
-                ki: parseFloat(config.ki) || 0,
-                kd: parseFloat(config.kd) || 0,
-                setpoint: parseFloat(config.setpoint) || 0,
-                deadband: parseFloat(config.deadband) || 0,
-                dbBehavior: config.dbBehavior || "ReturnToZero",
-                outMin: config.outMin ? parseFloat(config.outMin) : null,
-                outMax: config.outMax ? parseFloat(config.outMax) : null,
-                maxChange: parseFloat(config.maxChange) || 0,
-                directAction: !!config.directAction,
-                run: config.run !== false,
-                errorSum: 0,
-                lastError: 0,
-                lastDError: 0,
-                result: 0,
-                lastTime: Date.now(),
-                tuneMode: false,
-                tuneData: { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 }
-            };
-            if (isNaN(node.runtime.kp) || isNaN(node.runtime.ki) || isNaN(node.runtime.kd) ||
-                isNaN(node.runtime.setpoint) || isNaN(node.runtime.deadband) || isNaN(node.runtime.maxChange) ||
-                !isFinite(node.runtime.kp) || !isFinite(node.runtime.ki) || !isFinite(node.runtime.kd) ||
-                !isFinite(node.runtime.setpoint) || !isFinite(node.runtime.deadband) || !isFinite(node.runtime.maxChange)) {
-                node.runtime.kp = node.runtime.ki = node.runtime.kd = node.runtime.setpoint = node.runtime.deadband = node.runtime.maxChange = 0;
-            }
-            if (node.runtime.deadband < 0 || node.runtime.maxChange < 0) {
-                node.runtime.deadband = node.runtime.maxChange = 0;
-            }
-            if (node.runtime.outMin != null && node.runtime.outMax != null && node.runtime.outMax <= node.runtime.outMin) {
-                node.runtime.outMin = node.runtime.outMax = null;
-            }
-            if (!["ReturnToZero", "HoldLastResult"].includes(node.runtime.dbBehavior)) {
-                node.runtime.dbBehavior = "ReturnToZero";
-            }
-            node.status({});
             done();
         });
     }
 
     RED.nodes.registerType("pid-block", PIDBlockNode);
-
-    // Serve runtime state for editor
-    RED.httpAdmin.get("/pid-block-runtime/:id", RED.auth.needsPermission("pid-block.read"), function(req, res) {
-        const node = RED.nodes.getNode(req.params.id);
-        if (node && node.type === "pid-block") {
-            res.json({
-                name: node.runtime.name,
-                kp: node.runtime.kp,
-                ki: node.runtime.ki,
-                kd: node.runtime.kd,
-                setpoint: node.runtime.setpoint,
-                deadband: node.runtime.deadband,
-                dbBehavior: node.runtime.dbBehavior,
-                outMin: node.runtime.outMin,
-                outMax: node.runtime.outMax,
-                maxChange: node.runtime.maxChange,
-                directAction: node.runtime.directAction,
-                run: node.runtime.run
-            });
-        } else {
-            res.status(404).json({ error: "Node not found" });
-        }
-    });
 };

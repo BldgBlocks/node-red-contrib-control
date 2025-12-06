@@ -10,10 +10,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name,
-            algorithm: config.algorithm,
-            operationMode: config.operationMode,
             initWindow: parseFloat(config.initWindow),
-            currentMode: (config.operationMode === "cool" ? "cooling" : "heating"),
             lastTemperature: null,
             lastModeChange: 0
         };
@@ -27,7 +24,10 @@ module.exports = function(RED) {
             node.runtime.deadband = parseFloat(RED.util.evaluateNodeProperty( config.deadband, config.deadbandType, node ));
             node.runtime.extent = parseFloat(RED.util.evaluateNodeProperty( config.extent, config.extentType, node ));
             node.runtime.minTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.minTempSetpoint, config.minTempSetpointType, node ));
-            node.runtime.maxTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.maxTempSetpoint, config.maxTempSetpointType, node ));            
+            node.runtime.maxTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.maxTempSetpoint, config.maxTempSetpointType, node ));  
+            node.runtime.algorithm = RED.util.evaluateNodeProperty( config.algorithm, config.algorithmType, node );
+            node.runtime.operationMode = RED.util.evaluateNodeProperty( config.operationMode, config.operationModeType, node );
+            node.runtime.currentMode = node.runtime.operationMode === "cool" ? "cooling" : "heating";          
         } catch (err) {
             node.error(`Error evaluating properties: ${err.message}`);
             if (done) done();
@@ -74,7 +74,14 @@ module.exports = function(RED) {
                 }
                 if (utils.requiresEvaluation(config.maxTempSetpointType)) {
                     node.runtime.maxTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.maxTempSetpoint, config.maxTempSetpointType, node, msg )); 
-                }             
+                }
+                if (utils.requiresEvaluation(config.algorithmType)) {
+                    node.runtime.algorithm = RED.util.evaluateNodeProperty( config.algorithm, config.algorithmType, node, msg );          
+                }    
+                if (utils.requiresEvaluation(config.operationModeType)) {
+                    node.runtime.operationMode = RED.util.evaluateNodeProperty( config.operationMode, config.operationModeType, node, msg );
+                    node.runtime.currentMode = node.runtime.operationMode === "cool" ? "cooling" : "heating";          
+                }
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
@@ -277,9 +284,12 @@ module.exports = function(RED) {
                 if (node.runtime.algorithm === "single") {
                     heatingThreshold = node.runtime.setpoint - node.runtime.deadband / 2;
                     coolingThreshold = node.runtime.setpoint + node.runtime.deadband / 2;
-                } else {
+                } else if (node.runtime.algorithm === "split") {
                     heatingThreshold = node.runtime.heatingSetpoint - node.runtime.extent;
                     coolingThreshold = node.runtime.coolingSetpoint + node.runtime.extent;
+                } else if (node.runtime.algorithm === "specified") {
+                    heatingThreshold = node.runtime.heatingOn - node.runtime.extent;
+                    coolingThreshold = node.runtime.coolingOn + node.runtime.extent;
                 }
 
                 if (temp < heatingThreshold) {
@@ -311,9 +321,12 @@ module.exports = function(RED) {
                 if (node.runtime.algorithm === "single") {
                     heatingThreshold = node.runtime.setpoint - node.runtime.deadband / 2;
                     coolingThreshold = node.runtime.setpoint + node.runtime.deadband / 2;
-                } else {
+                } else if (node.runtime.algorithm === "split") {
                     heatingThreshold = node.runtime.heatingSetpoint - node.runtime.extent;
                     coolingThreshold = node.runtime.coolingSetpoint + node.runtime.extent;
+                } else if (node.runtime.algorithm === "specified") {
+                    heatingThreshold = node.runtime.heatingOn - node.runtime.extent;
+                    coolingThreshold = node.runtime.coolingOn + node.runtime.extent;
                 }
 
                 let desiredMode = node.runtime.currentMode;
@@ -352,9 +365,12 @@ module.exports = function(RED) {
             if (node.runtime.algorithm === "single") {
                 effectiveHeatingSetpoint = node.runtime.setpoint - node.runtime.deadband / 2;
                 effectiveCoolingSetpoint = node.runtime.setpoint + node.runtime.deadband / 2;
-            } else {
+            } else if (node.runtime.algorithm === "split") {
                 effectiveHeatingSetpoint = node.runtime.heatingSetpoint;
                 effectiveCoolingSetpoint = node.runtime.coolingSetpoint;
+            } else if (node.runtime.algorithm === "specified") {
+                effectiveHeatingSetpoint = node.runtime.heatingOn;
+                effectiveCoolingSetpoint = node.runtime.coolingOn;
             }
 
             return [

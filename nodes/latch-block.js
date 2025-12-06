@@ -1,6 +1,7 @@
 module.exports = function(RED) {
-    function BooleanSwitchBlockNode(config) {
+    function LatchBlockNode(config) {
         RED.nodes.createNode(this, config);
+
         const node = this;
 
         // Initialize state from config
@@ -32,43 +33,32 @@ module.exports = function(RED) {
 
             // Handle context commands
             switch (msg.context) {
-                case "toggle":
-                    node.state = !node.state;
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `state: ${node.state}`
-                    });
-                    send([null, null, { payload: node.state }]);
-                    break;
-                case "switch":
-                    node.state = !!msg.payload;
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `state: ${node.state}`
-                    });
-                    send([null, null, { payload: node.state }]);
-                    break;
-                case "inTrue":
+                case "set":
                     if (node.state) {
-                        node.status({
-                            fill: "blue",
-                            shape: "dot",
-                            text: `out: ${msg.payload}`
-                        });
-                        send([msg, null, { payload: node.state }]);
+                        node.status({ fill: "blue", shape: "ring", text: `state: ${node.state}` });
+                    } else {
+                        if (msg.payload) {
+                            node.state = true;
+                            node.status({ fill: "blue", shape: "dot", text: `state: ${node.state}` });
+                        } else {
+                            node.status({ fill: "blue", shape: "ring", text: `state: ${node.state}` });
+                        }
                     }
+                    // Output latch value regardless
+                    send({ payload: node.state });
                     break;
-                case "inFalse":
-                    if (!node.state) {
-                        node.status({
-                            fill: "blue",
-                            shape: "dot",
-                            text: `out: ${msg.payload}`
-                        });
-                        send([null, msg, { payload: node.state }]);
+                case "reset":
+                    if (node.state === false) {
+                        node.status({ fill: "blue", shape: "ring", text: `state: ${node.state}` });
+                    } else {
+                        if (msg.payload) {
+                            node.state = false;
+                            node.status({ fill: "blue", shape: "dot", text: `state: ${node.state}` });
+                        } else {
+                            node.status({ fill: "blue", shape: "ring", text: `state: ${node.state}` });
+                        }
                     }
+                    send({ payload: node.state });
                     break;
                 default:
                     node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
@@ -83,5 +73,5 @@ module.exports = function(RED) {
         });
     }
 
-    RED.nodes.registerType("boolean-switch-block", BooleanSwitchBlockNode);
+    RED.nodes.registerType("latch-block", LatchBlockNode);
 };
