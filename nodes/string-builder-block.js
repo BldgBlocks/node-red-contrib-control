@@ -74,6 +74,7 @@ module.exports = function(RED) {
             }
 
             const output = { payload: `${node.in1}${node.in2}${node.in3}${node.in4}` };
+            node.status({ fill: "blue", shape: "dot", text: `${ output.payload }` });
             send(output);
 
             if (done) done();
