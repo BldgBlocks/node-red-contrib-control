@@ -54,6 +54,7 @@
         "saw-tooth-wave-block": "nodes/saw-tooth-wave-block.js",
         "scale-range-block": "nodes/scale-range-block.js",
         "sine-wave-block": "nodes/sine-wave-block.js",
+        "string-builder-block": "nodes/string-builder-block.js",
         "subtract-block": "nodes/subtract-block.js",
         "thermistor-block": "nodes/thermistor-block.js",
         "tick-tock-block": "nodes/tick-tock-block.js",

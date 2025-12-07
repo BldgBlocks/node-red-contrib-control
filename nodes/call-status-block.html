@@ -13,15 +13,7 @@
         <input type="number" id="node-input-clearDelay" placeholder="10" min="0.01" step="any">
     </div>
     <div class="form-row">
-        <label for="node-input-normalOff" title="Expected status when call is off (boolean)"><i class="fa fa-power-off"></i> Normal Off</label>
-        <input type="checkbox" id="node-input-normalOff" style="width: auto; vertical-align: middle;">
-    </div>
-    <div class="form-row">
-        <label for="node-input-normalOn" title="Expected status when call is on (boolean)"><i class="fa fa-power-off"></i> Normal On</label>
-        <input type="checkbox" id="node-input-normalOn" style="width: auto; vertical-align: middle;">
-    </div>
-    <div class="form-row">
-        <label for="node-input-runLostStatus" title="Alarm if status doesn't match normalOn during call (boolean)"><i class="fa fa-exclamation-triangle"></i> Run Lost Status</label>
+        <label for="node-input-runLostStatus" title="Alarm if status is lost during call (boolean)"><i class="fa fa-exclamation-triangle"></i> Run Lost Status</label>
         <input type="checkbox" id="node-input-runLostStatus" style="width: auto; vertical-align: middle;">
     </div>
     <div class="form-row">
@@ -47,17 +39,15 @@
             name: { value: "" },
             statusTimeout: { value: 30, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; } },
             clearDelay: { value: 10, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; } },
-            normalOff: { value: false },
-            normalOn: { value: true },
             runLostStatus: { value: false },
             noStatusOnRun: { value: true },
             runLostStatusMessage: { value: "Status lost during run" },
             noStatusOnRunMessage: { value: "No status received during run" }
         },
         inputs: 1,
-        outputs: 2,
+        outputs: 1,
         inputLabels: ["input"],
-        outputLabels: ["call", "diagnostics"],
+        outputLabels: ["output"],
         icon: "font-awesome/fa-phone",
         paletteLabel: "call status",
         label: function() {
@@ -68,44 +58,39 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="call-status-block">
-Issues calls to equipment with status and alarm diagnostics.
+Monitors call and status signals with alarm diagnostics.
 
 ### Inputs
-: context (string) : Configuration commands - (`"statusTimeout"`, `"clearDelay"`, `"normalOff"`, `"normalOn"`, `"runLostStatus"`, `"noStatusOnRun"`, `"runLostStatusMessage"`, `"noStatusOnRunMessage"`) or sets status (`"status"`). Unmatched values trigger error.
-: payload (boolean | number | string) : Boolean for call, status, or boolean configs; number for timeouts; string for messages.
+- payload (boolean): Call activation/deactivation signal
+- status (boolean): Status response from equipment (only processed when call is active)
 
 ### Outputs
-: call (boolean) : Current call state.
-: diagnostics (object) : `{ call; boolean, status; boolean, alarm; boolean, alarmMessage; string, timeout; boolean }`.
+- call (boolean): Current call state
+- status (object): `{ call: boolean, status: boolean, alarm: boolean, alarmMessage: string, timeout: boolean, neverReceivedStatus: boolean }`
 
 ### Properties
-: name (string) : Display name in editor.
-: statusTimeout (number) : Time to wait for status response (seconds, > 0).
-: clearDelay (number) : Delay before clearing status and alarm after call ends (seconds, > 0).
-: normalOff (boolean) : Expected status when call is off.
-: normalOn (boolean) : Expected status when call is on.
-: runLostStatus (boolean) : Alarm if status doesn't match `normalOn` during call.
-: noStatusOnRun (boolean) : Alarm if no status received during call.
-: runLostStatusMessage (string) : Message for run lost status alarm.
-: noStatusOnRunMessage (string) : Message for no status on run alarm.
+- name (string): Display name in editor
+- statusTimeout (number): Time to wait for status response (seconds, > 0)
+- clearDelay (number): Delay before clearing status and alarm after call ends (seconds, > 0)
+- runLostStatus (boolean): Alarm if status is lost during call
+- noStatusOnRun (boolean): Alarm if no status received during call
+- runLostStatusMessage (string): Message for status lost alarm
+- noStatusOnRunMessage (string): Message for no status alarm
 
-### Details
-Issues a call (`true`) to equipment via output 1 and expects a status response matching `normalOn` within `statusTimeout` seconds. 
+### Alarm Conditions
+1. Status without call: Status=true when call=false (immediate alarm)
+2. No status during call: No status received within timeout period (after statusTimeout)
+3. Lost status during call: Status=false when call=true and status was previously received (immediate alarm)
 
-Clears status and alarm after `clearDelay` seconds when call ends (`false`), checking against `normalOff`. 
+### Behavior
+- When call is activated: Expects status=true response
+- Status is only processed when call is active
+- Clears all state after clearDelay when call ends
+- Timer acts as a blocking gate for status reception
 
-Generates alarms for `runLostStatus` (status mismatch during call) or `noStatusOnRun` (no status within `statusTimeout`) with custom messages. 
-
-Ignores status inputs without an active call.
-
-### Status
-- Green (dot): Configuration
-- Blue (dot): Output, no alarm
-- Red (dot): Output with alarm
-- Red (ring): Errors
-- Yellow (ring): Unknown context
-
-### References
-- [Node-RED Documentation](https://nodered.org/docs/)
-- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+### Status Indicators
+- Green (ring): Configuration errors
+- Blue (dot): Normal operation, no alarms
+- Red (dot): Active alarm condition
+- Yellow (ring): Invalid input
 </script>

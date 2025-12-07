@@ -22,7 +22,7 @@ module.exports = function(RED) {
             node.diff = parseFloat(RED.util.evaluateNodeProperty( config.diff, config.diffType, node ));
             node.anticipator = parseFloat(RED.util.evaluateNodeProperty( config.anticipator, config.anticipatorType, node ));
             node.ignoreAnticipatorCycles = Math.floor(RED.util.evaluateNodeProperty( config.ignoreAnticipatorCycles, config.ignoreAnticipatorCyclesType, node )); 
-            node.isHeating = RED.util.evaluateNodeProperty( config.isHeating, config.isHeatingType, node );       
+            node.isHeating = RED.util.evaluateNodeProperty( config.isHeating, config.isHeatingType, node ) === true;       
             node.algorithm = RED.util.evaluateNodeProperty( config.algorithm, config.algorithmType, node );
         } catch (err) {
             node.error(`Error evaluating properties: ${err.message}`);
@@ -78,7 +78,7 @@ module.exports = function(RED) {
                     node.ignoreAnticipatorCycles = Math.floor(RED.util.evaluateNodeProperty( config.ignoreAnticipatorCycles, config.ignoreAnticipatorCyclesType, node, msg ));
                 }
                 if (utils.requiresEvaluation(config.isHeatingType)) {
-                    node.isHeating = RED.util.evaluateNodeProperty( config.isHeating, config.isHeatingType, node, msg );       
+                    node.isHeating = RED.util.evaluateNodeProperty( config.isHeating, config.isHeatingType, node, msg ) === true;       
                 }
                 if (utils.requiresEvaluation(config.algorithmType)) {
                     node.algorithm = RED.util.evaluateNodeProperty( config.algorithm, config.algorithmType, node, msg );

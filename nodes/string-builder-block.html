@@ -1,0 +1,112 @@
+<!-- UI Template Section: Defines the edit dialog -->
+<script type="text/html" data-template-name="string-builder-block">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-in1"><i class="fa fa-bars"></i> in1</label>
+        <input type="text" id="node-input-in1" placeholder="">
+        <input type="hidden" id="node-input-in1Type">
+    </div>
+    <div class="form-row">
+        <label for="node-input-in2"><i class="fa fa-bars"></i> in2</label>
+        <input type="text" id="node-input-in2" placeholder="">
+        <input type="hidden" id="node-input-in2Type">
+    </div>
+    <div class="form-row">
+        <label for="node-input-in3"><i class="fa fa-bars"></i> in3</label>
+        <input type="text" id="node-input-in3" placeholder="">
+        <input type="hidden" id="node-input-in3Type">
+    </div>
+    <div class="form-row">
+        <label for="node-input-in4"><i class="fa fa-bars"></i> in4</label>
+        <input type="text" id="node-input-in4" placeholder="">
+        <input type="hidden" id="node-input-in4Type">
+    </div>
+</script>
+
+
+<!-- JavaScript Section: Registers the node and handles editor logic -->
+<script type="text/javascript">
+    RED.nodes.registerType("string-builder-block", {
+    category: "control",
+    color: "#301934",
+    defaults: {
+        name: { value: "" },
+        in1: { value: "", required: false },
+        in1Type: { value: "str" },
+        in2: { value: "", required: false },
+        in2Type: { value: "str" },
+        in3: { value: "", required: false },
+        in3Type: { value: "str" },
+        in4: { value: "", required: false },
+        in4Type: { value: "str" },
+    },
+    inputs: 1,
+    outputs: 1,
+    inputLabels: ["input"],
+    outputLabels: ["output"],
+    icon: "font-awesome/fa-bars",
+    paletteLabel: "string builder",
+    label: function() {
+        return this.name || "string builder";
+    },
+    oneditprepare: function() {
+        const node = this;
+
+        try {
+            // Initialize typed inputs
+            $("#node-input-in1").typedInput({
+                default: "str",
+                types: ["str", "msg", "flow", "global"],
+                typeField: "#node-input-in1Type"
+            }).typedInput("type", node.in1Type || "str").typedInput("value", node.in1);
+
+            $("#node-input-in2").typedInput({
+                default: "str",
+                types: ["str", "msg", "flow", "global"],
+                typeField: "#node-input-in2Type"
+            }).typedInput("type", node.in2Type || "str").typedInput("value", node.in2);
+
+            $("#node-input-in3").typedInput({
+                default: "str",
+                types: ["str", "msg", "flow", "global"],
+                typeField: "#node-input-in3Type"
+            }).typedInput("type", node.in3Type || "str").typedInput("value", node.in3);
+
+            $("#node-input-in4").typedInput({
+                default: "str",
+                types: ["str", "msg", "flow", "global"],
+                typeField: "#node-input-in4Type"
+            }).typedInput("type", node.in4Type || "str").typedInput("value", node.in4);
+
+        } catch (err) {
+            console.error("Error in oneditprepare:", err);
+        }
+    }
+});
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="string-builder-block">
+Concatenates multiple string inputs into a single output string on any input.
+
+### Inputs
+: payload (number) : Input value to evaluate
+: context (string) : Configure `inX` string inputs via context variables
+
+### Outputs
+: output (string) : Each string input concatenated in order
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>
