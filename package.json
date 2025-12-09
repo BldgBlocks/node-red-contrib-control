@@ -31,6 +31,8 @@
         "edge-block": "nodes/edge-block.js",
         "enum-switch-block": "nodes/enum-switch-block.js",
         "frequency-block": "nodes/frequency-block.js",
+        "global-getter": "nodes/global-getter.js",
+        "global-setter": "nodes/global-setter.js",
         "hysteresis-block": "nodes/hysteresis-block.js",
         "interpolate-block": "nodes/interpolate-block.js",
         "latch-block": "nodes/latch-block.js",

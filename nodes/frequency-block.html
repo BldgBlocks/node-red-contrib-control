@@ -39,8 +39,10 @@ Measures pulse frequency from boolean rising edges.
 
 ### Details
 Measures pulse frequency from rising edges in `msg.payload` (boolean, `true` for pulse), outputting a message with 
-`msg.payload = { ppm, pph, ppd }` (pulses per minute, hour, day) on the second and subsequent rising edges 
+`msg.payload = { ppm, pph, ppd, duty }` (pulses per minute, hour, day, duty/hr) on the second and subsequent rising edges 
 (first edge sets baseline). Resets state via `msg.context = "reset"` with `msg.payload = true`.
+
+Outputs a duty cycle in percentage of the last 60 minutes that the signal has been true.
 
 ### Status
 - Green (dot): Configuration

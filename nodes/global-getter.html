@@ -1,0 +1,96 @@
+<script type="text/html" data-template-name="global-getter">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-targetNode"><i class="fa fa-crosshairs"></i> Source</label>
+        <input type="text" id="node-input-targetNode" style="width:70%;">
+    </div>
+    <div class="form-tips">
+        Targeting by Node ID allows the source path to change without breaking this link.
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('global-getter', {
+        category: 'control',
+        color: '#301934',
+        defaults: {
+            name: { value: "" },
+            targetNode: { value: "", required: true } 
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-align-left",
+        label: function() {
+            if (this.targetNode) {
+                const target = RED.nodes.node(this.targetNode);
+                if (target) {
+                    // Display the path, removing the #store: prefix for readability in the label if present
+                    let lbl = target.path || target.name;
+                    if(lbl && lbl.includes(":")) {
+                        lbl = lbl.split(":").pop();
+                    }
+                    return "Get: " + lbl;
+                }
+            }
+            return this.name || "global get";
+        },
+        paletteLabel: "global get",
+        oneditprepare: function() {
+            const node = this;
+            
+            let candidateNodes = [];
+            RED.nodes.eachNode(function(n) {
+                if (n.type === 'global-setter') {
+                    let displayPath = n.path || "No Path";
+
+                    candidateNodes.push({
+                        value: n.id,
+                        label: displayPath + (n.name ? ` (${n.name})` : "")
+                    });
+                }
+            });
+
+            candidateNodes.sort((a, b) => a.label.localeCompare(b.label));
+
+            $("#node-input-targetNode").typedInput({
+                types: [{
+                    value: "target",
+                    options: candidateNodes
+                }]
+            });
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="global-getter">
+Manage a global variable in a repeatable way.
+
+### Inputs 
+
+### Outputs
+: payload (any) : The global variable value
+: topic (string) : The variable name/path used to store the value.
+: globalMetadata (object) : Metadata about the global variable (store, path).
+
+### Details
+Global variables are meant to be retrieved in other places, this necessarily means managing the same string in multiple places. 
+
+This node allows you to get a global variable while supporting rename and deletion.
+
+It links to a `global-setter` node by Node ID, so if that node's path is changed, this node will still work.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)  
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

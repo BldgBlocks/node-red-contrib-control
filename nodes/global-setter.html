@@ -1,0 +1,72 @@
+<script type="text/html" data-template-name="global-setter">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-path"><i class="fa fa-sitemap"></i> Global Path</label>
+        <input type="text" id="node-input-path" placeholder="furnace/outputs/compressor01">
+    </div>
+    <div class="form-tips">
+        <b>Note:</b> Use the dropdown inside the Path input to select a specific Context Store (File, Memory, etc). 
+        When this node is redeployed or deleted, it will automatically remove (prune) the variable from that store.
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('global-setter', {
+        category: 'control',
+        color: '#301934',
+        defaults: {
+            name: { value: "" },
+            path: { value: "", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-align-right",
+        label: function() {
+            // Remove #store: prefix for cleaner label
+            let lbl = this.path;
+            if (lbl && lbl.startsWith("#") && lbl.includes(":")) {
+                lbl = lbl.split(":")[3];
+            }
+            return this.name || lbl || "global set";
+        },
+        paletteLabel: "global set",
+        oneditprepare: function() {
+            // RESTRICT TO GLOBAL ONLY
+            $("#node-input-path").typedInput({
+                types: ['global']
+            });
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="global-setter">
+Manage a global variable in a repeatable way.
+
+### Inputs 
+: payload (any) : Input payload is passed through unchanged.
+
+### Outputs
+: payload (any) : Original payload.
+
+### Details
+Global variables are meant to be retrieved in other places, this necessarily means managing the same string in multiple places. 
+
+This node allows you to set a global variable in one place, and retrieve it elsewhere using the `global-getter` node while supporting rename and deletion.
+
+When this node is deleted or the flow is redeployed, it will automatically remove (prune) the variable from the selected Context Store.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)  
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>
