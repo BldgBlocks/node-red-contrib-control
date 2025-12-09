@@ -24,7 +24,7 @@ There are TONS of fantastic node libraries out there but usually focusing on one
 - Node commands, such as 'reset' or 'mode' or changing setpoints via messages.
 
 ## How To Use
-Pictures to come.
+<img width="1049" height="131" alt="Screenshot_20251204_194633" src="https://github.com/user-attachments/assets/d29fb46d-c23d-4185-a9e7-f01ff1efdb81" />
 
 The help section of every node describes the expected msg.context (data tag) for the intended msg.payload incoming. You can of course do this as you process data through a 'change' block, or use the provided 'contextual label' block which makes it easier to add and remove tags, more compact (especially if label hidden), and more transparent of the data flowing (ALL nodes contain complete status usage). Most nodes use a simple in1, in2, and so on. 
 
