@@ -3,10 +3,22 @@
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
+    
     <div class="form-row">
         <label for="node-input-targetNode"><i class="fa fa-crosshairs"></i> Source</label>
-        <input type="text" id="node-input-targetNode" style="width:70%;">
+        <div style="display: inline-flex; width: 70%;">
+            <input type="text" id="node-input-targetNode" style="flex-grow: 1;">
+            <button id="node-config-find-source" class="editor-button" style="margin-left: 5px; width: 40px;" title="Find Source Node">
+                <i class="fa fa-search"></i>
+            </button>
+        </div>
     </div>
+    
+    <div class="form-row">
+        <label for="node-input-outputProperty"><i class="fa fa-arrow-right"></i> Output</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload" style="width:70%;">
+    </div>
+
     <div class="form-tips">
         Targeting by Node ID allows the source path to change without breaking this link.
     </div>
@@ -18,7 +30,8 @@
         color: '#301934',
         defaults: {
             name: { value: "" },
-            targetNode: { value: "", required: true } 
+            targetNode: { value: "", required: true },
+            outputProperty: { value: "payload", required: true }
         },
         inputs: 1,
         outputs: 1,
@@ -27,10 +40,9 @@
             if (this.targetNode) {
                 const target = RED.nodes.node(this.targetNode);
                 if (target) {
-                    // Display the path, removing the #store: prefix for readability in the label if present
                     let lbl = target.path || target.name;
                     if(lbl && lbl.includes(":")) {
-                        lbl = lbl.split(":").pop();
+                        lbl = lbl.split(":")[1];
                     }
                     return "Get: " + lbl;
                 }
@@ -41,10 +53,15 @@
         oneditprepare: function() {
             const node = this;
             
+            // 1. Populate Dropdown
             let candidateNodes = [];
             RED.nodes.eachNode(function(n) {
                 if (n.type === 'global-setter') {
                     let displayPath = n.path || "No Path";
+                    // Clean label visualization
+                    if (displayPath.includes(":") && displayPath.startsWith("#")) {
+                         displayPath = displayPath.split(":")[1]; 
+                    }
 
                     candidateNodes.push({
                         value: n.id,
@@ -60,6 +77,22 @@
                     value: "target",
                     options: candidateNodes
                 }]
+            });
+
+            // 2. Output Property Selector
+            $("#node-input-outputProperty").typedInput({
+                types: ['msg']
+            });
+
+            // 3. Find Button Logic
+            $("#node-config-find-source").on("click", function() {
+                const selectedId = $("#node-input-targetNode").val();
+                if (selectedId) {
+                    // Node-RED API to jump to a node
+                    RED.view.reveal(selectedId);
+                } else {
+                    RED.notify("Please select a source node first.", "warning");
+                }
             });
         }
     });

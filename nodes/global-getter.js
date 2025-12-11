@@ -3,34 +3,36 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
         node.targetNodeId = config.targetNode;
+        node.outputProperty = config.outputProperty || "payload"; // Default
 
         node.on('input', function(msg) {
             const setterNode = RED.nodes.getNode(node.targetNodeId);
 
             if (setterNode && setterNode.varName) {
                 const globalContext = node.context().global;
-                
-                // Retrieve the wrapper object
                 const storedObject = globalContext.get(setterNode.varName, setterNode.storeName);
                 
                 if (storedObject !== undefined) {
+                    let val = storedObject;
+                    let meta = {};
+
                     // CHECK: Is this our wrapper format?
                     if (storedObject && typeof storedObject === 'object' && storedObject.hasOwnProperty('value') && storedObject.hasOwnProperty('meta')) {
                         // Yes: Unwrap it
-                        msg.payload = storedObject.value;
-                        msg.globalMetadata = storedObject.meta; // Expose the ID/Metadata here
+                        val = storedObject.value;
+                        meta = storedObject.meta;
                     } else {
-                        // No: It's legacy/raw data, just pass it through
-                        msg.payload = storedObject;
+                        // Legacy/Raw: Metadata is limited
+                        meta = { path: setterNode.varName, legacy: true };
                     }
                     
-                    msg.topic = setterNode.varName; 
+                    // WRITE to the configured property (e.g., msg.payload)
+                    RED.util.setMessageProperty(msg, node.outputProperty, val);
                     
-                    node.status({ fill: "blue", shape: "dot", text: `Get: ${msg.payload}` });
+                    // WRITE metadata (renamed from globalMetadata)
+                    msg.metadata = meta; 
+                    
                     node.send(msg);
-                } else {
-                    // Variable exists in config but not in memory yet
-                    // Optional: warn or just do nothing
                 }
             } else {
                 node.warn("Source node not found or not configured.");

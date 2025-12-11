@@ -7,9 +7,13 @@
         <label for="node-input-path"><i class="fa fa-sitemap"></i> Global Path</label>
         <input type="text" id="node-input-path" placeholder="furnace/outputs/heat">
     </div>
+    <div class="form-row">
+        <label for="node-input-property"><i class="fa fa-ellipsis-h"></i> Input</label>
+        <input type="text" id="node-input-property" style="width:70%;">
+    </div>
     <div class="form-tips">
-        <b>Note:</b> Use the dropdown inside the Path input to select a specific Context Store (File, Memory, etc). 
-        When this node is redeployed or deleted, it will automatically remove (prune) the variable from that store.
+        <b>Note:</b> Use the dropdown inside the Path input to select a specific Context Store. 
+        When this node is redeployed or deleted, it will automatically remove the variable from memory.
     </div>
 </script>
 
@@ -19,13 +23,13 @@
         color: '#301934',
         defaults: {
             name: { value: "" },
-            path: { value: "", required: true }
+            path: { value: "", required: true },
+            property: { value: "payload", required: true }
         },
         inputs: 1,
         outputs: 1,
         icon: "font-awesome/fa-align-right",
         label: function() {
-            // Remove #store: prefix for cleaner label
             let lbl = this.path;
             if (lbl && lbl.startsWith("#") && lbl.includes(":")) {
                 lbl = lbl.split(":")[3];
@@ -37,6 +41,11 @@
             // RESTRICT TO GLOBAL ONLY
             $("#node-input-path").typedInput({
                 types: ['global']
+            });
+
+            // Input Property Selector (msg.payload, msg.setpoint, etc)
+            $("#node-input-property").typedInput({
+                types: ['msg']
             });
         }
     });

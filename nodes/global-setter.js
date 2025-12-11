@@ -7,26 +7,32 @@ module.exports = function(RED) {
         
         node.varName = parsed.key;
         node.storeName = parsed.store;
+        node.inputProperty = config.property || "payload"; // Default
 
         node.on('input', function(msg) {
             if (node.varName) {
-                const globalContext = node.context().global;
-                
-                // Create a clean wrapper object to store in global context
-                const storedObject = {
-                    value: msg.payload,
-                    meta: {
-                        sourceId: node.id,
-                        sourceName: node.name || config.path,
-                        topic: msg.topic,
-                        ts: Date.now()
-                    }
-                };
-                
-                globalContext.set(node.varName, storedObject, node.storeName);
-            }
+                // READ from the configured property (e.g., msg.setpoint)
+                const valueToStore = RED.util.getMessageProperty(msg, node.inputProperty);
 
-            node.status({ fill: "blue", shape: "dot", text: `Set: ${msg.payload}` });
+                if (valueToStore !== undefined) {
+                    const globalContext = node.context().global;
+                    
+                    // Create wrapper with simplified metadata
+                    const storedObject = {
+                        value: valueToStore,
+                        meta: {
+                            sourceId: node.id,
+                            sourceName: node.name || config.path,
+                            path: node.varName, // Added Path
+                            topic: msg.topic,
+                            ts: Date.now()
+                        }
+                    };
+                    
+                    node.status({ fill: "blue", shape: "dot", text: `Set: ${storedObject.value}` });
+                    globalContext.set(node.varName, storedObject, node.storeName);
+                }
+
             node.send(msg);
         });
 
