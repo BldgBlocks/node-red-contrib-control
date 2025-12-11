@@ -41,7 +41,7 @@ module.exports = function(RED) {
             unit: config.unit
         };
 
-        // Validate configuration (Req 8)
+        // Validate configuration
         if (!validUnits.includes(node.runtime.unit)) {
             node.runtime.unit = "°F";
             node.status({ fill: "red", shape: "ring", text: "invalid unit, using °F" });
@@ -83,11 +83,12 @@ module.exports = function(RED) {
                 }
 
                 // Process input
-                const outputMsg = RED.util.cloneMessage(msg);
                 const payloadPreview = msg.payload !== null ? (typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload).slice(0, 20)) : "none";
 
                 node.status({ fill: "blue", shape: "dot", text: `in: ${payloadPreview} unit: ${node.runtime.unit}` });
-                send(outputMsg);
+
+                msg.units = node.runtime.unit;
+                send(msg);
                 if (done) done();
             } catch (error) {
                 node.status({ fill: "red", shape: "ring", text: "processing error" });

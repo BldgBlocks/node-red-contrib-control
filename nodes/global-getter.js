@@ -3,7 +3,7 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
         node.targetNodeId = config.targetNode;
-        node.outputProperty = config.outputProperty || "payload"; // Default
+        node.outputProperty = config.outputProperty || "payload";
 
         node.on('input', function(msg) {
             const setterNode = RED.nodes.getNode(node.targetNodeId);
@@ -14,25 +14,32 @@ module.exports = function(RED) {
                 
                 if (storedObject !== undefined) {
                     let val = storedObject;
+                    let units = null;
                     let meta = {};
 
-                    // CHECK: Is this our wrapper format?
+                    // CHECK: Is this wrapper format?
                     if (storedObject && typeof storedObject === 'object' && storedObject.hasOwnProperty('value') && storedObject.hasOwnProperty('meta')) {
                         // Yes: Unwrap it
                         val = storedObject.value;
+                        units = storedObject.units;
                         meta = storedObject.meta;
                     } else {
                         // Legacy/Raw: Metadata is limited
                         meta = { path: setterNode.varName, legacy: true };
                     }
                     
-                    // WRITE to the configured property (e.g., msg.payload)
                     RED.util.setMessageProperty(msg, node.outputProperty, val);
                     
-                    // WRITE metadata (renamed from globalMetadata)
+                    msg.topic = setterNode.varName;
+                    
+                    msg.units = units;
+
                     msg.metadata = meta; 
                     
+                    node.status({ fill: "blue", shape: "dot", text: `Get: ${val}` });
                     node.send(msg);
+                } else {
+                    node.status({ fill: "red", shape: "ring", text: "Global variable undefined" });
                 }
             } else {
                 node.warn("Source node not found or not configured.");

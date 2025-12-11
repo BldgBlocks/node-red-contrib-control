@@ -7,25 +7,35 @@ module.exports = function(RED) {
         
         node.varName = parsed.key;
         node.storeName = parsed.store;
-        node.inputProperty = config.property || "payload"; // Default
+        node.inputProperty = config.property;
 
         node.on('input', function(msg) {
             if (node.varName) {
-                // READ from the configured property (e.g., msg.setpoint)
+                // READ from the configured property
                 const valueToStore = RED.util.getMessageProperty(msg, node.inputProperty);
 
                 if (valueToStore !== undefined) {
                     const globalContext = node.context().global;
+
+                    // 1. Try to find units in the standard location (msg.units)
+                    // 2. If not found, check if the input property itself is an object containing .units
+                    let capturedUnits = msg.units; 
+                    
+                    // Optional: Deep check if msg.payload was an object that contained units
+                    if (!capturedUnits && typeof valueToStore === 'object' && valueToStore !== null && valueToStore.units) {
+                         capturedUnits = valueToStore.units;
+                    }
                     
                     // Create wrapper with simplified metadata
                     const storedObject = {
                         value: valueToStore,
+                        topic: node.varName,
+                        units: capturedUnits,
                         meta: {
                             sourceId: node.id,
                             sourceName: node.name || config.path,
-                            path: node.varName, // Added Path
-                            topic: msg.topic,
-                            ts: Date.now()
+                            sourcePath: node.varName,
+                            lastSet: new Date().toISOString()
                         }
                     };
                     
@@ -33,13 +43,14 @@ module.exports = function(RED) {
                     globalContext.set(node.varName, storedObject, node.storeName);
                 }
             }
-            
+
             node.send(msg);
         });
 
         // CLEANUP
         node.on('close', function(removed, done) {
-            if (node.varName) {
+            // Do NOT prune if Node-RED is simply restarting or deploying.
+            if (removed && node.varName) {
                 const globalContext = node.context().global;
                 globalContext.set(node.varName, undefined, node.storeName); 
             }

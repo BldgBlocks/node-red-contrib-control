@@ -5,10 +5,10 @@
     </div>
     <div class="form-row">
         <label for="node-input-path"><i class="fa fa-sitemap"></i> Global Path</label>
-        <input type="text" id="node-input-path" placeholder="furnace/outputs/heat">
+        <input type="text" id="node-input-path" style="width: 70%;" placeholder="furnace/outputs/heat">
     </div>
     <div class="form-row">
-        <label for="node-input-property"><i class="fa fa-ellipsis-h"></i> Input</label>
+        <label for="node-input-property"><i class="fa fa-ellipsis-h"></i> Input Property</label>
         <input type="text" id="node-input-property" style="width:70%;">
     </div>
     <div class="form-tips">
@@ -20,7 +20,7 @@
 <script type="text/javascript">
     RED.nodes.registerType('global-setter', {
         category: 'control',
-        color: '#301934',
+        color: '#E2D96E',
         defaults: {
             name: { value: "" },
             path: { value: "", required: true },
@@ -34,7 +34,7 @@
             if (lbl && lbl.startsWith("#") && lbl.includes(":")) {
                 lbl = lbl.split(":")[3];
             }
-            return this.name || lbl || "global set";
+            return this.name || "Set: " + lbl || "global set";
         },
         paletteLabel: "global set",
         oneditprepare: function() {
@@ -43,7 +43,7 @@
                 types: ['global']
             });
 
-            // Input Property Selector (msg.payload, msg.setpoint, etc)
+            // Input Property Selector
             $("#node-input-property").typedInput({
                 types: ['msg']
             });
@@ -57,6 +57,8 @@ Manage a global variable in a repeatable way.
 
 ### Inputs 
 : payload (any) : Input payload is passed through unchanged.
+: property (string) : The input property where the value is taken from.
+: units (string) : The units associated with the value, if any. Also supports nested units at `msg.<inputProperty>.units`.
 
 ### Outputs
 : payload (any) : Original payload.
