@@ -32,7 +32,8 @@ module.exports = function(RED) {
                     node.status({ fill: "blue", shape: "dot", text: `Set: ${storedObject.value}` });
                     globalContext.set(node.varName, storedObject, node.storeName);
                 }
-
+            }
+            
             node.send(msg);
         });
 
