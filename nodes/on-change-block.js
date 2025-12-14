@@ -4,22 +4,17 @@ module.exports = function(RED) {
     function OnChangeBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
+        node.isBusy = false;
 
         // Initialize runtime state
         node.runtime = {
             name: config.name,
             lastValue: null,
-            blockTimer: null
+            blockTimer: null,
+            period: parseFloat(config.period),
         };
 
-        // Evaluate typed-input properties
-        try {
-            node.runtime.period = parseFloat(RED.util.evaluateNodeProperty( config.period, config.periodType, node ));
-        } catch (err) {
-            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-        }
-
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Guard against invalid message
@@ -29,15 +24,41 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Evaluate typed-input properties if needed
+            // Evaluate dynamic properties
             try {
-                if (utils.requiresEvaluation(node.runtime.periodType)) {
-                    node.runtime.period = parseFloat(RED.util.evaluateNodeProperty( config.period, config.periodType, node, msg ));
+
+                // Check busy lock
+                if (node.isBusy) {
+                    // Update status to let user know they are pushing too fast
+                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    if (done) done(); 
+                    return;
                 }
+
+                // Lock node during evaluation
+                node.isBusy = true;
+
+                // Begin evaluations
+                const evaluations = [];                    
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.periodType) 
+                        ? utils.evaluateNodeProperty(config.period, config.periodType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.period),
+                );
+
+                const results = await Promise.all(evaluations);   
+
+                // Update runtime with evaluated values
+                if (!isNaN(results[0])) node.runtime.period = results[0];       
             } catch (err) {
-                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
+                node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
                 return;
+            } finally {
+                // Release, all synchronous from here on
+                node.isBusy = false;
             }
 
             // Acceptable fallbacks

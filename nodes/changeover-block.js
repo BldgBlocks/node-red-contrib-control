@@ -12,27 +12,19 @@ module.exports = function(RED) {
             name: config.name,
             initWindow: parseFloat(config.initWindow),
             lastTemperature: null,
-            lastModeChange: 0
+            lastModeChange: 0,
+            setpoint: parseFloat(config.setpoint),
+            heatingSetpoint: parseFloat(config.heatingSetpoint),
+            coolingSetpoint: parseFloat(config.coolingSetpoint),
+            swapTime: parseFloat(config.swapTime),
+            deadband: parseFloat(config.deadband),
+            extent: parseFloat(config.extent),
+            minTempSetpoint: parseFloat(config.minTempSetpoint),
+            maxTempSetpoint: parseFloat(config.maxTempSetpoint),
+            algorithm: config.algorithm,
+            operationMode: config.operationMode,
+            currentMode: config.operationMode === "cool" ? "cooling" : "heating",
         };
-
-        // Evaluate typed-input properties    
-        try {     
-            node.runtime.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node ));
-            node.runtime.heatingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.heatingSetpoint, config.heatingSetpointType, node ));
-            node.runtime.coolingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.coolingSetpoint, config.coolingSetpointType, node ));
-            node.runtime.swapTime = parseFloat(RED.util.evaluateNodeProperty( config.swapTime, config.swapTimeType, node ));
-            node.runtime.deadband = parseFloat(RED.util.evaluateNodeProperty( config.deadband, config.deadbandType, node ));
-            node.runtime.extent = parseFloat(RED.util.evaluateNodeProperty( config.extent, config.extentType, node ));
-            node.runtime.minTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.minTempSetpoint, config.minTempSetpointType, node ));
-            node.runtime.maxTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.maxTempSetpoint, config.maxTempSetpointType, node ));  
-            node.runtime.algorithm = RED.util.evaluateNodeProperty( config.algorithm, config.algorithmType, node );
-            node.runtime.operationMode = RED.util.evaluateNodeProperty( config.operationMode, config.operationModeType, node );
-            node.runtime.currentMode = node.runtime.operationMode === "cool" ? "cooling" : "heating";          
-        } catch (err) {
-            node.error(`Error evaluating properties: ${err.message}`);
-            if (done) done();
-            return;
-        }
 
         // Initialize state
         let initComplete = false;
@@ -40,52 +32,124 @@ module.exports = function(RED) {
         let pendingMode = null;
         const initStartTime = Date.now() / 1000;
 
-        node.on("input", function(msg, send, done) {
+        node.isBusy = false;
+
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
                 return;
-            }     
+            }             
 
-            // Update typed-input properties if needed
-            try {    
-                if (utils.requiresEvaluation(config.setpointType)) {
-                    node.runtime.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node, msg ));
+            // Evaluate dynamic properties
+            try {
+                // Check busy lock
+                if (node.isBusy) {
+                    // Update status to let user know they are pushing too fast
+                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    if (done) done(); 
+                    return;
                 }
-                if (utils.requiresEvaluation(config.heatingSetpointType)) {
-                    node.runtime.heatingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.heatingSetpoint, config.heatingSetpointType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.coolingSetpointType)) {
-                    node.runtime.coolingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.coolingSetpoint, config.coolingSetpointType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.swapTimeType)) {
-                    node.runtime.swapTime = parseFloat(RED.util.evaluateNodeProperty( config.swapTime, config.swapTimeType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.deadbandType)) {
-                    node.runtime.deadband = parseFloat(RED.util.evaluateNodeProperty( config.deadband, config.deadbandType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.extentType)) {
-                    node.runtime.extent = parseFloat(RED.util.evaluateNodeProperty( config.extent, config.extentType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.minTempSetpointType)) {
-                    node.runtime.minTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.minTempSetpoint, config.minTempSetpointType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.maxTempSetpointType)) {
-                    node.runtime.maxTempSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.maxTempSetpoint, config.maxTempSetpointType, node, msg )); 
-                }
-                if (utils.requiresEvaluation(config.algorithmType)) {
-                    node.runtime.algorithm = RED.util.evaluateNodeProperty( config.algorithm, config.algorithmType, node, msg );          
-                }    
-                if (utils.requiresEvaluation(config.operationModeType)) {
-                    node.runtime.operationMode = RED.util.evaluateNodeProperty( config.operationMode, config.operationModeType, node, msg );
-                    node.runtime.currentMode = node.runtime.operationMode === "cool" ? "cooling" : "heating";          
-                }
+
+                // Lock node during evaluation
+                node.isBusy = true;
+
+                // Begin evaluations
+                const evaluations = [];                    
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.setpointType) 
+                        ? utils.evaluateNodeProperty(config.setpoint, config.setpointType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.setpoint),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.heatingSetpointType) 
+                        ? utils.evaluateNodeProperty(config.heatingSetpoint, config.heatingSetpointType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.heatingSetpoint),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.coolingSetpointType) 
+                        ? utils.evaluateNodeProperty(config.coolingSetpoint, config.coolingSetpointType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.coolingSetpoint),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.swapTimeType) 
+                        ? utils.evaluateNodeProperty(config.swapTime, config.swapTimeType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.swapTime),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.deadbandType) 
+                        ? utils.evaluateNodeProperty(config.deadband, config.deadbandType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.deadband),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.extentType) 
+                        ? utils.evaluateNodeProperty(config.extent, config.extentType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.extent),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.minTempSetpointType) 
+                        ? utils.evaluateNodeProperty(config.minTempSetpoint, config.minTempSetpointType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.minTempSetpoint),
+                );  
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.maxTempSetpointType)
+                        ? utils.evaluateNodeProperty(config.maxTempSetpoint, config.maxTempSetpointType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.maxTempSetpoint),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.algorithmType)
+                        ? utils.evaluateNodeProperty(config.algorithm, config.algorithmType, node, msg)
+                        : Promise.resolve(node.runtime.algorithm),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.operationModeType)
+                        ? utils.evaluateNodeProperty(config.operationMode, config.operationModeType, node, msg)
+                        : Promise.resolve(node.runtime.operationMode),
+                );
+
+                const results = await Promise.all(evaluations);   
+
+                // Update runtime with evaluated values
+
+                if (!isNaN(results[0])) node.runtime.setpoint = results[0];
+                if (!isNaN(results[1])) node.runtime.heatingSetpoint = results[1];
+                if (!isNaN(results[2])) node.runtime.coolingSetpoint = results[2];
+                if (!isNaN(results[3])) node.runtime.swapTime = results[3];
+                if (!isNaN(results[4])) node.runtime.deadband = results[4];
+                if (!isNaN(results[5])) node.runtime.extent = results[5];
+                if (!isNaN(results[6])) node.runtime.minTempSetpoint = results[6];
+                if (!isNaN(results[7])) node.runtime.maxTempSetpoint = results[7];
+                if (results[8]) node.runtime.algorithm = results[8];
+                if (results[9]) node.runtime.operationMode = results[9];
+                node.runtime.currentMode = node.runtime.operationMode === "cool" ? "cooling" : "heating";   
+      
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
                 return;
+            } finally {
+                // Release, all synchronous from here on
+                node.isBusy = false;
             }
 
             // Validate

@@ -8,38 +8,67 @@ module.exports = function(RED) {
         node.runtime = {
             name: config.name,
             state: false,
-            desired: false
+            desired: false,
+            delayOn: parseFloat(config.delayOn) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1),
+            delayOff: parseFloat(config.delayOff) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1)
         };
 
-        // Evaluate typed-input properties    
-        try {   
-            node.runtime.delayOn = parseFloat(RED.util.evaluateNodeProperty( config.delayOn, config.delayOnType, node )) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
-            node.runtime.delayOff = parseFloat(RED.util.evaluateNodeProperty( config.delayOff, config.delayOffType, node )) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
-        } catch (err) {
-            node.error(`Error evaluating properties: ${err.message}`);
-        }
-
         let timeoutId = null;
+        node.isBusy = false;
 
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
+            
+            // Guard against invalid msg
             if (!msg) {
+                node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
                 return;
-            }    
+            }   
 
-            // Update typed-input properties if needed
-            try {   
-                if (utils.requiresEvaluation(config.delayOnType)) {
-                    node.runtime.delayOn = parseFloat(RED.util.evaluateNodeProperty( config.delayOn, config.delayOnType, node, msg )) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
+            // Evaluate dynamic properties
+            try {
+
+                // Check busy lock
+                if (node.isBusy) {
+                    // Update status to let user know they are pushing too fast
+                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    if (done) done(); 
+                    return;
                 }
-                if (utils.requiresEvaluation(config.delayOffType)) {
-                    node.runtime.delayOff = parseFloat(RED.util.evaluateNodeProperty( config.delayOff, config.delayOffType, node, msg )) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
-                }
+
+                // Lock node during evaluation
+                node.isBusy = true;
+
+                // Begin evaluations
+                const evaluations = [];                    
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.delayOnType) 
+                        ? utils.evaluateNodeProperty(config.delayOn, config.delayOnType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.delayOn),
+                );
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.delayOffType) 
+                        ? utils.evaluateNodeProperty(config.delayOff, config.delayOffType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.delayOff),
+                );
+
+                const results = await Promise.all(evaluations);   
+
+                // Update runtime with evaluated values
+                if (!isNaN(results[0])) node.runtime.delayOn = results[0] * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
+                if (!isNaN(results[1])) node.runtime.delayOff = results[1] * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);         
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
                 return;
+            } finally {
+                // Release, all synchronous from here on
+                node.isBusy = false;
             }
 
             // Acceptable fallbacks

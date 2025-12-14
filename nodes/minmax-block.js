@@ -4,24 +4,19 @@ module.exports = function(RED) {
     function MinMaxBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
+        node.isBusy = false;
 
         // Initialize runtime state
         node.runtime = {
             name: config.name,
-        };       
-
-        // Evaluate typed-input properties    
-        try {      
-            node.runtime.min = parseFloat(RED.util.evaluateNodeProperty( config.min, config.minType, node ));
-            node.runtime.max = parseFloat(RED.util.evaluateNodeProperty( config.max, config.maxType, node ));
-        } catch (err) {
-            node.error(`Error evaluating properties: ${err.message}`);
-        }
+            min: parseFloat(config.min),
+            max: parseFloat(config.max)
+        };
 
         // Store last output value for status
         let lastOutput = null;
 
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Guard against invalid message
@@ -31,21 +26,52 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Update typed-input properties if needed
+            // Evaluate dynamic properties
             try {
-                if (utils.requiresEvaluation(config.minType)) {
-                    node.runtime.min = parseFloat(RED.util.evaluateNodeProperty( config.min, config.minType, node, msg ));
+
+                // Check busy lock
+                if (node.isBusy) {
+                    // Update status to let user know they are pushing too fast
+                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    if (done) done(); 
+                    return;
                 }
-                if (utils.requiresEvaluation(config.maxType)) {
-                    node.runtime.max = parseFloat(RED.util.evaluateNodeProperty( config.max, config.maxType, node, msg ));
-                }
+
+                // Lock node during evaluation
+                node.isBusy = true;
+
+                // Begin evaluations
+                const evaluations = [];                    
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.minType) 
+                        ? utils.evaluateNodeProperty(config.min, config.minType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.min),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.maxType) 
+                        ? utils.evaluateNodeProperty(config.max, config.maxType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.max),
+                );
+
+                const results = await Promise.all(evaluations);   
+
+                // Update runtime with evaluated values
+                if (!isNaN(results[0])) node.runtime.min = results[0];
+                if (!isNaN(results[1])) node.runtime.max = results[1];
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
                 return;
+            } finally {
+                // Release, all synchronous from here on
+                node.isBusy = false;
             }
 
-            // Validate min and max at startup
+            // Validate min and max
             if (isNaN(node.runtime.min) || isNaN(node.runtime.max) || node.runtime.min > node.runtime.max) {
                 node.status({ fill: "red", shape: "dot", text: `invalid min/max` });
                 if (done) done();

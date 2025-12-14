@@ -6,24 +6,80 @@ module.exports = function(RED) {
         const node = this;
         node.name = config.name;
         node.state = "within";
+        node.isBusy = false;
+        node.upperLimit = parseFloat(config.upperLimit);
+        node.lowerLimit = parseFloat(config.lowerLimit);
+        node.upperLimitThreshold = parseFloat(config.upperLimitThreshold);
+        node.lowerLimitThreshold = parseFloat(config.lowerLimitThreshold);
 
-        // Evaluate typed-input properties    
-        try {      
-            node.upperLimit = parseFloat(RED.util.evaluateNodeProperty( config.upperLimit, config.upperLimitType, node ));
-            node.lowerLimit = parseFloat(RED.util.evaluateNodeProperty( config.lowerLimit, config.lowerLimitType, node ));
-            node.upperLimitThreshold = parseFloat(RED.util.evaluateNodeProperty( config.upperLimitThreshold, config.upperLimitThresholdType, node ));
-            node.lowerLimitThreshold = parseFloat(RED.util.evaluateNodeProperty( config.lowerLimitThreshold, config.lowerLimitThresholdType, node ));
-        } catch (err) {
-            node.error(`Error evaluating properties: ${err.message}`);
-        }
-
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             if (!msg) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
                 if (done) done();
                 return;
+            }
+
+            // Evaluate dynamic properties
+            try {
+
+                // Check busy lock
+                if (node.isBusy) {
+                    // Update status to let user know they are pushing too fast
+                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    if (done) done(); 
+                    return;
+                }
+
+                // Lock node during evaluation
+                node.isBusy = true;
+
+                // Begin evaluations
+                const evaluations = [];                    
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.upperLimitType) 
+                        ? utils.evaluateNodeProperty(config.upperLimit, config.upperLimitType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.upperLimit),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.lowerLimitType) 
+                        ? utils.evaluateNodeProperty(config.lowerLimit, config.lowerLimitType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.lowerLimit),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.upperLimitThresholdType) 
+                        ? utils.evaluateNodeProperty(config.upperLimitThreshold, config.upperLimitThresholdType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.upperLimitThreshold),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.lowerLimitThresholdType) 
+                        ? utils.evaluateNodeProperty(config.lowerLimitThreshold, config.lowerLimitThresholdType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.lowerLimitThreshold),
+                );
+
+                const results = await Promise.all(evaluations);   
+
+                // Update runtime with evaluated values
+                if (!isNaN(results[0])) node.upperLimit = results[0];
+                if (!isNaN(results[1])) node.lowerLimit = results[1];
+                if (!isNaN(results[2])) node.upperLimitThreshold = results[2];
+                if (!isNaN(results[3])) node.lowerLimitThreshold = results[3];
+            } catch (err) {
+                node.error(`Error evaluating properties: ${err.message}`);
+                if (done) done();
+                return;
+            } finally {
+                // Release, all synchronous from here on
+                node.isBusy = false;
             }
             
             // Update typed-input properties if needed

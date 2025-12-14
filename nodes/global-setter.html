@@ -8,12 +8,24 @@
         <input type="text" id="node-input-path" style="width: 70%;" placeholder="furnace/outputs/heat">
     </div>
     <div class="form-row">
-        <label for="node-input-property"><i class="fa fa-ellipsis-h"></i> Input Property</label>
+        <label for="node-input-property"><i class="fa fa-ellipsis-h"></i> Input</label>
         <input type="text" id="node-input-property" style="width:70%;">
     </div>
+    <div class="form-row">
+        <label for="node-input-writePriority" title="Priority is evaluated for final value when using global-setter/getter nodes."><i class="fa fa-sort-numeric-asc"></i> Priority</label>
+        <input type="text" id="node-input-writePriority" placeholder="single">
+        <input type="hidden" id="node-input-writePriorityType">
+    </div>
+    
+    <hr>
+    
+    <div class="form-row">
+        <label for="node-input-defaultValue" title="Static default value to ensure one exists. You may write to default through message configuration."><i class="fa fa-undo"></i> Default</label>
+        <input type="text" id="node-input-defaultValue" placeholder="e.g. 0 or false">
+    </div>
+
     <div class="form-tips">
-        <b>Note:</b> Use the dropdown inside the Path input to select a specific Context Store. 
-        When this node is redeployed or deleted, it will automatically remove the variable from memory.
+        <b>Note:</b> This node writes to the selected <b>Priority Level</b>. The actual Global Variable value will be the highest active priority.
     </div>
 </script>
 
@@ -24,7 +36,10 @@
         defaults: {
             name: { value: "" },
             path: { value: "", required: true },
-            property: { value: "payload", required: true }
+            property: { value: "payload", required: true },
+            defaultValue: { value: "", required: true },
+            writePriority: { value: "16", required: true },
+            writePriorityType: { value: "dropdown" }
         },
         inputs: 1,
         outputs: 1,
@@ -32,21 +47,45 @@
         label: function() {
             let lbl = this.path;
             if (lbl && lbl.startsWith("#") && lbl.includes(":")) {
-                lbl = lbl.split(":")[3];
+                lbl = lbl.substring(lbl.indexOf(":") + 1);
             }
-            return this.name || "Set: " + lbl || "global set";
+            return this.name || "set: " + lbl || "global set";
         },
         paletteLabel: "global set",
         oneditprepare: function() {
-            // RESTRICT TO GLOBAL ONLY
-            $("#node-input-path").typedInput({
-                types: ['global']
-            });
+            // These are read as strings not evaluated typed-inputs.
+            $("#node-input-path").typedInput({ types: ['global'] });
+            // getMessageProperty handles msg access on the incoming message at the specified path.
+            $("#node-input-property").typedInput({ types: ['msg'] });
+            // Default for the default value, meaning it should only be manually set. You can still pass default values through messages.
+            $("#node-input-defaultValue").typedInput({ types: ['str','num','bool'] });
 
-            // Input Property Selector
-            $("#node-input-property").typedInput({
-                types: ['msg']
-            });
+            $("#node-input-writePriority").typedInput({
+                default: "dropdown",
+                types: [{
+                    value: "dropdown",
+                    options: [
+                        { value: "1", label: "1 (Life Safety)"},
+                        { value: "2", label: "2"},
+                        { value: "3", label: "3"},
+                        { value: "4", label: "4"},
+                        { value: "5", label: "5"},
+                        { value: "6", label: "6"},
+                        { value: "7", label: "7"},
+                        { value: "8", label: "8 (Manual Operator)"},
+                        { value: "9", label: "9"},
+                        { value: "10", label: "10"},
+                        { value: "11", label: "11"},
+                        { value: "12", label: "12"},
+                        { value: "13", label: "13"},
+                        { value: "14", label: "14"},
+                        { value: "15", label: "15"},
+                        { value: "16", label: "16 (Schedule/Logic)"},
+                        { value: "default", label: "default (fallback)"},
+                    ]
+                }, "msg", "flow"],
+                typeField: "#node-input-writePriorityType"
+            }).typedInput("type", node.writePriorityType).typedInput("value", node.writePriority);
         }
     });
 </script>

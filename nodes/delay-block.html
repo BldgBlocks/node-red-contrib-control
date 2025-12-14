@@ -37,10 +37,10 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            delayOn: { value: 1000, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            delayOn: { value: 1000, required: true },
             delayOnUnits: { value: "milliseconds" },
             delayOnType: { value: "num" },
-            delayOff: { value: 1000, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            delayOff: { value: 1000, required: true },
             delayOffUnits: { value: "milliseconds" },
             delayOffType: { value: "num" }
         },

@@ -11,6 +11,15 @@
             <i class="fa fa-search"></i>
         </button>
     </div>
+
+    <!-- NEW: Trigger Mode Selection -->
+    <div class="form-row">
+        <label for="node-input-updates"><i class="fa fa-bolt"></i> Trigger</label>
+        <select id="node-input-updates" style="width: 70%;">
+            <option value="input">Manual (On Input Only)</option>
+            <option value="always">Reactive (On Input & Update)</option>
+        </select>
+    </div>
     
     <div class="form-row">
         <label for="node-input-outputProperty"><i class="fa fa-arrow-right"></i> Output</label>
@@ -29,7 +38,8 @@
         defaults: {
             name: { value: "" },
             targetNode: { value: "", required: true },
-            outputProperty: { value: "payload", required: true }
+            outputProperty: { value: "payload", required: true },
+            updates: { value: "always", required: true }
         },
         inputs: 1,
         outputs: 1,
@@ -39,10 +49,10 @@
                 const target = RED.nodes.node(this.targetNode);
                 if (target) {
                     let lbl = target.path || target.name;
-                    if(lbl && lbl.includes(":")) {
-                        lbl = lbl.split(":")[3];
+                    if(lbl && lbl.startsWith("#") && lbl.includes(":")) {
+                        lbl = lbl.substring(lbl.indexOf(":") + 1);
                     }
-                    return "Get: " + lbl;
+                    return "get: " + lbl;
                 }
             }
             return this.name || "global get";
@@ -51,12 +61,13 @@
         oneditprepare: function() {
             const node = this;
             
-            // 1. Populate Dropdown
             let candidateNodes = [];
             RED.nodes.eachNode(function(n) {
                 if (n.type === 'global-setter') {
                     let displayPath = n.path || "No Path";
-
+                    if (displayPath.startsWith("#") && displayPath.includes(":")) {
+                        displayPath = displayPath.substring(displayPath.indexOf(":") + 1);
+                    }
                     candidateNodes.push({
                         value: n.id,
                         label: displayPath + (n.name ? ` (${n.name})` : "")
@@ -67,62 +78,16 @@
             candidateNodes.sort((a, b) => a.label.localeCompare(b.label));
 
             $("#node-input-targetNode").typedInput({
-                types: [{
-                    value: "target",
-                    options: candidateNodes
-                }]
+                types: [{ value: "target", options: candidateNodes }]
             });
 
-            // 2. Output Property Selector
-            $("#node-input-outputProperty").typedInput({
-                types: ['msg']
-            });
+            $("#node-input-outputProperty").typedInput({ types: ['msg'] });
 
-            // 3. Find Button Logic
             $("#node-config-find-source").on("click", function() {
                 const selectedId = $("#node-input-targetNode").val();
-                if (selectedId) {
-                    // Node-RED API to jump to a node
-                    RED.view.reveal(selectedId);
-                } else {
-                    RED.notify("Please select a source node first.", "warning");
-                }
+                if (selectedId) { RED.view.reveal(selectedId); } 
+                else { RED.notify("Please select a source node first.", "warning"); }
             });
         }
     });
-</script>
-
-<!-- Help Section -->
-<script type="text/markdown" data-help-name="global-getter">
-Manage a global variable in a repeatable way.
-
-### Inputs 
-: source (any) : Select the source 'global-setter' node to get the variable from.
-: output (string) : The output property to store the variable value in.
-
-### Outputs
-: payload (any) : The global variable value
-: topic (string) : The variable name/path used to store the value.
-: units (string) : The units associated with the value, if any. Also supports nested units at `msg.<inputProperty>.units`.
-: metadata (object) : Metadata about the global variable (store, path).
-
-### Details
-Global variables are meant to be retrieved in other places, this necessarily means managing the same string in multiple places. 
-
-This node allows you to get a global variable while supporting rename and deletion.
-
-It links to a `global-setter` node by Node ID, so if that node's path is changed, this node will still work.
-
-Configurable output property allows chaining multiple getters in series if only interested in the value.
-
-### Status
-- Green (dot): Configuration update
-- Blue (dot): State changed
-- Blue (ring): State unchanged
-- Red (ring): Error
-- Yellow (ring): Warning
-
-### References
-- [Node-RED Documentation](https://nodered.org/docs/)  
-- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
 </script>

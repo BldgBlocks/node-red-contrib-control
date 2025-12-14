@@ -9,18 +9,14 @@ module.exports = function(RED) {
         node.runtime = {
             maxValues: parseInt(config.sampleSize),
             values: [], // Queue for rolling window
-            lastAvg: null
+            lastAvg: null,
+            minValid: parseFloat(config.minValid),
+            maxValid: parseFloat(config.maxValid)
         };
 
-        // Evaluate typed-input properties    
-        try {     
-            node.runtime.minValid = parseFloat(RED.util.evaluateNodeProperty( config.minValid, config.minValidType, node ));
-            node.runtime.maxValid = parseFloat(RED.util.evaluateNodeProperty( config.maxValid, config.maxValidType, node ));
-        } catch (err) {
-            node.error(`Error evaluating properties: ${err.message}`);
-        }
+        node.isBusy = false;
 
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Guard against invalid msg
@@ -30,24 +26,49 @@ module.exports = function(RED) {
                 return;
             }    
 
-            // Update typed-input properties if needed
-            try {                    
-                if (utils.requiresEvaluation(config.minValidType)) {
-                    node.runtime.minValid = parseFloat(RED.util.evaluateNodeProperty( config.minValid, config.minValidType, node, msg ));
+            // Evaluate dynamic properties
+            try {
+
+                // Check busy lock
+                if (node.isBusy) {
+                    // Update status to let user know they are pushing too fast
+                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    if (done) done(); 
+                    return;
                 }
-                if (utils.requiresEvaluation(config.maxValidType)) {
-                    node.runtime.maxValid = parseFloat(RED.util.evaluateNodeProperty( config.maxValid, config.maxValidType, node, msg ));
-                }
+
+                // Lock node during evaluation
+                node.isBusy = true;
+
+                // Begin evaluations
+                const evaluations = [];                    
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.minValidType) 
+                        ? utils.evaluateNodeProperty(config.minValid, config.minValidType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.minValid),
+                );
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.maxValidType) 
+                        ? utils.evaluateNodeProperty(config.maxValid, config.maxValidType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.maxValid),
+                );
+
+                const results = await Promise.all(evaluations);   
+
+                // Update runtime with evaluated values
+                if (!isNaN(results[0])) node.runtime.minValid = results[0];
+                if (!isNaN(results[1])) node.runtime.maxValid = results[1];         
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
                 return;
-            }
-
-            // Acceptable fallbacks
-            if (isNaN(node.runtime.maxValues) || node.runtime.maxValues < 1) {
-                node.runtime.maxValues = 10;
-                node.status({ fill: "yellow", shape: "ring", text: "invalid window size, using 10" });
+            } finally {
+                // Release, all synchronous from here on
+                node.isBusy = false;
             }
 
             // Validate values

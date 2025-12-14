@@ -4,23 +4,18 @@ module.exports = function(RED) {
     function MinBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
+        node.isBusy = false;
 
         // Initialize runtime state
         node.runtime = {
             name: config.name,
+            min: parseFloat(config.min)
         };
-
-        // Evaluate typed-inputs
-        try {
-            node.runtime.min = parseFloat(RED.util.evaluateNodeProperty( config.min, config.minType, node ));
-        } catch(err) {
-            node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-        }
 
         // Store last output value for status
         let lastOutput = null;
 
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Guard against invalid message
@@ -30,15 +25,41 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Evaluate typed-inputs if needed
+            // Evaluate dynamic properties
             try {
-                if (utils.requiresEvaluation(config.minType)) {
-                    node.runtime.min = parseFloat(RED.util.evaluateNodeProperty( config.min, config.minType, node, msg ));
+
+                // Check busy lock
+                if (node.isBusy) {
+                    // Update status to let user know they are pushing too fast
+                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    if (done) done(); 
+                    return;
                 }
-            } catch(err) {
-                node.status({ fill: "red", shape: "ring", text: "error evaluating properties" });
-                if (done) done(err);
+
+                // Lock node during evaluation
+                node.isBusy = true;
+
+                // Begin evaluations
+                const evaluations = [];                    
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.minType) 
+                        ? utils.evaluateNodeProperty(config.min, config.minType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.min),
+                );
+
+                const results = await Promise.all(evaluations);   
+
+                // Update runtime with evaluated values
+                if (!isNaN(results[0])) node.runtime.min = results[0];       
+            } catch (err) {
+                node.error(`Error evaluating properties: ${err.message}`);
+                if (done) done();
                 return;
+            } finally {
+                // Release, all synchronous from here on
+                node.isBusy = false;
             }
 
             // Validate
@@ -59,11 +80,7 @@ module.exports = function(RED) {
                     const minValue = parseFloat(msg.payload);
                     if (!isNaN(minValue) && minValue >= 0) {
                         node.runtime.min = minValue;
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `min: ${minValue}`
-                        });
+                        node.status({ fill: "green", shape: "dot", text: `min: ${minValue}` });
                     } else {
                         node.status({ fill: "red", shape: "ring", text: "invalid min" });
                     }

@@ -13,8 +13,10 @@ module.exports = function(RED) {
             node.error("Invalid rules configuration");
             rules = [];
         }
+
+        node.isBusy = false;
         
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Guard against invalid msg
@@ -25,10 +27,34 @@ module.exports = function(RED) {
             }  
 
             let matchAgainst;
-            
-            // Evaluate typed-input properties    
-            try {     
-                matchAgainst = RED.util.evaluateNodeProperty( config.property, config.propertyType, node, msg );
+
+            // Evaluate dynamic properties
+            try {
+
+                // Check busy lock
+                if (node.isBusy) {
+                    // Update status to let user know they are pushing too fast
+                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    if (done) done(); 
+                    return;
+                }
+
+                // Lock node during evaluation
+                node.isBusy = true;
+
+                // Begin evaluations
+                const evaluations = [];                    
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.propertyType) 
+                        ? utils.evaluateNodeProperty( config.property, config.propertyType, node, msg )
+                        : Promise.resolve(config.property),
+                );
+
+                const results = await Promise.all(evaluations);   
+
+                // Update runtime with evaluated values
+                matchAgainst = results[0];   
 
                 if (matchAgainst === undefined) {
                     node.status({ fill: "red", shape: "ring", text: "property evaluation failed" });
@@ -36,9 +62,12 @@ module.exports = function(RED) {
                     return;
                 }
             } catch (err) {
-                node.status({ fill: "red", shape: "ring", text: `Error: ${err.message}` });
-                if (done) done(err);
+                node.error(`Error evaluating properties: ${err.message}`);
+                if (done) done();
                 return;
+            } finally {
+                // Release, all synchronous from here on
+                node.isBusy = false;
             }
 
             const outputs = [];

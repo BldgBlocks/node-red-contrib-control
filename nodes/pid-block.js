@@ -5,6 +5,7 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
 
         const node = this;
+        node.isBusy = false;
 
         // Initialize runtime state        
         node.runtime = {
@@ -16,22 +17,17 @@ module.exports = function(RED) {
             result: 0,
             lastTime: Date.now(),
             tuneMode: false,
-            tuneData: { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 }
+            tuneData: { oscillations: [], lastPeak: null, lastTrough: null, Ku: 0, Tu: 0 },
+            kp: parseFloat(config.kp),
+            ki: parseFloat(config.ki),
+            kd: parseFloat(config.kd),
+            setpoint: parseFloat(config.setpoint),
+            deadband: parseFloat(config.deadband),
+            outMin: config.outMin ? parseFloat(config.outMin) : null,
+            outMax: config.outMax ? parseFloat(config.outMax) : null,
+            maxChange: parseFloat(config.maxChange),
+            run: !!config.run,
         };
-        
-        try {      
-            node.runtime.kp = parseFloat(RED.util.evaluateNodeProperty( config.kp, config.kpType, node ));
-            node.runtime.ki = parseFloat(RED.util.evaluateNodeProperty( config.ki, config.kiType, node ));
-            node.runtime.kd = parseFloat(RED.util.evaluateNodeProperty( config.kd, config.kdType, node ));
-            node.runtime.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node ));
-            node.runtime.deadband = parseFloat(RED.util.evaluateNodeProperty( config.deadband, config.deadbandType, node ));
-            node.runtime.outMin = parseFloat(RED.util.evaluateNodeProperty( config.outMin, config.outMinType, node ));
-            node.runtime.outMax = parseFloat(RED.util.evaluateNodeProperty( config.outMax, config.outMaxType, node ));
-            node.runtime.maxChange = parseFloat(RED.util.evaluateNodeProperty( config.maxChange, config.maxChangeType, node ));
-            node.runtime.run = RED.util.evaluateNodeProperty( config.run, config.runType, node ) === true;
-        } catch (err) {
-            node.error(`Error evaluating properties: ${err.message}`);
-        }
 
         // Initialize internal variables
         let storekp = parseFloat(config.kp) || 0;
@@ -49,7 +45,7 @@ module.exports = function(RED) {
         let maxInt = kpkiConst === 0 ? 0 : (storeOutMax || Infinity) * kpkiConst;
         let lastOutput = null;
 
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Guard against invalid message
@@ -59,37 +55,105 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Evaluate typed-input properties    
-            try {      
-                if (utils.requiresEvaluation(config.kpType)) {
-                    node.runtime.kp = parseFloat(RED.util.evaluateNodeProperty( config.kp, config.kpType, node, msg ));
+            // Evaluate dynamic properties
+            try {
+
+                // Check busy lock
+                if (node.isBusy) {
+                    // Update status to let user know they are pushing too fast
+                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    if (done) done(); 
+                    return;
                 }
-                if (utils.requiresEvaluation(config.kiType)) {
-                    node.runtime.ki = parseFloat(RED.util.evaluateNodeProperty( config.ki, config.kiType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.kdType)) {
-                    node.runtime.kd = parseFloat(RED.util.evaluateNodeProperty( config.kd, config.kdType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.setpointType)) {
-                    node.runtime.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.deadbandType)) {
-                    node.runtime.deadband = parseFloat(RED.util.evaluateNodeProperty( config.deadband, config.deadbandType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.outMinType)) {
-                    node.runtime.outMin = parseFloat(RED.util.evaluateNodeProperty( config.outMin, config.outMinType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.outMaxType)) {
-                    node.runtime.outMax = parseFloat(RED.util.evaluateNodeProperty( config.outMax, config.outMaxType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.maxChangeType)) {
-                    node.runtime.maxChange = parseFloat(RED.util.evaluateNodeProperty( config.maxChange, config.maxChangeType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.runType)) {
-                    node.runtime.run = RED.util.evaluateNodeProperty( config.run, config.runType, node, msg ) === true;
-                }
+
+                // Lock node during evaluation
+                node.isBusy = true;
+
+                // Begin evaluations
+                const evaluations = [];                    
+                
+                evaluations.push(
+                    utils.requiresEvaluation(config.kpType) 
+                        ? utils.evaluateNodeProperty(config.kp, config.kpType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.kp),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.kiType)
+                        ? utils.evaluateNodeProperty(config.ki, config.kiType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.ki),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.kdType)
+                        ? utils.evaluateNodeProperty(config.kd, config.kdType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.kd),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.setpointType)
+                        ? utils.evaluateNodeProperty(config.setpoint, config.setpointType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.setpoint),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.deadbandType)
+                        ? utils.evaluateNodeProperty(config.deadband, config.deadbandType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.deadband),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.outMinType)
+                        ? utils.evaluateNodeProperty(config.outMin, config.outMinType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.outMin),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.outMaxType)
+                        ? utils.evaluateNodeProperty(config.outMax, config.outMaxType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.outMax),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.maxChangeType)
+                        ? utils.evaluateNodeProperty(config.maxChange, config.maxChangeType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.runtime.maxChange),
+                );
+
+                evaluations.push(
+                    utils.requiresEvaluation(config.runType)
+                        ? utils.evaluateNodeProperty(config.run, config.runType, node, msg)
+                            .then(val => val === true)
+                        : Promise.resolve(node.runtime.run),
+                );
+
+                const results = await Promise.all(evaluations);   
+
+                // Update runtime with evaluated values
+                if (!isNaN(results[0])) node.runtime.kp = results[0];
+                if (!isNaN(results[1])) node.runtime.ki = results[1];
+                if (!isNaN(results[2])) node.runtime.kd = results[2];
+                if (!isNaN(results[3])) node.runtime.setpoint = results[3];
+                if (!isNaN(results[4])) node.runtime.deadband = results[4];
+                if (!isNaN(results[5])) node.runtime.outMin = results[5];
+                if (!isNaN(results[6])) node.runtime.outMax = results[6];
+                if (!isNaN(results[7])) node.runtime.maxChange = results[7];
+                if (results[8] != null) node.runtime.run = results[8];      
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
+                if (done) done();
+                return;
+            } finally {
+                // Release, all synchronous from here on
+                node.isBusy = false;
             }
 
             // Validate config

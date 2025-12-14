@@ -4,29 +4,22 @@ module.exports = function(RED) {
     function TstatBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
+        node.isBusy = false;
 
         // Store typed-input properties
-        node.isHeating = config.isHeating;
-        node.algorithm = config.algorithm;
         node.name = config.name;
-
-        // Evaluate typed-input properties    
-        try {            
-            node.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node ));
-            node.heatingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.heatingSetpoint, config.heatingSetpointType, node ));
-            node.coolingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.coolingSetpoint, config.coolingSetpointType, node ));
-            node.coolingOn = parseFloat(RED.util.evaluateNodeProperty( config.coolingOn, config.coolingOnType, node ));
-            node.coolingOff = parseFloat(RED.util.evaluateNodeProperty( config.coolingOff, config.coolingOffType, node ));
-            node.heatingOff = parseFloat(RED.util.evaluateNodeProperty( config.heatingOff, config.heatingOffType, node ));
-            node.heatingOn = parseFloat(RED.util.evaluateNodeProperty( config.heatingOn, config.heatingOnType, node ));
-            node.diff = parseFloat(RED.util.evaluateNodeProperty( config.diff, config.diffType, node ));
-            node.anticipator = parseFloat(RED.util.evaluateNodeProperty( config.anticipator, config.anticipatorType, node ));
-            node.ignoreAnticipatorCycles = Math.floor(RED.util.evaluateNodeProperty( config.ignoreAnticipatorCycles, config.ignoreAnticipatorCyclesType, node )); 
-            node.isHeating = RED.util.evaluateNodeProperty( config.isHeating, config.isHeatingType, node ) === true;       
-            node.algorithm = RED.util.evaluateNodeProperty( config.algorithm, config.algorithmType, node );
-        } catch (err) {
-            node.error(`Error evaluating properties: ${err.message}`);
-        }
+        node.setpoint = parseFloat(config.setpoint);
+        node.heatingSetpoint = parseFloat(config.heatingSetpoint);
+        node.coolingSetpoint = parseFloat(config.coolingSetpoint);
+        node.coolingOn = parseFloat(config.coolingOn);
+        node.coolingOff = parseFloat(config.coolingOff);
+        node.heatingOff = parseFloat(config.heatingOff);
+        node.heatingOn = parseFloat(config.heatingOn);
+        node.diff = parseFloat(config.diff);
+        node.anticipator = parseFloat(config.anticipator);
+        node.ignoreAnticipatorCycles = Math.floor(config.ignoreAnticipatorCycles);
+        node.isHeating = config.isHeating === true;
+        node.algorithm = config.algorithm;
 
         let above = false;
         let below = false;
@@ -36,7 +29,7 @@ module.exports = function(RED) {
         let cyclesSinceModeChange = 0;
         let modeChanged = false;
 
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             if (!msg) {
@@ -44,49 +37,130 @@ module.exports = function(RED) {
                 if (done) done();
                 return;
             }
-            
-            // Update typed-input properties if needed
-            try {      
-                if (utils.requiresEvaluation(config.setpointType)) {
-                    node.setpoint = parseFloat(RED.util.evaluateNodeProperty( config.setpoint, config.setpointType, node, msg ));                    
+
+            // Evaluate dynamic properties
+            try {
+
+                // Check busy lock
+                if (node.isBusy) {
+                    // Update status to let user know they are pushing too fast
+                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    if (done) done(); 
+                    return;
                 }
-                if (utils.requiresEvaluation(config.heatingSetpointType)) {
-                    node.heatingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.heatingSetpoint, config.heatingSetpointType, node, msg ));                    
-                }
-                if (utils.requiresEvaluation(config.coolingSetpointType)) {
-                    node.coolingSetpoint = parseFloat(RED.util.evaluateNodeProperty( config.coolingSetpoint, config.coolingSetpointType, node, msg ));                    
-                }
-                if (utils.requiresEvaluation(config.coolingOnType)) {
-                    node.coolingOn = parseFloat(RED.util.evaluateNodeProperty( config.coolingOn, config.coolingOnType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.coolingOffType)) {
-                    node.coolingOff = parseFloat(RED.util.evaluateNodeProperty( config.coolingOff, config.coolingOffType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.heatingOffType)) {
-                    node.heatingOff = parseFloat(RED.util.evaluateNodeProperty( config.heatingOff, config.heatingOffType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.heatingOnType)) {
-                    node.heatingOn = parseFloat(RED.util.evaluateNodeProperty( config.heatingOn, config.heatingOnType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.diffType)) {
-                    node.diff = parseFloat(RED.util.evaluateNodeProperty( config.diff, config.diffType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.anticipatorType)) {
-                    node.anticipator = parseFloat(RED.util.evaluateNodeProperty( config.anticipator, config.anticipatorType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.ignoreAnticipatorCyclesType)) {
-                    node.ignoreAnticipatorCycles = Math.floor(RED.util.evaluateNodeProperty( config.ignoreAnticipatorCycles, config.ignoreAnticipatorCyclesType, node, msg ));
-                }
-                if (utils.requiresEvaluation(config.isHeatingType)) {
-                    node.isHeating = RED.util.evaluateNodeProperty( config.isHeating, config.isHeatingType, node, msg ) === true;       
-                }
-                if (utils.requiresEvaluation(config.algorithmType)) {
-                    node.algorithm = RED.util.evaluateNodeProperty( config.algorithm, config.algorithmType, node, msg );
-                }
+
+                // Lock node during evaluation
+                node.isBusy = true;
+
+                // Begin evaluations
+                const evaluations = [];                    
+                
+                //0
+                evaluations.push(
+                    utils.requiresEvaluation(config.setpointType) 
+                        ? utils.evaluateNodeProperty(config.setpoint, config.setpointType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.setpoint),
+                );
+                //1
+                evaluations.push(
+                    utils.requiresEvaluation(config.heatingSetpointType) 
+                        ? utils.evaluateNodeProperty(config.heatingSetpoint, config.heatingSetpointType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.heatingSetpoint),
+                );
+                //2
+                evaluations.push(
+                    utils.requiresEvaluation(config.coolingSetpointType) 
+                        ? utils.evaluateNodeProperty(config.coolingSetpoint, config.coolingSetpointType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.coolingSetpoint),
+                );
+                //3
+                evaluations.push(
+                    utils.requiresEvaluation(config.coolingOnType) 
+                        ? utils.evaluateNodeProperty(config.coolingOn, config.coolingOnType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.coolingOn),
+                );
+                //4
+                evaluations.push(
+                    utils.requiresEvaluation(config.coolingOffType) 
+                        ? utils.evaluateNodeProperty(config.coolingOff, config.coolingOffType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.coolingOff),
+                );
+                //5
+                evaluations.push(
+                    utils.requiresEvaluation(config.heatingOffType) 
+                        ? utils.evaluateNodeProperty(config.heatingOff, config.heatingOffType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.heatingOff),
+                );
+                //6
+                evaluations.push(
+                    utils.requiresEvaluation(config.heatingOnType) 
+                        ? utils.evaluateNodeProperty(config.heatingOn, config.heatingOnType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.heatingOn),
+                );
+                //7
+                evaluations.push(
+                    utils.requiresEvaluation(config.diffType) 
+                        ? utils.evaluateNodeProperty(config.diff, config.diffType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.diff),
+                );
+                //8
+                evaluations.push(
+                    utils.requiresEvaluation(config.anticipatorType) 
+                        ? utils.evaluateNodeProperty(config.anticipator, config.anticipatorType, node, msg)
+                            .then(val => parseFloat(val))
+                        : Promise.resolve(node.anticipator),
+                );
+                //9
+                evaluations.push(
+                    utils.requiresEvaluation(config.ignoreAnticipatorCyclesType)
+                        ? utils.evaluateNodeProperty(config.ignoreAnticipatorCycles, config.ignoreAnticipatorCyclesType, node, msg)
+                            .then(val => Math.floor(val))
+                        : Promise.resolve(node.ignoreAnticipatorCycles),
+                );
+                //10
+                evaluations.push(
+                    utils.requiresEvaluation(config.isHeatingType)
+                        ? utils.evaluateNodeProperty(config.isHeating, config.isHeatingType, node, msg)
+                            .then(val => val === true)
+                        : Promise.resolve(node.isHeating),
+                );
+                //11
+                evaluations.push(
+                    utils.requiresEvaluation(config.algorithmType)
+                        ? utils.evaluateNodeProperty(config.algorithm, config.algorithmType, node, msg)
+                        : Promise.resolve(node.algorithm),
+                );
+
+                const results = await Promise.all(evaluations);   
+
+                // Update runtime with evaluated values
+                if (!isNaN(results[0])) node.setpoint = results[0];
+                if (!isNaN(results[1])) node.heatingSetpoint = results[1];
+                if (!isNaN(results[2])) node.coolingSetpoint = results[2];
+                if (!isNaN(results[3])) node.coolingOn = results[3];
+                if (!isNaN(results[4])) node.coolingOff = results[4];
+                if (!isNaN(results[5])) node.heatingOff = results[5];
+                if (!isNaN(results[6])) node.heatingOn = results[6];
+                if (!isNaN(results[7])) node.diff = results[7];
+                if (!isNaN(results[8])) node.anticipator = results[8];
+                if (!isNaN(results[9])) node.ignoreAnticipatorCycles = results[9];
+                if (results[10] !== null) node.isHeating = results[10];
+                if (results[11]) node.algorithm = results[11];
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
                 return;
+            } finally {
+                // Release, all synchronous from here on
+                node.isBusy = false;
             }
 
             // Handle configuration messages
@@ -320,7 +394,7 @@ module.exports = function(RED) {
                     }
                     above = false;
                 } else {
-                    if (input > coolingOn) {
+                    if (input > node.coolingOn) {
                         above = true;
                     } else if (above && input < node.coolingOff + effectiveAnticipator) {
                         above = false;
