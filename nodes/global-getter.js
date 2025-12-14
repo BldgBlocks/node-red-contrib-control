@@ -101,19 +101,26 @@ module.exports = function(RED) {
 
         // --- HANDLE REACTIVE UPDATES ---
         if (node.updates === 'always') {
-            // Try immediately
             if (!establishListener()) { 
-                retryInterval = setInterval(() => {
-                    if (establishListener() || retryCount >= maxRetries) {
-                        clearInterval(retryInterval);
-                        retryInterval = null;
-                        if (retryCount >= maxRetries) {
-                            node.error("Failed to connect to setter node after multiple attempts");
-                            node.status({ fill: "red", shape: "ring", text: "Connection failed" });
-                        }
+                // Recursive retry
+                const retry = () => {
+                    if (retryCount >= maxRetries) {
+                        node.error("Failed to connect to setter node after multiple attempts");
+                        node.status({ fill: "red", shape: "ring", text: "Connection failed" });
+                        return;
                     }
+                    
+                    if (establishListener()) {
+                        retryCount = 0;
+                        return; // Success
+                    }
+                    
                     retryCount++;
-                }, retryDelays[Math.min(retryCount, maxRetries - 1)]);
+                    setTimeout(retry, retryDelays[Math.min(retryCount, maxRetries - 1)]);
+                };
+                
+                // Try immediately
+                setTimeout(retry, retryDelays[0]);
             }
         }
 
