@@ -5,14 +5,20 @@ module.exports = function(RED) {
         node.targetNodeId = config.targetNode;
         node.outputProperty = config.outputProperty || "payload";
         node.updates = config.updates;
+        node.detail = config.detail;
 
-        const setterNode = RED.nodes.getNode(node.targetNodeId);
+        let setterNode = null;
+        let retryInterval = null;
+        let updateListener = null;
+        let retryCount = 0;
+        const retryDelays = [0, 100, 500, 1000, 2000, 4000, 8000, 16000];
+        const maxRetries = retryDelays.length - 1;
         
         // --- HELPER: Process Wrapper and Send Msg ---
         function sendValue(storedObject, msgToReuse) {
             const msg = msgToReuse || {}; 
 
-            if (storedObject !== undefined) {
+            if (storedObject !== undefined && storedObject !== null) {
                 
                 // CHECK: Is this our Wrapper Format? (Created by Global Setter)
                 if (storedObject && typeof storedObject === 'object' && storedObject.hasOwnProperty('value')) {
@@ -26,7 +32,9 @@ module.exports = function(RED) {
 
                     // 3. Merge all attributes onto the msg root
                     // This automatically handles priority, units, metadata, and any future fields
-                    Object.assign(msg, attributes);
+                    if (node.detail === "getObject") {
+                        Object.assign(msg, attributes);
+                    }
 
                 } else {
                     // Handle Legacy/Raw values (not created by your Setter)
@@ -36,7 +44,7 @@ module.exports = function(RED) {
                 
                 // Visual Status
                 const valDisplay = RED.util.getMessageProperty(msg, node.outputProperty);
-                node.status({ fill: "blue", shape: "dot", text: `Get: ${valDisplay}` });
+                node.status({ fill: "blue", shape: "dot", text: `get: ${valDisplay}` });
                 
                 node.send(msg);
 
@@ -45,7 +53,37 @@ module.exports = function(RED) {
             }
         }
 
-        // --- 1. HANDLE MANUAL INPUT ---
+        // --- HELPER: Manage Event Subscription ---
+        function establishListener() {
+            setterNode = RED.nodes.getNode(node.targetNodeId);
+            
+            if (setterNode && setterNode.varName && node.updates === 'always') {
+                if (updateListener) {
+                    // Remove existing listener if we're retrying
+                    RED.events.removeListener("bldgblocks-global-update", updateListener);
+                }
+                
+                updateListener = function(evt) {
+                    if (evt.key === setterNode.varName && evt.store === setterNode.storeName) {
+                        sendValue(evt.data, {}); 
+                    }
+                };
+                
+                RED.events.on("bldgblocks-global-update", updateListener);
+                
+                // Clear retry interval once successful
+                if (retryInterval) {
+                    clearInterval(retryInterval);
+                    retryInterval = null;
+                }
+                
+                node.status({ fill: "green", shape: "dot", text: "Connected" });
+                return true;
+            }
+            return false;
+        }
+
+        // --- HANDLE MANUAL INPUT ---
         node.on('input', function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
@@ -61,24 +99,33 @@ module.exports = function(RED) {
             if (done) done();
         });
 
-        // --- 2. HANDLE REACTIVE UPDATES ---
-        let updateListener = null;
-
-        if (node.updates === 'always' && setterNode && setterNode.varName) {
-            updateListener = function(evt) {
-                if (evt.key === setterNode.varName && evt.store === setterNode.storeName) {
-                    // Pass data directly from event
-                    sendValue(evt.data, {}); 
-                }
-            };
-            RED.events.on("bldgblocks-global-update", updateListener);
+        // --- HANDLE REACTIVE UPDATES ---
+        if (node.updates === 'always') {
+            // Try immediately
+            if (!establishListener()) { 
+                retryInterval = setInterval(() => {
+                    if (establishListener() || retryCount >= maxRetries) {
+                        clearInterval(retryInterval);
+                        retryInterval = null;
+                        if (retryCount >= maxRetries) {
+                            node.error("Failed to connect to setter node after multiple attempts");
+                            node.status({ fill: "red", shape: "ring", text: "Connection failed" });
+                        }
+                    }
+                    retryCount++;
+                }, retryDelays[Math.min(retryCount, maxRetries - 1)]);
+            }
         }
 
         // --- CLEANUP ---
-        node.on('close', function() {
-            if (updateListener) {
+        node.on('close', function(removed, done) {
+            if (retryInterval) {
+                clearInterval(retryInterval);
+            }
+            if (removed && updateListener) {
                 RED.events.removeListener("bldgblocks-global-update", updateListener);
             }
+            done();
         });
     }
     RED.nodes.registerType("global-getter", GlobalGetterNode);

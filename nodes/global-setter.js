@@ -60,7 +60,7 @@ module.exports = function(RED) {
                 evaluations.push(
                     utils.requiresEvaluation(config.writePriorityType) 
                         ? utils.evaluateNodeProperty( config.writePriority, config.writePriorityType, node, msg )
-                        : Promise.resolve(config.writePriority),
+                        : Promise.resolve(node.writePriority),
                 );
 
                 const results = await Promise.all(evaluations);   
@@ -118,16 +118,15 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
+                    
+                    if (inputValue !== undefined) {
+                        state.priority[node.writePriority] = inputValue;
+                    }
                 }
                 
                 // Ensure defaultValue always has a value
                 if (state.defaultValue === null || state.defaultValue === undefined) {
                     state.defaultValue = node.defaultValue;
-                }
-
-                // Update Specific Priority Slot
-                if (inputValue !== undefined) {
-                     state.priority[node.writePriority] = inputValue;
                 }
 
                 // Calculate Winner
@@ -166,6 +165,7 @@ module.exports = function(RED) {
 
         node.on('close', function(removed, done) {
             if (removed && node.varName) {
+                //RED.events.removeAllListeners("bldgblocks-global-update");
                 const globalContext = node.context().global;
                 globalContext.set(node.varName, undefined, node.storeName); 
             }

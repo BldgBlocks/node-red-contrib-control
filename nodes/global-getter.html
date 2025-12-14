@@ -12,7 +12,6 @@
         </button>
     </div>
 
-    <!-- NEW: Trigger Mode Selection -->
     <div class="form-row">
         <label for="node-input-updates"><i class="fa fa-bolt"></i> Trigger</label>
         <select id="node-input-updates" style="width: 70%;">
@@ -24,6 +23,14 @@
     <div class="form-row">
         <label for="node-input-outputProperty"><i class="fa fa-arrow-right"></i> Output</label>
         <input type="text" id="node-input-outputProperty" placeholder="payload" style="width:70%;">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-detail"><i class="fa fa-bolt"></i> Trigger</label>
+        <select id="node-input-detail" style="width: 70%;">
+            <option value="getValue">Get Simple Value</option>
+            <option value="getObject">Get Full Object</option>
+        </select>
     </div>
 
     <div class="form-tips">
@@ -39,7 +46,8 @@
             name: { value: "" },
             targetNode: { value: "", required: true },
             outputProperty: { value: "payload", required: true },
-            updates: { value: "always", required: true }
+            updates: { value: "always", required: true },
+            detail: {value: "getObject", required: true }
         },
         inputs: 1,
         outputs: 1,
