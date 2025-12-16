@@ -6,15 +6,16 @@ module.exports = function(RED) {
         node.outputProperty = config.outputProperty || "payload";
         node.updates = config.updates;
         node.detail = config.detail;
-
+        
         let setterNode = null;
-        let retryInterval = null;
+        let retryAction = null;
+        let healthCheckAction = null;
         let updateListener = null;
         let retryCount = 0;
         const retryDelays = [0, 100, 500, 1000, 2000, 4000, 8000, 16000];
         const maxRetries = retryDelays.length - 1;
         
-        // --- HELPER: Process Wrapper and Send Msg ---
+        // --- Process Wrapper and Send Msg ---
         function sendValue(storedObject, msgToReuse) {
             const msg = msgToReuse || {}; 
 
@@ -23,14 +24,14 @@ module.exports = function(RED) {
                 // CHECK: Is this our Wrapper Format? (Created by Global Setter)
                 if (storedObject && typeof storedObject === 'object' && storedObject.hasOwnProperty('value')) {
                     
-                    // 1. Separate the Value from everything else (Rest operator)
+                    // Separate the Value from everything else (Rest operator)
                     // 'attributes' will contain: priority, units, metadata, topic, etc.
                     const { value, ...attributes } = storedObject;
 
-                    // 2. Set the Main Output (e.g. msg.payload = 75)
+                    // Set the Main Output (e.g. msg.payload = 75)
                     RED.util.setMessageProperty(msg, node.outputProperty, value);
 
-                    // 3. Merge all attributes onto the msg root
+                    // Merge all attributes onto the msg root
                     // This automatically handles priority, units, metadata, and any future fields
                     if (node.detail === "getObject") {
                         Object.assign(msg, attributes);
@@ -42,7 +43,7 @@ module.exports = function(RED) {
                     msg.metadata = { path: setterNode ? setterNode.varName : "unknown", legacy: true };
                 }
                 
-                // Visual Status
+                // Update Status
                 const valDisplay = RED.util.getMessageProperty(msg, node.outputProperty);
                 node.status({ fill: "blue", shape: "dot", text: `get: ${valDisplay}` });
                 
@@ -53,10 +54,12 @@ module.exports = function(RED) {
             }
         }
 
-        // --- HELPER: Manage Event Subscription ---
+        // --- Manage Event Subscription ---
         function establishListener() {
+            // Look for source node
             setterNode = RED.nodes.getNode(node.targetNodeId);
             
+            // If found, subscribe
             if (setterNode && setterNode.varName && node.updates === 'always') {
                 if (updateListener) {
                     // Remove existing listener if we're retrying
@@ -72,9 +75,9 @@ module.exports = function(RED) {
                 RED.events.on("bldgblocks-global-update", updateListener);
                 
                 // Clear retry interval once successful
-                if (retryInterval) {
-                    clearInterval(retryInterval);
-                    retryInterval = null;
+                if (retryAction) {
+                    clearInterval(retryAction);
+                    retryAction = null;
                 }
                 
                 node.status({ fill: "green", shape: "dot", text: "Connected" });
@@ -83,9 +86,52 @@ module.exports = function(RED) {
             return false;
         }
 
+        // --- Maintain event subscription ---
+        function startHealthCheck() {
+            const healthCheckAction = () => {
+                const listeners = RED.events.listeners("bldgblocks-global-update");
+                const hasOurListener = listeners.includes(updateListener);
+                
+                if (!hasOurListener) {
+                    node.warn("Event listener lost, reconnecting...");
+                    if (establishListener()) {
+                        node.status({ fill: "green", shape: "dot", text: "Reconnected" });
+                    }
+                }
+                
+                // Schedule next health check regardless of outcome
+                setTimeout(healthCheckAction, 30000);
+            };
+            // Inital start
+            setTimeout(healthCheckAction, 30000);
+        }
+
+        function subscribeWithRetry() {
+            // Recursive retry
+            retryAction = () => {
+                if (retryCount >= maxRetries) {
+                    node.error("Failed to connect to setter node after multiple attempts");
+                    node.status({ fill: "red", shape: "ring", text: "Connection failed" });
+                    return;
+                }
+                
+                if (establishListener()) {
+                    retryCount = 0;
+                    return; // Success
+                }
+                
+                retryCount++;
+                setTimeout(retryAction, retryDelays[Math.min(retryCount, maxRetries - 1)]);
+            };
+            
+            setTimeout(retryAction, retryDelays[0]);
+        }
+
         // --- HANDLE MANUAL INPUT ---
         node.on('input', function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
+
+            setterNode ??= RED.nodes.getNode(node.targetNodeId);
 
             if (setterNode && setterNode.varName) {
                 const globalContext = node.context().global;
@@ -101,33 +147,17 @@ module.exports = function(RED) {
 
         // --- HANDLE REACTIVE UPDATES ---
         if (node.updates === 'always') {
-            if (!establishListener()) { 
-                // Recursive retry
-                const retry = () => {
-                    if (retryCount >= maxRetries) {
-                        node.error("Failed to connect to setter node after multiple attempts");
-                        node.status({ fill: "red", shape: "ring", text: "Connection failed" });
-                        return;
-                    }
-                    
-                    if (establishListener()) {
-                        retryCount = 0;
-                        return; // Success
-                    }
-                    
-                    retryCount++;
-                    setTimeout(retry, retryDelays[Math.min(retryCount, maxRetries - 1)]);
-                };
-                
-                // Try immediately
-                setTimeout(retry, retryDelays[0]);
-            }
+            subscribeWithRetry();
+            startHealthCheck();        
         }
 
         // --- CLEANUP ---
         node.on('close', function(removed, done) {
-            if (retryInterval) {
-                clearInterval(retryInterval);
+            if (healthCheckAction) {
+                clearInterval(healthCheckAction);
+            }
+            if (retryAction) {
+                clearInterval(retryAction);
             }
             if (removed && updateListener) {
                 RED.events.removeListener("bldgblocks-global-update", updateListener);

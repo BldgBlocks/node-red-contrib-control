@@ -20,12 +20,13 @@
     <hr>
     
     <div class="form-row">
-        <label for="node-input-defaultValue" title="Static default value to ensure one exists. You may write to default through message configuration."><i class="fa fa-undo"></i> Default</label>
+        <label for="node-input-defaultValue" title="Manual default value to ensure one always exists. You may write to default through message configuration but may not set it to null."><i class="fa fa-undo"></i> Default</label>
         <input type="text" id="node-input-defaultValue" placeholder="e.g. 0 or false">
+        <input type="hidden" id="node-input-defaultValueType">
     </div>
 
     <div class="form-tips">
-        <b>Note:</b> This node writes to the selected <b>Priority Level</b>. The actual Global Variable value will be the highest active priority.
+        <b>Note:</b> This node writes to the selected <b>Priority</b>, manually, by msg or flow. The actual Global Variable value will be the highest active priority.
     </div>
 </script>
 
@@ -38,6 +39,7 @@
             path: { value: "", required: true },
             property: { value: "payload", required: true },
             defaultValue: { value: "", required: true },
+            defaultValueType: { value: "num", required: true },
             writePriority: { value: "16", required: true },
             writePriorityType: { value: "dropdown" }
         },
@@ -53,12 +55,18 @@
         },
         paletteLabel: "global set",
         oneditprepare: function() {
+            const node = this;
+
             // These are read as strings not evaluated typed-inputs.
             $("#node-input-path").typedInput({ types: ['global'] });
             // getMessageProperty handles msg access on the incoming message at the specified path.
             $("#node-input-property").typedInput({ types: ['msg'] });
             // Default for the default value, meaning it should only be manually set. You can still pass default values through messages.
-            $("#node-input-defaultValue").typedInput({ types: ['str','num','bool'] });
+            $("#node-input-defaultValue").typedInput({
+                default: "num",
+                types: ["str", "num", "bool", "json"],
+                typeField: "#node-input-defaultValueType"
+            }).typedInput("type", node.defaultValueType || "num").typedInput("value", node.defaultValue);
 
             $("#node-input-writePriority").typedInput({
                 default: "dropdown",

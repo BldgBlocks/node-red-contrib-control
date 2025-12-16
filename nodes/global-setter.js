@@ -22,10 +22,10 @@ module.exports = function(RED) {
         function calculateWinner(state) {
             for (let i = 1; i <= 16; i++) {
                 if (state.priority[i] !== undefined && state.priority[i] !== null) {
-                    return state.priority[i];
+                    return { value: state.priority[i], priority: `${i}` };
                 }
             }
-            return state.defaultValue;
+            return { value: state.defaultValue, priority: "default" };
         }
 
         node.isBusy = false;
@@ -86,6 +86,7 @@ module.exports = function(RED) {
                     state = {
                         value: null,
                         defaultValue: node.defaultValue,
+                        activePriority: "default",
                         priority: {
                             1: null,
                             2: null,
@@ -130,7 +131,9 @@ module.exports = function(RED) {
                 }
 
                 // Calculate Winner
-                state.value = calculateWinner(state);
+                const { value, priority } = calculateWinner(state);
+                state.value = value;
+                state.activePriority = priority;
 
                 // Update Metadata
                 state.metadata.sourceId = node.id;
@@ -149,7 +152,7 @@ module.exports = function(RED) {
                 // Save & Emit
                 globalContext.set(node.varName, state, node.storeName);
                 
-                node.status({ fill: "blue", shape: "dot", text: `P${node.writePriority}:${inputValue} > Val:${state.value}` });
+                node.status({ fill: "blue", shape: "dot", text: `write: ${node.writePriority === 'default' ? 'default' : 'P' + node.writePriority}:${inputValue}${state.units} > active: ${state.activePriority === 'default' ? 'default' : 'P' + state.activePriority}:${state.value}${state.units}` });
 
                 // Fire Event
                 RED.events.emit("bldgblocks-global-update", {
@@ -165,7 +168,7 @@ module.exports = function(RED) {
 
         node.on('close', function(removed, done) {
             if (removed && node.varName) {
-                //RED.events.removeAllListeners("bldgblocks-global-update");
+                RED.events.removeAllListeners("bldgblocks-global-update");
                 const globalContext = node.context().global;
                 globalContext.set(node.varName, undefined, node.storeName); 
             }

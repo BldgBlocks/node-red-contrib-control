@@ -26,7 +26,7 @@
     </div>
 
     <div class="form-row">
-        <label for="node-input-detail"><i class="fa fa-bolt"></i> Trigger</label>
+        <label for="node-input-detail"><i class="fa fa-book"></i> Detail</label>
         <select id="node-input-detail" style="width: 70%;">
             <option value="getValue">Get Simple Value</option>
             <option value="getObject">Get Full Object</option>
@@ -98,4 +98,35 @@
             });
         }
     });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="global-setter">
+Manage a global variable in a repeatable way.
+
+### Inputs 
+Retreived object will overwrite msg.
+
+### Outputs
+: payload (object) : The stored object with values and metadata.
+
+### Details
+Global variables are meant to be retrieved in other places, this necessarily means managing the same string in multiple places. 
+
+This node allows you to get a global variable anywhere from one source, while supporting rename and deletion.
+
+The source can be found using the search button. The payload property can be specified and can be set to only the value for chaining.
+
+Reactive updates means every time the source is updated those nodes will receive the new value via event.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)  
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
 </script>
