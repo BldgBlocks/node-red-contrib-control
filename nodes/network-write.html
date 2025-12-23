@@ -1,0 +1,64 @@
+<script type="text/html" data-template-name="network-write">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-registry"><i class="fa fa-book"></i> Registry</label>
+        <input type="text" id="node-input-registry">
+    </div>
+    
+    <div class="form-tips">
+        <b>Input Payload Format:</b><br>
+        <pre>
+        {
+            "action": "write",
+            "pointId": 101,
+            "priority": 8,
+            "value": 75.5  // or null || "null" to release
+        }
+        </pre>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('network-write', {
+        category: 'bldgblocks network',
+        color: '#3090C7',
+        defaults: {
+            name: { value: "" },
+            registry: { value: "", type: "network-point-registry", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-list-ol", 
+        label: function() {
+            return this.name || "network write";
+        },
+        paletteLabel: "network write",
+        oneditprepare: function() {
+            
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="network-write">
+Writes network commands to Global Variables using the Priority Array logic.
+
+### Input
+: payload (object) : A command object containing
+  * `pointId` (number): The integer ID of the point.
+  * `priority` (number): The priority level (1-16) to write to.
+  * `value` (any): The value to set. Send `null` to relinquish (clear) this priority level.
+
+### Output
+: payload (object) : Confirmation object containing status, pointId, and the new calculated "Winner" value.
+
+### Details
+This node acts as the inbound gateway. 
+1. It looks up the `pointId` in the selected **Registry** to find the corresponding Global Variable path.
+2. It fetches the current State Object.
+3. It updates the specific slot in the `priority` array based on the command.
+4. It recalculates the "Present Value" (highest priority active).
+5. It saves the Global Variable and emits an update event, triggering any reactive Getters immediately.
+</script>

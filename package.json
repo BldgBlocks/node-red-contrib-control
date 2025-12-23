@@ -63,7 +63,14 @@
         "tstat-block": "nodes/tstat-block.js",
         "units-block": "nodes/units-block.js",
         "global-getter": "nodes/global-getter.js",
-        "global-setter": "nodes/global-setter.js"
+        "global-setter": "nodes/global-setter.js",
+        "history-collector": "nodes/history-collector.js",
+        "history-config": "nodes/history-config.js",
+        "network-read": "nodes/network-read.js",
+        "network-register": "nodes/network-register.js",
+        "network-write": "nodes/network-write.js",
+        "network-point-registry": "nodes/network-point-registry.js"
+
       }
   },
   "author": "buildingblocks",

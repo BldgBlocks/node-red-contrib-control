@@ -1,0 +1,86 @@
+<script type="text/html" data-template-name="network-point-registry">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Main Registry">
+    </div>
+    <div class="form-tips">
+        <p><b>Point Registry</b></p>
+        <p>This node maintains the mapping between Network Point IDs (integers) and Global Variables.</p>
+    </div>
+
+    <div class="form-row">
+        <label><i class="fa fa-list-ul"></i> Points</label>
+        <div id="node-input-point-list-div"
+             style="
+                 border:1px solid #ccc;
+                 height:200px;          /* set a fixed height */
+                 overflow-y:auto;       /* enable vertical scrolling */
+                 padding:5px;
+                 box-sizing:border-box;">
+            <!-- The list will be injected by the JavaScript below -->
+            <ul id="node-input-point-list" style="margin:0;padding-left:1.2em;"></ul>
+        </div>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('network-point-registry', {
+        category: 'config',
+        defaults: {
+            name: { value: "" }
+        },
+        label: function() {
+            return this.name || "Point Registry";
+        },
+        oneditprepare: function() {
+            const node = this;
+            const $list = $("#node-input-point-list");
+
+            function loadPoints() {
+                $.getJSON(`/network-point-registry/list/${node.id}`, function(data) {
+                    $list.empty();
+                    if (!data.length) return $list.append('<li>No points defined</li>');
+
+                    
+                data.sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
+
+                data.forEach(pt => {
+                    const li = $('<li>').css({ display:'flex', alignItems:'center' });
+
+                    // Text part: ID + path
+                    const txt = $('<span>')
+                        .text(`ID ${pt.id}: ${pt.path ?? 'not set'}`)
+                        .css({ flexGrow:1 });          // push button to the right
+
+                    // Button part
+                    const btn = $('<button type="button" class="editor-button">')
+                        .attr('title','Find node')
+                        .html('<i class="fa fa-search"></i>')
+                        .on('click', function (e) {
+                            e.stopPropagation();
+
+                            RED.view.reveal(pt.nodeId);
+                        });
+
+                    li.append(txt, btn);
+                    $list.append(li);
+                });
+                }).fail(function() {
+                    $list.html('<li style="color:red;">Could not load points</li>');
+                });
+            }
+
+            loadPoints();
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="network-point-registry">
+Central database mapping Point IDs to Global Variables.
+
+### Details
+
+**API for Developers:**
+* `register(id, meta)`: Claim an ID.
+* `lookup(id)`: Find the path/store for an ID.
+</script>

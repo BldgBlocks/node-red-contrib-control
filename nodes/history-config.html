@@ -1,0 +1,236 @@
+<script type="text/html" data-template-name="history-config">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="History Config">
+    </div>
+
+    <div class="form-row">
+        <label><i class="fa fa-tags"></i> Tags</label>
+        <div style="margin-top: 10px;">
+            <table id="node-config-tags-table" style="width:100%;">
+                <thead>
+                    <tr>
+                        <th>Key</th>
+                        <th>Value</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <button id="node-config-add-tag" type="button" style="margin-top: 10px;">Add Tag</button>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <label><i class="fa fa-list"></i> Series Configurations</label>
+        <div style="margin-top: 10px;">
+            <table id="node-config-series-table" style="width:100%;">
+                <thead>
+                    <tr>
+                        <th>Series Name</th>
+                        <th>Units</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <button id="node-config-add-series" type="button" style="margin-top: 10px;">Add Series</button>
+        </div>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('history-config', {
+        category: 'config',
+        defaults: {
+            series: { value: [], required: true },
+            name: { value: "default", required: true },
+            tags: { value: [], required: true }
+        },
+        label: function() {
+            return this.name || "History Config";
+        },
+        paletteLabel: "History Config",
+        oneditprepare: function() {
+            const node = this;
+            const tableBody = $("#node-config-series-table tbody");
+            const tagsTableBody = $("#node-config-tags-table tbody");
+            const addTagButton = $("#node-config-add-tag");
+            const nameInput = $("#node-config-input-name");
+            node.tags = node.tags || [];
+            node.series = node.series || [];
+
+            // --- Naming Logic ---
+            function sanitizeName(input, fallback) {
+                const safeInput = (input || "").toString(); 
+                const cleaned = safeInput.trim().replace(/[^a-zA-Z0-9_]/g, '_');
+                return cleaned || fallback;
+            }
+
+            function handleNameInput() {
+                const cleanName = sanitizeName(nameInput.val());
+                nameInput.val(cleanName);
+            }
+
+            nameInput.val(sanitizeName(node.name));
+            nameInput.on("change", function() {
+                const cleanName = sanitizeName(nameInput.val());
+                nameInput.val(cleanName);
+            });
+
+            // --- Tags Table Logic ---
+            
+            // Helper to ensure tags are always tag0, tag1, tag2...
+            function renumberTags() {
+                tagsTableBody.find("tr").each(function(index) {
+                    $(this).find(".node-config-tag-label").text("tag" + index);
+                });
+            }
+
+            function addTagRow(data = {}) {
+                // Determine label based on current row count (though renumberTags fixes it anyway)
+                const currentIndex = tagsTableBody.find("tr").length;
+                
+                const row = $(`
+                    <tr>
+                        <td style="vertical-align: middle; text-align: center;">
+                            <span class="node-config-tag-label" style="font-weight: bold; color: #666;">tag${currentIndex}</span>
+                        </td>
+                        <td>
+                            <input type="text" class="node-config-tag-value" value="${data.tagValue || ''}" style="width: 100%;" placeholder="value" required>
+                        </td>
+                        <td>
+                            <button type="button" class="node-config-remove-tag" style="color: white; background-color: red; border-radius: 2px; border: none; padding: 2px 8px; cursor: pointer;">Remove</button>
+                        </td>
+                    </tr>
+                `);
+
+                tagsTableBody.append(row);
+                
+                row.find(".node-config-remove-tag").on("click", () => {
+                    row.remove();
+                    renumberTags();
+                });
+                
+                renumberTags(); // Ensure specific ordering
+            }
+
+            // Initialize tags table
+            (node.tags || []).forEach(addTagRow);
+            if (node.tags.length === 0) {
+                addTagRow({tagValue: "virtual"});
+                addTagRow({tagValue: "physical"});
+                addTagRow({tagValue: "input"});
+                addTagRow({tagValue: "output"});
+            }
+
+            addTagButton.on("click", () => addTagRow());
+
+            // --- Series Table Logic ---
+            
+            function addRow(data = {}) {
+                const row = $(`
+                    <tr>
+                        <td><input type="text" class="node-config-series-name" value="${data.seriesName || ''}" style="width: 100%;" required></td>
+                        <td><input type="text" class="node-config-series-units" value="${data.seriesUnits || ''}" style="width: 100%;"></td>
+                        <td><button type="button" class="node-config-remove-row" style="color: white; background-color: red; border-radius: 2px; border: none; padding: 2px 8px; cursor: pointer;">Remove</button></td>
+                    </tr>
+                `);
+
+                row.find(".node-config-series-name").on("change", function() {
+                    $(this).val(sanitizeName($(this).val(), ""));
+                });
+
+                tableBody.append(row);
+                row.find(".node-config-remove-row").on("click", () => row.remove());
+                row.find(".node-config-remove-row").hover(
+                    function() { $(this).css("background-color", "#cc0000"); },
+                    function() { $(this).css("background-color", "red"); }
+                );
+            }
+
+            (node.series || []).forEach(addRow);
+            if (node.series.length === 0) {
+                addRow({seriesName: "OutsideTemp", seriesUnits: "°F"});
+            }
+
+            $("#node-config-add-series").on("click", () => addRow());
+        },
+        oneditsave: function() {            
+            function cleanSaveStr(str) {
+                return (str || "").toString().trim().replace(/[^a-zA-Z0-9_]/g, '_');
+            }
+
+            let hasTagError = false;
+            // Save Tags
+            const tagsTableBody = $("#node-config-tags-table tbody");
+            const tags = [];
+            
+            tagsTableBody.find("tr").each(function(index) {
+                const tagName = "tag" + index; 
+                const tagValue = $(this).find(".node-config-tag-value").val().trim();
+                
+                if (!tagValue) {
+                    RED.notify(`Tag Value is required for ${tagName}`, "error");
+                    hasTagError = true;
+                    return false; // Break the loop
+                }
+
+                tags.push({
+                    tagName: tagName,
+                    tagValue: tagValue
+                });
+            });
+
+            // Stop save if tags are invalid
+            if (hasTagError) {
+                throw new Error("Tag validation failed");
+            }
+
+            this.tags = tags;
+
+            // Save Series
+            const tableBody = $("#node-config-series-table tbody");
+            const series = [];
+            const seriesNames = new Set();
+
+            let hasError = false;
+            tableBody.find("tr").each(function() {
+                const rawName = $(this).find(".node-config-series-name").val();
+                const seriesName = cleanSaveStr(rawName);
+
+                if (!seriesName) {
+                    RED.notify("Series Name is required for all series", "error");
+                    hasError = true;
+                    return false;
+                }
+                if (seriesNames.has(seriesName)) {
+                    RED.notify(`Duplicate Series Name: ${seriesName}`, "error");
+                    hasError = true;
+                    return false;
+                }
+                seriesNames.add(seriesName);
+                series.push({
+                    seriesName: seriesName,
+                    seriesUnits: $(this).find(".node-config-series-units").val(),
+                });
+            });
+
+            if (hasError) {
+                throw new Error("Validation failed");
+            }
+            if (series.length === 0) {
+                RED.notify("At least one valid series is required", "error");
+                throw new Error("No valid series");
+            }
+            this.series = series;
+            this.name = cleanSaveStr($("#node-config-input-name").val()) || 'default';
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="history-config">
+Store configuration for history series selections.
+
+
+</script>

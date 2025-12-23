@@ -85,6 +85,7 @@ module.exports = function(RED) {
                 state = globalContext.get(node.varName, node.storeName);
                 if (!state || typeof state !== 'object' || !state.priority) {
                     state = {
+                        payload: null,
                         value: null,
                         defaultValue: node.defaultValue,
                         activePriority: "default",

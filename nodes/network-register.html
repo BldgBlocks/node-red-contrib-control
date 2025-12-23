@@ -1,0 +1,110 @@
+<script type="text/html" data-template-name="network-register">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-registry" title="A group of id's for assignment organization"><i class="fa fa-book"></i> Registry</label>
+        <input type="text" id="node-input-registry">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-pointId" title="Simple, stable, and unique lookup id for network users."><i class="fa fa-hashtag"></i> Point ID</label>
+        <div style="display: inline-block; width: 70%;">
+            <input type="number" id="node-input-pointId" placeholder="e.g. 101" style="width: 100px;">
+            <span id="point-id-status" style="margin-left: 10px; display: none;"></span>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-writable"><i class="fa fa-pencil"></i> Writable</label>
+        <input type="checkbox" id="node-input-writable" style="display: inline-block; width: auto; vertical-align: top;">
+        <span style="color: #666;"> Allow network to write to this point?</span>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('network-register', {
+        category: 'bldgblocks network',
+        color: '#3090C7',
+        defaults: {
+            name: { value: "" },
+            registry: { value: "", type: "network-point-registry", required: true },
+            pointId: { value: null, required: true, validate: RED.validators.number() },
+            writable: { value: false }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-book",
+        label: function() {
+            const id = this.pointId || "?";
+            return `(id:${id}) ${this.name || "network register"}`;
+        },
+        paletteLabel: "network register",
+        oneditprepare: function() {
+            const nodeId = this.id;
+            const statusSpan = $("#point-id-status");
+            const idInput = $("#node-input-pointId");
+            const regInput = $("#node-input-registry");
+
+            let timer = null;
+
+            function checkId() {
+                const node = this;
+                const pid = idInput.val();
+                const rid = regInput.val();
+
+                statusSpan.hide();
+                idInput.removeClass("input-error");
+                
+                if (timer) clearTimeout(timer);
+
+                // Need both ID and Registry selected to validate
+                if (pid && rid && rid !== "_ADD_") {
+                    timer = setTimeout(() => {
+                        // Pass Registry ID in URL
+                        $.getJSON(`network-point-registry/check/${rid}/${pid}/${nodeId}`, function(data) {
+                            if (data.warning) {
+                                // Registry exists in config but not deployed
+                                statusSpan.html(`<i class="fa fa-question-circle" style="color: orange;" title="${data.warning}"></i> Not Deployed`).show();
+                            } else if (data.taken) {
+                                // Conflict
+                                statusSpan.html('<i class="fa fa-exclamation-triangle" style="color: red;"></i> ID Taken').show();
+                                idInput.addClass("input-error");
+                            } else if (!data.taken && data.details) {
+                                // Assigned here
+                                statusSpan.html('<i class="fa fa-check" style="color: green;"></i> Assigned').show();
+                            } else {
+                                // Available
+                                statusSpan.html('<i class="fa fa-check" style="color: green;"></i> Available').show();
+                            }
+                        });
+                    }, 500);
+                }
+            }
+
+            function loadNextFreeId(registry) {
+                if (!registry || registry === "_ADD_") { return; }
+                $.getJSON(`/network-point-registry/list/${registry}`, function (data) {
+                    const next = data.reduce((max, pt) => Math.max(max, pt.id), 0) + 1;        
+                    idInput.val(next);
+                }).fail(function () {
+                    statusSpan.html('<i class="fa fa-exclamation-triangle" style="color:red;"></i> Cannot fetch points').show();
+                });
+            }
+
+            // Trigger check on ID type or Registry Change
+            idInput.on("input", checkId);
+            regInput.on("change", function () {
+                checkId();
+                if (idInput.val().trim() === "") {
+                    loadNextFreeId(regInput.val());
+                }
+            });
+            
+            if (idInput.val().trim() === "") {
+                loadNextFreeId(regInput.val());
+            }
+        }
+    });
+</script>
