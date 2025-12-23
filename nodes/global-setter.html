@@ -32,7 +32,7 @@
 
 <script type="text/javascript">
     RED.nodes.registerType('global-setter', {
-        category: 'control',
+        category: "bldgblocks control",
         color: '#E2D96E',
         defaults: {
             name: { value: "" },
@@ -40,7 +40,7 @@
             property: { value: "payload", required: true },
             defaultValue: { value: "", required: true },
             defaultValueType: { value: "num", required: true },
-            writePriority: { value: "16", required: true },
+            writePriority: { value: "default", required: true },
             writePriorityType: { value: "dropdown" }
         },
         inputs: 1,
@@ -88,7 +88,7 @@
                         { value: "13", label: "13"},
                         { value: "14", label: "14"},
                         { value: "15", label: "15"},
-                        { value: "16", label: "16 (Schedule/Logic)"},
+                        { value: "16", label: "16 (Network Logic)"},
                         { value: "default", label: "default (fallback)"},
                     ]
                 }, "msg", "flow"],

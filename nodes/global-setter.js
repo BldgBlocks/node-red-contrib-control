@@ -76,12 +76,13 @@ module.exports = function(RED) {
                 node.isBusy = false;
             }
 
+            let state = {};
             if (node.varName) {
                 const inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
                 const globalContext = node.context().global;
 
                 // Get existing state or initialize new
-                let state = globalContext.get(node.varName, node.storeName);
+                state = globalContext.get(node.varName, node.storeName);
                 if (!state || typeof state !== 'object' || !state.priority) {
                     state = {
                         value: null,
@@ -132,15 +133,17 @@ module.exports = function(RED) {
 
                 // Calculate Winner
                 const { value, priority } = calculateWinner(state);
+                state.payload = value;
                 state.value = value;
                 state.activePriority = priority;
 
                 // Update Metadata
                 state.metadata.sourceId = node.id;
                 state.metadata.lastSet = new Date().toISOString();
-                state.metadata.sourceName = node.name || config.path;
-                state.metadata.sourcePath = node.varName; 
-                state.metadata.store = node.storeName; 
+                state.metadata.name = node.name || config.path;
+                state.metadata.path = node.varName; 
+                state.metadata.store = node.storeName || 'default';
+                state.metadata.type = typeof(value);
 
                 // Units logic
                 let capturedUnits = msg.units; 
@@ -162,7 +165,8 @@ module.exports = function(RED) {
                 });
             }
             
-            node.send(msg);
+            // Send copy
+            node.send({ ...state });
             if (done) done();
         });
 
