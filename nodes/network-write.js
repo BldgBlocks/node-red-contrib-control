@@ -102,10 +102,14 @@ module.exports = function(RED) {
             state.metadata.lastSet = new Date().toISOString();
 
             // Save & Emit
+            const prefix1 = msg.priority === 'default' ? '' : 'P';
+            const prefix2 = state.activePriority === 'default' ? '' : 'P';
+            const message = `Wrote: ${prefix1}${msg.priority}:${msg.value} > (${store})::${path}::${msg.pointId} Active: ${prefix2}${winnerPriority}:${winnerValue}`;
+            node.status({ fill: "blue", shape: "ring", text: message });
+
             globalContext.set(path, state, store);
             msg = { ...state };
-            node.status({ fill: "blue", shape: "dot", text: `Success: P${msg.priority}:${msg.value} > (${store})::${path}::${msg.pointId}` });
-            msg.status = { status: "ok", pointId: msg.pointId, value: `Wrote: P${msg.priority}:${msg.value} > (${store})::${path}::${msg.pointId} Active: P${winnerPriority}:${winnerValue}` };
+            msg.status = { status: "ok", pointId: msg.pointId, message: message };
             
             // Trigger global getters to update on new value
             RED.events.emit("bldgblocks-global-update", {

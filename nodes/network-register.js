@@ -117,7 +117,9 @@ module.exports = function(RED) {
             }
 
             // Pass through msg, just registering.
-            node.status({ fill: "blue", shape: "dot", text: `Passthrough: ${globalData.activePriority === 'default' ? 'default' : 'P' + globalData.activePriority}:${globalData.value}${globalData.units}` });
+            const prefix = globalData.activePriority === 'default' ? '' : 'P';
+            const message = `Passthrough: ${prefix}${globalData.activePriority}:${globalData.value}${globalData.units}`;
+            node.status({ fill: "blue", shape: "dot", text: message });
             
             node.send({ globalData });
             if (done) done();

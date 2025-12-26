@@ -1,34 +1,3 @@
-const validUnits = [
-    // Temperature
-    "°C", "°F", "K", "°R",
-    
-    // Humidity/Pressure
-    "%RH", "Pa", "kPa", "bar", "mbar", "psi", "atm", "inH₂O", "mmH₂O", "inHg",
-    
-    // Flow
-    "CFM", "m³/h", "L/s", 
-    
-    // Electrical
-    "V", "mV", "A", "mA", "W", "kW", "hp", "Ω",
-    
-    // General/Math
-    "%", 
-    
-    // Length
-    "m", "cm", "mm", "km", "ft", "in",
-    
-    // Mass
-    "kg", "g", "lb",
-    
-    // Time
-    "s", "min", "h",
-    
-    // Volume
-    "L", "mL", "gal",
-    
-    // Other
-    "lx", "cd", "B", "T"
-];
 
 module.exports = function(RED) {
     function UnitsBlockNode(config) {
@@ -40,14 +9,6 @@ module.exports = function(RED) {
             name: config.name,
             unit: config.unit
         };
-
-        // Validate configuration
-        if (!validUnits.includes(node.runtime.unit)) {
-            node.runtime.unit = "°F";
-            node.status({ fill: "red", shape: "ring", text: "invalid unit, using °F" });
-        } else {
-            node.status({ fill: "green", shape: "dot", text: `in: unit: ${node.runtime.unit}` });
-        }
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -65,7 +26,7 @@ module.exports = function(RED) {
                 if (msg.hasOwnProperty("context")) {
                     // Configuration handling
                     if (msg.context === "unit") {
-                        if (typeof msg.payload === "string" && VALID_UNITS.includes(msg.payload)) {
+                        if (typeof msg.payload === "string") {
                             node.runtime.unit = msg.payload;
                             node.status({ fill: "green", shape: "dot", text: `unit: ${node.runtime.unit}` });
                         } else {
@@ -85,7 +46,7 @@ module.exports = function(RED) {
                 // Process input
                 const payloadPreview = msg.payload !== null ? (typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload).slice(0, 20)) : "none";
 
-                node.status({ fill: "blue", shape: "dot", text: `in: ${payloadPreview} unit: ${node.runtime.unit}` });
+                node.status({ fill: "blue", shape: "dot", text: `in: ${payloadPreview} unit: ${node.runtime.unit !== "" ? node.runtime.unit : "none"}` });
 
                 msg.units = node.runtime.unit;
                 send(msg);

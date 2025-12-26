@@ -44,7 +44,8 @@ module.exports = function(RED) {
                 }
                 
                 // Update Status
-                const valDisplay = RED.util.getMessageProperty(msg, node.outputProperty);
+                let valDisplay = RED.util.getMessageProperty(msg, node.outputProperty);
+                valDisplay = typeof valDisplay === "number" ? valDisplay.toFixed(2) : valDisplay;
                 node.status({ fill: "blue", shape: "dot", text: `get: ${valDisplay}` });
                 
                 node.send(msg);

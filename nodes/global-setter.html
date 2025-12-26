@@ -47,11 +47,14 @@
         outputs: 1,
         icon: "font-awesome/fa-align-right",
         label: function() {
-            let lbl = this.path;
-            if (lbl && lbl.startsWith("#") && lbl.includes(":")) {
-                lbl = lbl.substring(lbl.indexOf(":") + 1);
+            let lbl = this.name || this.path;
+            if (lbl) {
+                if (lbl && lbl.startsWith("#") && lbl.includes(":")) {
+                    lbl = lbl.substring(lbl.indexOf(":") + 1);
+                }
+                return "set: " + lbl;
             }
-            return this.name || "set: " + lbl || "global set";
+            return this.name || "global set";
         },
         paletteLabel: "global set",
         oneditprepare: function() {

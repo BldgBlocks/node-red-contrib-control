@@ -56,7 +56,7 @@
             if (this.targetNode) {
                 const target = RED.nodes.node(this.targetNode);
                 if (target) {
-                    let lbl = target.path || target.name;
+                    let lbl = target.name || target.path;
                     if(lbl && lbl.startsWith("#") && lbl.includes(":")) {
                         lbl = lbl.substring(lbl.indexOf(":") + 1);
                     }

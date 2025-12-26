@@ -89,6 +89,7 @@ module.exports = function(RED) {
                         value: null,
                         defaultValue: node.defaultValue,
                         activePriority: "default",
+                        units: null,
                         priority: {
                             1: null,
                             2: null,
@@ -113,7 +114,7 @@ module.exports = function(RED) {
 
                 // Update Default, can not be set null
                 if (node.writePriority === 'default') {
-                    state.defaultValue = inputValue !== null ? inputValue : node.defaultValue;
+                    state.defaultValue = inputValue === null || inputValue === "null" ? node.defaultValue : inputValue;
                 } else {
                     const priority = parseInt(node.writePriority, 10);
                     if (isNaN(priority) || priority < 1 || priority > 16) {
@@ -128,7 +129,7 @@ module.exports = function(RED) {
                 }
                 
                 // Ensure defaultValue always has a value
-                if (state.defaultValue === null || state.defaultValue === undefined) {
+                if (state.defaultValue === null || state.defaultValue === "null" || state.defaultValue === undefined) {
                     state.defaultValue = node.defaultValue;
                 }
 
@@ -147,16 +148,21 @@ module.exports = function(RED) {
                 state.metadata.type = typeof(value);
 
                 // Units logic
-                let capturedUnits = msg.units; 
-                if (!capturedUnits && typeof inputValue === 'object' && inputValue !== null && inputValue.units) {
+                let capturedUnits = null;
+                if (msg.units !== undefined) {
+                    capturedUnits = msg.units;
+                } else if (inputValue !== null && typeof inputValue === 'object' && inputValue.units) {
                      capturedUnits = inputValue.units;
                 }
-                if(capturedUnits) state.units = capturedUnits;
+
+                state.units = capturedUnits;
 
                 // Save & Emit
                 globalContext.set(node.varName, state, node.storeName);
-                
-                node.status({ fill: "blue", shape: "dot", text: `write: ${node.writePriority === 'default' ? 'default' : 'P' + node.writePriority}:${inputValue}${state.units} > active: ${state.activePriority === 'default' ? 'default' : 'P' + state.activePriority}:${state.value}${state.units}` });
+                const prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
+                const inputValDisplay = typeof inputValue === "number" ? inputValue.toFixed(2) : inputValue;
+                const stateValDisplay = typeof state.value === "number" ? state.value.toFixed(2) : state.value;
+                node.status({ fill: "blue", shape: "dot", text: `write: ${prefix}${node.writePriority}:${inputValDisplay}${state.units} > active: ${state.activePriority === 'default' ? 'default' : 'P' + state.activePriority}:${stateValDisplay}${state.units}` });
 
                 // Fire Event
                 RED.events.emit("bldgblocks-global-update", {

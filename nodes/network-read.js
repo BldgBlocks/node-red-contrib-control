@@ -35,8 +35,8 @@ module.exports = function(RED) {
                 }
 
                 msg = { ...globalData };
-                node.status({ fill: "blue", shape: "ring", text: `processing request` });
-                msg.status = { status: "success", pointId: msg.pointId, msg: `Point returned. pointId: ${msg.pointId} value: ${globalData.value}` };
+                node.status({ fill: "blue", shape: "ring", text: `Read (${currentStore})::${msg.metadata.name}::${msg.network.pointId} ` });
+                msg.status = { status: "ok", pointId: msg.network.pointId, message: `Data Found. pointId: ${msg.network.pointId} value: ${msg.value}` };
                 node.send(msg);
                 
                 if (done) done();

@@ -17,7 +17,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            unit: { value: "°F", required: true }
+            unit: { value: "°F" }
         },
         inputs: 1,
         outputs: 1,
@@ -29,43 +29,12 @@
             return this.name || `units ${this.unit}`;
         },
         oneditprepare: function() {
-            // TODO: create a shared configuration file for conversion and units.
-            const validUnits = [
-                // Temperature
-                "°C", "°F", "K", "°R",
-                
-                // Humidity/Pressure
-                "%RH", "Pa", "kPa", "bar", "mbar", "psi", "atm", "inH₂O", "mmH₂O", "inHg",
-                
-                // Flow
-                "CFM", "m³/h", "L/s", 
-                
-                // Electrical
-                "V", "mV", "A", "mA", "W", "kW", "hp", "Ω",
-                
-                // General/Math
-                "%", 
-                
-                // Length
-                "m", "cm", "mm", "km", "ft", "in",
-                
-                // Mass
-                "kg", "g", "lb",
-                
-                // Time
-                "s", "min", "h",
-                
-                // Volume
-                "L", "mL", "gal",
-                
-                // Other
-                "lx", "cd", "B", "T"
-            ];
             $("#node-input-unit").typedInput({
                 default: "str",
                 types: [{
                     value: "str",
                     options: [
+                        { value: "", label: "Text (none)" },
                         { value: "°C", label: "°C (Celsius)" },
                         { value: "°F", label: "°F (Fahrenheit)" },
                         { value: "K", label: "K (Kelvin)" },
