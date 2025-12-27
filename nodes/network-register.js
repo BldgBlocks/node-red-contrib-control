@@ -7,16 +7,14 @@ module.exports = function(RED) {
         node.registry = RED.nodes.getNode(config.registry);
         node.pointId = parseInt(config.pointId);
         node.writable = !!config.writable;
-        node.store = config.store;
         node.isRegistered = false;
 
         // Initial Registration
         if (node.registry && !isNaN(node.pointId)) {
             const success = node.registry.register(node.pointId, {
-                nodeId: node.id,
                 writable: node.writable,
                 path: null,
-                store: node.store
+                store: null
             });
 
             if (success) {
@@ -55,7 +53,8 @@ module.exports = function(RED) {
                 return;
             }
             
-            if (!msg.metadata) {
+            // Message should contain data & metadata from a global setter node
+            if (!msg.metadata || !msg.value || msg.units === undefined || !msg.activePriority || !msg.metadata.path || !msg.metadata.store) {
                 const message = `Registration requires the appropriate msg.metadata from a global setter node`;
                 node.status({ fill: "red", shape: "ring", text: `${message}` });
                 msg.status = { status: "fail", pointId: node.pointId, error: `${message}` };
@@ -64,31 +63,31 @@ module.exports = function(RED) {
                 return;
             }
 
+            // Lookup current registration
             let pointData = node.registry.lookup(node.pointId);
-            let globalData = {};
-            if (pointData.path && typeof pointData.path === "string") {
-                globalData = node.context().global.get(pointData.path, pointData.store);
-            } else {
-                globalData = node.context().global.get(msg.metadata.path, msg.metadata.store);
-            }
 
             const incoming = {
-                nodeId: node.id,
                 writable: node.writable,
                 path: msg.metadata.path,
-                store: node.store
+                store: msg.metadata.store
             };
 
             // Update Registry on change
-            if (!pointData || JSON.stringify(pointData) !== JSON.stringify(incoming)) {
+            if (!pointData 
+                || pointData.writable !== incoming.writable 
+                || pointData.path !== incoming.path 
+                || pointData.store !== incoming.store) {
+                    
                 node.registry.register(node.pointId, {
-                    nodeId: node.id,
                     writable: node.writable,
                     path: msg.metadata.path,
-                    store: node.store
+                    store: msg.metadata.store
                 });
                 
                 pointData = node.registry.lookup(node.pointId);
+
+                let globalData = {};
+                globalData = node.context().global.get(pointData.path, pointData.store);
 
                 if (globalData === null || Object.keys(globalData).length === 0) { 
                     const message = `Global data doesn't exist for (${pointData.store ?? "default"})::${pointData.path}::${node.pointId}`;
@@ -104,24 +103,25 @@ module.exports = function(RED) {
                     writable: node.writable
                 }
 
-                const obj = { ...globalData, network: network};
+                const networkObject = { ...globalData, network: network};
                 const message = `Registered: (${pointData.store ?? "default"})::${pointData.path}::${node.pointId}`;
                 
-                node.context().global.set(pointData.path, obj, pointData.store);
+                node.context().global.set(pointData.path, networkObject, pointData.store);
                 node.status({ fill: "blue", shape: "dot", text: `${message}` });
                 msg.status = { status: "success", pointId: node.pointId, error: `${message}` };
 
-                node.send(obj);
+                node.send(networkObject);
                 if (done) done();
                 return;
             }
 
-            // Pass through msg, just registering.
-            const prefix = globalData.activePriority === 'default' ? '' : 'P';
-            const message = `Passthrough: ${prefix}${globalData.activePriority}:${globalData.value}${globalData.units}`;
-            node.status({ fill: "blue", shape: "dot", text: message });
+            // Make it here, then message should match global and ready to go
+            // Pass through msg
+            const prefix = msg.activePriority === 'default' ? '' : 'P';
+            const message = `Passthrough: ${prefix}${msg.activePriority}:${msg.value}${msg.units}`;
+            node.status({ fill: "blue", shape: "ring", text: message });
             
-            node.send({ globalData });
+            node.send(msg);
             if (done) done();
             return;
         });

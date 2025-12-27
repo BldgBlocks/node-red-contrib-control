@@ -22,23 +22,19 @@ module.exports = function(RED) {
             if (storedObject !== undefined && storedObject !== null) {
                 
                 // CHECK: Is this our Wrapper Format? (Created by Global Setter)
-                if (storedObject && typeof storedObject === 'object' && storedObject.hasOwnProperty('value')) {
-                    
-                    // Separate the Value from everything else (Rest operator)
-                    // 'attributes' will contain: priority, units, metadata, topic, etc.
-                    const { value, ...attributes } = storedObject;
-
-                    // Set the Main Output (e.g. msg.payload = 75)
-                    RED.util.setMessageProperty(msg, node.outputProperty, value);
+                if (storedObject && typeof storedObject === 'object' && storedObject.hasOwnProperty('value')) {                    
 
                     // Merge all attributes onto the msg root
                     // This automatically handles priority, units, metadata, and any future fields
                     if (node.detail === "getObject") {
-                        Object.assign(msg, attributes);
+                        Object.assign(msg, storedObject);
                     }
 
+                    // Set the Main Output (e.g. msg.payload = 75)
+                    RED.util.setMessageProperty(msg, node.outputProperty, storedObject.value);
+
                 } else {
-                    // Handle Legacy/Raw values (not created by your Setter)
+                    // Handle Legacy/Raw values (not created by Setter)
                     RED.util.setMessageProperty(msg, node.outputProperty, storedObject);
                     msg.metadata = { path: setterNode ? setterNode.varName : "unknown", legacy: true };
                 }
@@ -135,8 +131,7 @@ module.exports = function(RED) {
             setterNode ??= RED.nodes.getNode(node.targetNodeId);
 
             if (setterNode && setterNode.varName) {
-                const globalContext = node.context().global;
-                const storedObject = globalContext.get(setterNode.varName, setterNode.storeName);
+                const storedObject = node.context().global.get(setterNode.varName, setterNode.storeName);
                 sendValue(storedObject, msg);
             } else {
                 node.warn("Source node not found or not configured.");

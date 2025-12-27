@@ -28,10 +28,57 @@ module.exports = function(RED) {
             return { value: state.defaultValue, priority: "default" };
         }
 
+        function getState() {
+            if (!node.varName) {
+                node.status({ fill: "red", shape: "ring", text: "no variable defined" });
+                return null;
+            }
+            let state = {};
+            state = node.context().global.get(node.varName, node.storeName);
+            if (!state || typeof state !== 'object' || !state.priority) {
+                state = {
+                    payload: node.defaultValue,
+                    value: node.defaultValue,
+                    defaultValue: node.defaultValue,
+                    activePriority: "default",
+                    units: null,
+                    priority: {
+                        1: null,
+                        2: null,
+                        3: null,
+                        4: null,
+                        5: null,
+                        6: null,
+                        7: null,
+                        8: null,
+                        9: null,
+                        10: null,
+                        11: null,
+                        12: null,
+                        13: null,
+                        14: null,
+                        15: null,
+                        16: null,
+                    },
+                    metadata: {
+                        sourceId: node.id,
+                        lastSet: new Date().toISOString(),
+                        name: node.name || config.path,
+                        path: node.varName,
+                        store: node.storeName || 'default',
+                        type: typeof(value)
+                    }
+                };
+            }
+            return state;
+        }
+
         node.isBusy = false;
 
         node.on('input', async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
+            let prefix = '';
+            let valPretty = '';
 
             // Guard against invalid msg
             if (!msg) {
@@ -76,101 +123,110 @@ module.exports = function(RED) {
                 node.isBusy = false;
             }
 
+            // Get existing state or initialize new
             let state = {};
-            if (node.varName) {
-                const inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
-                const globalContext = node.context().global;
+            state = getState();
+            if (!state) {
+                if (done) done();
+                return;
+            }
 
-                // Get existing state or initialize new
-                state = globalContext.get(node.varName, node.storeName);
-                if (!state || typeof state !== 'object' || !state.priority) {
-                    state = {
-                        payload: null,
-                        value: null,
-                        defaultValue: node.defaultValue,
-                        activePriority: "default",
-                        units: null,
-                        priority: {
-                            1: null,
-                            2: null,
-                            3: null,
-                            4: null,
-                            5: null,
-                            6: null,
-                            7: null,
-                            8: null,
-                            9: null,
-                            10: null,
-                            11: null,
-                            12: null,
-                            13: null,
-                            14: null,
-                            15: null,
-                            16: null,
-                        },
-                        metadata: {}
-                    };
-                }
-
-                // Update Default, can not be set null
-                if (node.writePriority === 'default') {
-                    state.defaultValue = inputValue === null || inputValue === "null" ? node.defaultValue : inputValue;
-                } else {
-                    const priority = parseInt(node.writePriority, 10);
-                    if (isNaN(priority) || priority < 1 || priority > 16) {
-                        node.status({ fill: "red", shape: "ring", text: `Invalid priority: ${node.writePriority}` });
-                        if (done) done();
-                        return;
-                    }
+            if (msg.hasOwnProperty("context") && typeof msg.context === "string") {
+                if (msg.context === "reload") {
+                    // Fire Event
+                    RED.events.emit("bldgblocks-global-update", {
+                        key: node.varName,
+                        store: node.storeName,
+                        data: state
+                    });
                     
-                    if (inputValue !== undefined) {
-                        state.priority[node.writePriority] = inputValue;
-                    }
+                    // Send flow
+                    node.context().global.set(node.varName, state, node.storeName);
+                    prefix = state.activePriority === 'default' ? '' : 'P';
+                    valPretty = typeof state.value === "number" ? state.value.toFixed(2) : state.value;
+                    node.status({ fill: "green", shape: "dot", text: `reload: ${prefix}${state.activePriority}:${valPretty}${state.units}` });
+                    node.send({ ...state });
+                    if (done) done();
+                    return;
+                }
+            }
+
+            // Guard against missing input property
+            if (msg.hasOwnProperty(node.inputProperty) === false) {
+                node.status({ fill: "red", shape: "ring", text: `msg.${node.inputProperty} not found` });
+                if (done) done();
+                return;
+            }
+
+            const inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
+
+            // Update Default, can not be set null
+            if (node.writePriority === 'default') {
+                state.defaultValue = inputValue === null || inputValue === "null" ? node.defaultValue : inputValue;
+            } else {
+                const priority = parseInt(node.writePriority, 10);
+                if (isNaN(priority) || priority < 1 || priority > 16) {
+                    node.status({ fill: "red", shape: "ring", text: `Invalid priority: ${node.writePriority}` });
+                    if (done) done();
+                    return;
                 }
                 
-                // Ensure defaultValue always has a value
-                if (state.defaultValue === null || state.defaultValue === "null" || state.defaultValue === undefined) {
-                    state.defaultValue = node.defaultValue;
+                if (inputValue !== undefined) {
+                    state.priority[node.writePriority] = inputValue;
                 }
-
-                // Calculate Winner
-                const { value, priority } = calculateWinner(state);
-                state.payload = value;
-                state.value = value;
-                state.activePriority = priority;
-
-                // Update Metadata
-                state.metadata.sourceId = node.id;
-                state.metadata.lastSet = new Date().toISOString();
-                state.metadata.name = node.name || config.path;
-                state.metadata.path = node.varName; 
-                state.metadata.store = node.storeName || 'default';
-                state.metadata.type = typeof(value);
-
-                // Units logic
-                let capturedUnits = null;
-                if (msg.units !== undefined) {
-                    capturedUnits = msg.units;
-                } else if (inputValue !== null && typeof inputValue === 'object' && inputValue.units) {
-                     capturedUnits = inputValue.units;
-                }
-
-                state.units = capturedUnits;
-
-                // Save & Emit
-                globalContext.set(node.varName, state, node.storeName);
-                const prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
-                const inputValDisplay = typeof inputValue === "number" ? inputValue.toFixed(2) : inputValue;
-                const stateValDisplay = typeof state.value === "number" ? state.value.toFixed(2) : state.value;
-                node.status({ fill: "blue", shape: "dot", text: `write: ${prefix}${node.writePriority}:${inputValDisplay}${state.units} > active: ${state.activePriority === 'default' ? 'default' : 'P' + state.activePriority}:${stateValDisplay}${state.units}` });
-
-                // Fire Event
-                RED.events.emit("bldgblocks-global-update", {
-                    key: node.varName,
-                    store: node.storeName,
-                    data: state
-                });
             }
+            
+            // Ensure defaultValue always has a value
+            if (state.defaultValue === null || state.defaultValue === "null" || state.defaultValue === undefined) {
+                state.defaultValue = node.defaultValue;
+            }
+
+            // Calculate Winner
+            const { value, priority } = calculateWinner(state);
+            if (value === state.value && priority === state.activePriority) {
+                // No change, exit early
+                prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
+                valPretty = typeof state.value === "number" ? state.value.toFixed(2) : state.value;
+                node.status({ fill: "green", shape: "dot", text: `no change: ${prefix}${node.writePriority}:${valPretty}${state.units}` });
+                if (done) done();
+                return;
+            }
+            state.payload = value;
+            state.value = value;
+            state.activePriority = priority;
+
+            // Update Metadata
+            state.metadata.sourceId = node.id;
+            state.metadata.lastSet = new Date().toISOString();
+            state.metadata.name = node.name || config.path;
+            state.metadata.path = node.varName; 
+            state.metadata.store = node.storeName || 'default';
+            state.metadata.type = typeof(value);
+
+            // Units logic
+            let capturedUnits = null;
+            if (msg.units !== undefined) {
+                capturedUnits = msg.units;
+            } else if (inputValue !== null && typeof inputValue === 'object' && inputValue.units) {
+                    capturedUnits = inputValue.units;
+            }
+
+            state.units = capturedUnits;
+
+            // Save & Emit
+            node.context().global.set(node.varName, state, node.storeName);
+            prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
+            const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
+            const inputValDisplay = typeof inputValue === "number" ? inputValue.toFixed(2) : inputValue;
+            valPretty = typeof state.value === "number" ? state.value.toFixed(2) : state.value;
+            node.status({ fill: "blue", shape: "dot", text: `write: ${prefix}${node.writePriority}:${inputValDisplay}${state.units} > active: ${statePrefix}${state.activePriority}:${valPretty}${state.units}` });
+
+            // Fire Event
+            RED.events.emit("bldgblocks-global-update", {
+                key: node.varName,
+                store: node.storeName,
+                data: state
+            });
             
             // Send copy
             node.send({ ...state });
@@ -180,8 +236,7 @@ module.exports = function(RED) {
         node.on('close', function(removed, done) {
             if (removed && node.varName) {
                 RED.events.removeAllListeners("bldgblocks-global-update");
-                const globalContext = node.context().global;
-                globalContext.set(node.varName, undefined, node.storeName); 
+                node.context().global.set(node.varName, undefined, node.storeName); 
             }
             done();
         });

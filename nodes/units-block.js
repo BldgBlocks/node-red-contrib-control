@@ -14,7 +14,7 @@ module.exports = function(RED) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Validate input
-            if (!msg || typeof msg !== "object") {
+            if (!msg || typeof msg !== "object" || !msg.hasOwnProperty("payload")) {
                 node.status({ fill: "red", shape: "ring", text: "invalid message" });
 
                 if (done) done();

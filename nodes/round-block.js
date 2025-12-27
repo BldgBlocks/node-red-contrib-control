@@ -10,7 +10,7 @@ module.exports = function(RED) {
         };
 
         // Validate initial config
-        const validPrecisions = ["0.1", "0.5", "1.0"];
+        const validPrecisions = ["0.01", "0.1", "0.5", "1.0"];
         if (!validPrecisions.includes(node.runtime.precision)) {
             node.runtime.precision = "1.0";
             node.status({ fill: "red", shape: "ring", text: "invalid precision, using 1.0" });
@@ -66,7 +66,9 @@ module.exports = function(RED) {
             // Round based on precision
             let result;
             const precision = parseFloat(node.runtime.precision);
-            if (precision === 0.1) {
+            if (precision === 0.01) {
+                result = Math.round(input * 100) / 100;
+            } else if (precision === 0.1) {
                 result = Math.round(input * 10) / 10;
             } else if (precision === 0.5) {
                 result = Math.round(input / 0.5) * 0.5;
@@ -75,7 +77,7 @@ module.exports = function(RED) {
             }
 
             msg.payload = result;
-            node.status({ fill: "blue", shape: "dot", text: `in: ${input.toFixed(2)}, out: ${result.toFixed(2)}` });
+            node.status({ fill: "blue", shape: "dot", text: `in: ${input.toFixed(2)}, out: ${result}` });
             send(msg);
             if (done) done();
         });
