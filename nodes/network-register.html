@@ -67,11 +67,11 @@
                             if (data.warning) {
                                 // Registry exists in config but not deployed
                                 statusSpan.html(`<i class="fa fa-question-circle" style="color: orange;" title="${data.warning}"></i> Not Deployed`).show();
-                            } else if (data.taken) {
+                            } else if (data.status === "collision") {
                                 // Conflict
                                 statusSpan.html('<i class="fa fa-exclamation-triangle" style="color: red;"></i> ID Taken').show();
                                 idInput.addClass("input-error");
-                            } else if (!data.taken && data.details) {
+                            } else if (data.status === "assigned") {
                                 // Assigned here
                                 statusSpan.html('<i class="fa fa-check" style="color: green;"></i> Assigned').show();
                             } else {

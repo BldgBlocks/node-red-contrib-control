@@ -12,9 +12,10 @@ module.exports = function(RED) {
         // Initial Registration
         if (node.registry && !isNaN(node.pointId)) {
             const success = node.registry.register(node.pointId, {
+                nodeId: node.id, // for point registry collision checks
                 writable: node.writable,
-                path: null,
-                store: null
+                path: "not ready",
+                store: "not ready"
             });
 
             if (success) {
@@ -28,7 +29,6 @@ module.exports = function(RED) {
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
-            
 
             // Nothing to do. Return.
             if (!node.isRegistered) {
@@ -54,14 +54,35 @@ module.exports = function(RED) {
             }
             
             // Message should contain data & metadata from a global setter node
-            if (!msg.metadata || !msg.value || msg.units === undefined || !msg.activePriority || !msg.metadata.path || !msg.metadata.store) {
-                const message = `Registration requires the appropriate msg.metadata from a global setter node`;
-                node.status({ fill: "red", shape: "ring", text: `${message}` });
-                msg.status = { status: "fail", pointId: node.pointId, error: `${message}` };
+            const missingFields = [];
+
+            if (!msg.metadata) missingFields.push("metadata");
+            if (msg.value === undefined) missingFields.push("value");
+            if (msg.units === undefined) missingFields.push("units");
+            if (!msg.activePriority) missingFields.push("activePriority");
+
+            // Check nested metadata properties
+            if (msg.metadata) {
+                if (!msg.metadata.path) missingFields.push("metadata.path");
+                if (!msg.metadata.store) missingFields.push("metadata.store");
+                if (!msg.metadata.sourceId) missingFields.push("metadata.sourceId");
+            } else {
+                missingFields.push("metadata (entire object)");
+            }
+
+            if (missingFields.length > 0) {
+                const specificMessage = `Missing required fields: ${missingFields.join(', ')}`;
+                node.status({ 
+                    fill: "red", 
+                    shape: "ring", 
+                    text: `${missingFields.length} missing: ${missingFields.slice(0, 3).join(', ')}${missingFields.length > 3 ? '...' : ''}` 
+                });
+                
                 node.send(msg);
                 if (done) done();
                 return;
             }
+
 
             // Lookup current registration
             let pointData = node.registry.lookup(node.pointId);
@@ -74,11 +95,13 @@ module.exports = function(RED) {
 
             // Update Registry on change
             if (!pointData 
+                || pointData.nodeId !== node.nodeId
                 || pointData.writable !== incoming.writable 
                 || pointData.path !== incoming.path 
                 || pointData.store !== incoming.store) {
                     
                 node.registry.register(node.pointId, {
+                    nodeId: node.id, // for point registry collision checks
                     writable: node.writable,
                     path: msg.metadata.path,
                     store: msg.metadata.store

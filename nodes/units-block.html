@@ -7,6 +7,7 @@
     <div class="form-row">
         <label for="node-input-unit" title="Unit to append to msg.units"><i class="fa fa-tag"></i> Unit</label>
         <input type="text" id="node-input-unit">
+        <input type="hidden" id="node-input-unitType">
     </div>
 </script>
 
@@ -17,7 +18,8 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            unit: { value: "°F" }
+            unit: { value: "°F" },
+            unitType: { value: "str" }
         },
         inputs: 1,
         outputs: 1,
@@ -81,9 +83,8 @@
                         { value: "B", label: "B (Bel)" },
                         { value: "T", label: "T (Tesla)" }
                     ]
-                }],
-                typeField: false
-            }).typedInput("value", this.unit || "°F");
+                }], typeField: "#node-input-unitType"
+            }).typedInput("type", node.unitType).typedInput("value", node.unit);
         }
     });
 </script>

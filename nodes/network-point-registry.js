@@ -46,24 +46,33 @@ module.exports = function(RED) {
         // Find the specific Registry Config Node
         const regNode = RED.nodes.getNode(registryId);
 
+        let entry = null;
+        let result = "unavailable";
+        let collision = false;
+
         if (!regNode) {
             // Registry exists in editor but not deployed yet, or doesn't exist
-            return res.json({ taken: false, warning: "Registry not deployed" });
+            return res.json({ status: result, warning: "Registry not deployed" });
         }
-
-        let entry = null;
-        let taken = false;
 
         // Check that specific registry for the ID
         if (regNode.points.has(checkId)) {
             entry = regNode.points.get(checkId);
             // Collision if ID exists AND belongs to a different node
             if (entry.nodeId !== checkNodeId) {
-                taken = true;
+                collision = true;
             }
         }
 
-        res.json({ taken: taken, details: entry });
+        if (collision) {
+            result = "collision";
+        } else if (!collision && entry) {
+            result = "assigned";
+        } else{
+            result = "available";
+        }
+
+        res.json({ status: result, details: entry });
     });
 
 

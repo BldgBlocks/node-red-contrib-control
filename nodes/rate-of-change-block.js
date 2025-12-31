@@ -168,7 +168,9 @@ module.exports = function(RED) {
 
             // Calculate rate of change (temperature per time unit)
             let rate = null;
-            if (node.runtime.samples.length >= node.runtime.maxSamples) { // Need at least 3 points for good regression
+            // Require at least 20% of samples for calculation
+            if (node.runtime.samples.length >= node.runtime.maxSamples * 0.20) { 
+                // Use linear regression for more stable rate calculation
                 const n = node.runtime.samples.length;
                 let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
                 
@@ -192,7 +194,8 @@ module.exports = function(RED) {
                 
                 // Calculate regression sums
                 node.runtime.samples.forEach((sample, i) => {
-                    const x = (sample.timestamp - baseTime) / timeScale; // time in selected units
+                    // Time in selected units
+                    const x = (sample.timestamp - baseTime) / timeScale;
                     const y = sample.value;
                     
                     sumX += x;

@@ -12,6 +12,7 @@ module.exports = function(RED) {
         node.inputProperty = config.property;        
         node.defaultValue = config.defaultValue;
         node.writePriority = config.writePriority;
+        node.type = config.defaultValueType;
         
         // Cast default value logic
         if(!isNaN(node.defaultValue) && node.defaultValue !== "") node.defaultValue = Number(node.defaultValue);
@@ -33,8 +34,8 @@ module.exports = function(RED) {
                 node.status({ fill: "red", shape: "ring", text: "no variable defined" });
                 return null;
             }
-            let state = {};
-            state = node.context().global.get(node.varName, node.storeName);
+
+            let state = node.context().global.get(node.varName, node.storeName);
             if (!state || typeof state !== 'object' || !state.priority) {
                 state = {
                     payload: node.defaultValue,
@@ -66,14 +67,22 @@ module.exports = function(RED) {
                         name: node.name || config.path,
                         path: node.varName,
                         store: node.storeName || 'default',
-                        type: typeof(value)
+                        type: typeof(node.defaultValue)
                     }
                 };
+                return { state: state, existing: false };
             }
-            return state;
+            return { state: state, existing: true };
         }
 
         node.isBusy = false;
+
+        const st = getState();
+        if (st !== null && st.existing === false) {
+            // Initialize global variable
+            node.context().global.set(node.varName, st.state, node.storeName);
+            node.status({ fill: "grey", shape: "dot", text: `initialized: default:${node.defaultValue}` });
+        }
 
         node.on('input', async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -125,11 +134,7 @@ module.exports = function(RED) {
 
             // Get existing state or initialize new
             let state = {};
-            state = getState();
-            if (!state) {
-                if (done) done();
-                return;
-            }
+            state = getState().state;
 
             if (msg.hasOwnProperty("context") && typeof msg.context === "string") {
                 if (msg.context === "reload") {
@@ -143,22 +148,26 @@ module.exports = function(RED) {
                     // Send flow
                     node.context().global.set(node.varName, state, node.storeName);
                     prefix = state.activePriority === 'default' ? '' : 'P';
-                    valPretty = typeof state.value === "number" ? state.value.toFixed(2) : state.value;
-                    node.status({ fill: "green", shape: "dot", text: `reload: ${prefix}${state.activePriority}:${valPretty}${state.units}` });
+                    node.status({ fill: "green", shape: "dot", text: `reload: ${prefix}${state.activePriority}:${state.value}${state.units}` });
                     node.send({ ...state });
                     if (done) done();
                     return;
                 }
             }
 
-            // Guard against missing input property
-            if (msg.hasOwnProperty(node.inputProperty) === false) {
-                node.status({ fill: "red", shape: "ring", text: `msg.${node.inputProperty} not found` });
+            const inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
+            try {
+                if (inputValue === undefined) {
+                    node.status({ fill: "red", shape: "ring", text: `msg.${node.inputProperty} not found` });
+                    if (done) done();
+                    return;
+                }
+            } catch (error) {
+                node.status({ fill: "red", shape: "ring", text: `Error accessing msg.${node.inputProperty}` });
                 if (done) done();
                 return;
             }
 
-            const inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
 
             // Update Default, can not be set null
             if (node.writePriority === 'default') {
@@ -186,8 +195,7 @@ module.exports = function(RED) {
             if (value === state.value && priority === state.activePriority) {
                 // No change, exit early
                 prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
-                valPretty = typeof state.value === "number" ? state.value.toFixed(2) : state.value;
-                node.status({ fill: "green", shape: "dot", text: `no change: ${prefix}${node.writePriority}:${valPretty}${state.units}` });
+                node.status({ fill: "green", shape: "dot", text: `no change: ${prefix}${node.writePriority}:${state.value}${state.units}` });
                 if (done) done();
                 return;
             }
@@ -201,14 +209,14 @@ module.exports = function(RED) {
             state.metadata.name = node.name || config.path;
             state.metadata.path = node.varName; 
             state.metadata.store = node.storeName || 'default';
-            state.metadata.type = typeof(value);
+            state.metadata.type = typeof(value) || node.type;
 
             // Units logic
             let capturedUnits = null;
             if (msg.units !== undefined) {
                 capturedUnits = msg.units;
             } else if (inputValue !== null && typeof inputValue === 'object' && inputValue.units) {
-                    capturedUnits = inputValue.units;
+                capturedUnits = inputValue.units;
             }
 
             state.units = capturedUnits;
@@ -217,9 +225,7 @@ module.exports = function(RED) {
             node.context().global.set(node.varName, state, node.storeName);
             prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
             const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
-            const inputValDisplay = typeof inputValue === "number" ? inputValue.toFixed(2) : inputValue;
-            valPretty = typeof state.value === "number" ? state.value.toFixed(2) : state.value;
-            node.status({ fill: "blue", shape: "dot", text: `write: ${prefix}${node.writePriority}:${inputValDisplay}${state.units} > active: ${statePrefix}${state.activePriority}:${valPretty}${state.units}` });
+            node.status({ fill: "blue", shape: "dot", text: `write: ${prefix}${node.writePriority}:${inputValue}${state.units} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units}` });
 
             // Fire Event
             RED.events.emit("bldgblocks-global-update", {
