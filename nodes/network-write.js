@@ -1,125 +1,82 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function NetworkWriteNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
-        
         node.registry = RED.nodes.getNode(config.registry);
 
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
-            // Expecting: msg.payload = { pointId, priority, value }
-            if (!msg || !msg.pointId || !msg.priority || msg.value === undefined) {
-                node.status({ fill: "red", shape: "dot", text: "Invalid msg properties" });
-                msg.status = { status: "fail", pointId: msg.pointId, error: `Invalid msg properties` };
-
-                node.send(msg);
-                if (done) done();
-                return;
-            }
-
-            // Lookup Path
-            const entry = node.registry.lookup(msg.pointId);
-            const store = entry.store ?? "default";
-            const path = entry.path;
-            if (!entry || !path) {
-                node.status({ fill: "red", shape: "dot", text: `Unknown ID: (${store})::${path}::${msg.pointId}` });
-                msg.status = { status: "fail", pointId: msg.pointId, error: `Unknown ID: (${store})::${path}::${msg.pointId}` };
-
-                node.send(msg);
-                if (done) done();
-                return;
-            }
-            
-            // Check Writable
-            if (!entry.writable) {
-                node.status({ fill: "red", shape: "dot", text: `Not Writable: (${store})::${path}::${msg.pointId}` });
-                msg.status = { status: "fail", pointId: msg.pointId, error: `Not Writable: (${store})::${path}::${msg.pointId}` };
-
-                node.send(msg);
-                if (done) done();
-                return;
-            }
-
-            // Get State
-            const globalContext = node.context().global;
-            let state = globalContext.get(path, store);
-
-            if (!state || !state.priority) {
-                node.status({ fill: "red", shape: "ring", text: `Point Not Found: (${store})::${path}::${msg.pointId}` });
-                msg.status = { status: "fail", pointId: msg.pointId, error: `Point Not Found: (${store})::${path}::${msg.pointId}` };
-
-                node.send(msg);
-                if (done) done();
-                return;
-            }
-
-            // Check Type
-            if (msg.value === "null" || msg.value === null) {
-                msg.value = null;
-            } else {
-                const inputType = typeof msg.value;
-                const dataType = state.metadata.type;
-                if (inputType !== dataType) {
-                    node.status({ fill: "red", shape: "ring", text: `Mismatch type error: ${store}:${path} ID: ${msg.pointId}, ${inputType} !== ${dataType}` });
-                    msg.status = { status: "fail", pointId: msg.pointId, error: `Mismatch type error: ${store}:${path} ID: ${msg.pointId}, ${inputType} !== ${dataType}` };
-
-                    node.send(msg);
-                    if (done) done();
-                    return;
+            try {
+                // Validation
+                if (!msg || !msg.pointId || !msg.priority || msg.value === undefined) {
+                    return utils.sendError(node, msg, done, "Invalid msg properties", msg?.pointId);
                 }
-            }
 
-            // Update Priority
-            if (msg.priority === 'default') {
-                state.defaultValue = msg.value ?? state.defaultValue;
-            } else {
-                const priority = parseInt(msg.priority, 10);
-                if (isNaN(priority) || priority < 1 || priority > 16) {
-                    node.status({ fill: "red", shape: "ring", text: `Invalid priority: ${msg.priority}` });
-                    msg.status = { status: "fail", pointId: msg.pointId, error: `Invalid Priority: (${store})::${path}::${msg.pointId}` };
-
-                    node.send(msg);
-                    if (done) done();
-                    return;
+                // Registry Lookup
+                const entry = node.registry.lookup(msg.pointId);
+                if (!entry?.path) {
+                    const store = entry?.store ?? "unknown";
+                    return utils.sendError(node, msg, done, `Unknown ID: (${store})::${msg.pointId}`, msg.pointId);
                 }
-                 
-                state.priority[msg.priority] = msg.value;
-            }
 
-            // Calculate Winner (Same logic as Setter)
-            let winnerValue = state.defaultValue;
-            let winnerPriority = 'default'
-            for (let i = 1; i <= 16; i++) {
-                if (state.priority[i] !== undefined && state.priority[i] !== null) {
-                    winnerValue = state.priority[i];
-                    winnerPriority = `${i}`
-                    break;
+                const { store = "default", path, writable } = entry;
+
+                if (!writable) {
+                    return utils.sendError(node, msg, done, `Not Writable: (${store})::${path}::${msg.pointId}`, msg.pointId);
                 }
+
+                // Get State (Async)
+                let state = await utils.getGlobalState(node, path, store);
+
+                if (!state || !state.priority) {
+                    return utils.sendError(node, msg, done, `Point Not Found: (${store})::${path}`, msg.pointId);
+                }
+
+                // Type Check
+                let newValue = msg.value === "null" || msg.value === null ? null : msg.value;
+                if (newValue !== null) {
+                    const dataType = state.metadata?.type;
+                    if (dataType && typeof newValue !== dataType) {
+                        return utils.sendError(node, msg, done, `Type Mismatch: Expected ${dataType}`, msg.pointId);
+                    }
+                }
+
+                // Update Priority Logic
+                if (msg.priority === 'default') {
+                    state.defaultValue = newValue ?? state.defaultValue;
+                } else {
+                    const priority = parseInt(msg.priority, 10);
+                    if (isNaN(priority) || priority < 1 || priority > 16) {
+                        return utils.sendError(node, msg, done, `Invalid Priority: ${msg.priority}`, msg.pointId);
+                    }
+                    state.priority[msg.priority] = newValue;
+                }
+
+                // Calculate Winner
+                const result = utils.getHighestPriority(state);
+                state.value = result.value;
+                state.activePriority = result.priority;
+                state.metadata.lastSet = new Date().toISOString();
+
+                // Save (Async) & Emit
+                await utils.setGlobalState(node, path, store, state);
+
+                const prefixReq = msg.priority === 'default' ? '' : 'P';
+                const prefixAct = state.activePriority === 'default' ? '' : 'P';
+                const statusMsg = `Wrote: ${prefixReq}${msg.priority}:${newValue} > Active: ${prefixAct}${state.activePriority}:${state.value}`;
+
+                msg = { ...state, status: null }; 
+                
+                RED.events.emit("bldgblocks-global-update", { key: path, store: store, data: state });
+
+                utils.sendSuccess(node, msg, done, statusMsg, msg.pointId, "ring");
+
+            } catch (err) {
+                node.error(err);
+                utils.sendError(node, msg, done, `Internal Error: ${err.message}`, msg?.pointId);
             }
-            state.value = winnerValue;
-            state.activePriority = winnerPriority;
-            state.metadata.lastSet = new Date().toISOString();
-
-            // Save & Emit
-            const prefix1 = msg.priority === 'default' ? '' : 'P';
-            const prefix2 = state.activePriority === 'default' ? '' : 'P';
-            const message = `Wrote: ${prefix1}${msg.priority}:${msg.value} > (${store})::${path}::${msg.pointId} Active: ${prefix2}${winnerPriority}:${winnerValue}`;
-            node.status({ fill: "blue", shape: "ring", text: message });
-
-            globalContext.set(path, state, store);
-            msg = { ...state };
-            msg.status = { status: "ok", pointId: msg.pointId, message: message };
-            
-            // Trigger global getters to update on new value
-            RED.events.emit("bldgblocks-global-update", {
-                key: path,
-                store: store,
-                data: state
-            });
-
-            node.send(msg);
-            if (done) done();
         });
     }
     RED.nodes.registerType("network-write", NetworkWriteNode);

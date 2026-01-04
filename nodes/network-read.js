@@ -1,53 +1,51 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function NetworkReadNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
-        
         node.registry = RED.nodes.getNode(config.registry);
 
-        node.on("input", function(msg, send, done) {
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
             
-            let currentPath = null;
-            let currentStore = "default";
-
-            if (node.registry) {
-                let currentEntry = node.registry.lookup(msg.pointId);
-                
-                if (!currentEntry) {
-                    node.status({ fill: "red", shape: "ring", text: `Requested pointId not registered` });
-                    msg.status = { status: "fail", pointId: msg.pointId, error: `Point Not Registered: ${msg.pointId}` };
-                    node.send(msg);
+            try {
+                if (!node.registry) {
+                    node.status({ fill: "red", shape: "ring", text: "Registry missing" });
                     if (done) done();
                     return;
                 }
-                
-                currentPath = currentEntry.path;
-                currentStore = currentEntry.store || "default";
-                let globalData = node.context().global.get(currentPath, currentStore) || {};
 
-                if (globalData === null || Object.keys(globalData).length === 0) { 
-                    node.status({ fill: "red", shape: "ring", text: `Global data doesn't exist, waiting...` });
-                    msg.status = { status: "fail", pointId: msg.pointId, error: `Point Not Found: ${msg.pointId}` };
-                    node.send(msg);
-                    if (done) done();
-                    return;
+                const currentEntry = node.registry.lookup(msg.pointId);
+                if (!currentEntry) {
+                    return utils.sendError(node, msg, done, `Not Registered: ${msg.pointId}`, msg.pointId);
+                }
+                
+                const currentPath = currentEntry.path;
+                const currentStore = currentEntry.store || "default";
+
+                // Async Get
+                let globalData = await utils.getGlobalState(node, currentPath, currentStore);
+
+                if (!globalData || Object.keys(globalData).length === 0) { 
+                    return utils.sendError(node, msg, done, `Global Data Empty: ${msg.pointId}`, msg.pointId);
                 }
 
                 msg = { ...globalData };
-                node.status({ fill: "blue", shape: "ring", text: `Read (${currentStore})::${msg.metadata.name}::${msg.network.pointId} ` });
-                msg.status = { status: "ok", pointId: msg.network.pointId, message: `Data Found. pointId: ${msg.network.pointId} value: ${msg.value}` };
-                node.send(msg);
                 
-                if (done) done();
-            } else {
-                node.status({ fill: "red", shape: "ring", text: `Registry not found. Create config node.` });
-                if (done) done();
-                return;
+                const ptName = msg.metadata?.name ?? "Unknown";
+                const ptVal = msg.value !== undefined ? msg.value : "No Value";
+                const ptId = msg.network?.pointId ?? msg.pointId;
+
+                const msgText = `Data Found. pointId: ${ptId} value: ${ptVal}`;
+                
+                utils.sendSuccess(node, msg, done, msgText, ptId, "ring");
+
+            } catch (err) {
+                node.error(err);
+                utils.sendError(node, msg, done, `Internal Error: ${err.message}`, msg?.pointId);
             }
         });
 
-        // Cleanup
         node.on('close', function(removed, done) {
             if (removed && node.registry) {
                 node.registry.unregister(node.pointId, node.id);

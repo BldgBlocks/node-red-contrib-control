@@ -1,7 +1,5 @@
-
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
-
     function GlobalSetterNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -13,238 +11,192 @@ module.exports = function(RED) {
         node.defaultValue = config.defaultValue;
         node.writePriority = config.writePriority;
         node.type = config.defaultValueType;
+        node.isBusy = false;
         
-        // Cast default value logic
         if(!isNaN(node.defaultValue) && node.defaultValue !== "") node.defaultValue = Number(node.defaultValue);
         if(node.defaultValue === "true") node.defaultValue = true;
         if(node.defaultValue === "false") node.defaultValue = false;
 
-        // --- HELPER: Calculate Winner ---
-        function calculateWinner(state) {
-            for (let i = 1; i <= 16; i++) {
-                if (state.priority[i] !== undefined && state.priority[i] !== null) {
-                    return { value: state.priority[i], priority: `${i}` };
+        // Helper to generate the data structure
+        function buildDefaultState() {
+            return {
+                payload: node.defaultValue,
+                value: node.defaultValue,
+                defaultValue: node.defaultValue,
+                activePriority: "default",
+                units: null,
+                priority: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null, 8: null, 9: null, 10: null, 11: null, 12: null, 13: null, 14: null, 15: null, 16: null },
+                metadata: {
+                    sourceId: node.id,
+                    lastSet: new Date().toISOString(),
+                    name: node.name || config.path,
+                    path: node.varName,
+                    store: node.storeName || 'default',
+                    type: typeof(node.defaultValue)
                 }
-            }
-            return { value: state.defaultValue, priority: "default" };
+            };
         }
 
-        function getState() {
+        // --- ASYNC INITIALIZATION (IIFE) ---
+        // This runs in background immediately after deployment
+        (async function initialize() {
             if (!node.varName) {
                 node.status({ fill: "red", shape: "ring", text: "no variable defined" });
-                return null;
+                return;
             }
-
-            let state = node.context().global.get(node.varName, node.storeName);
-            if (!state || typeof state !== 'object' || !state.priority) {
-                state = {
-                    payload: node.defaultValue,
-                    value: node.defaultValue,
-                    defaultValue: node.defaultValue,
-                    activePriority: "default",
-                    units: null,
-                    priority: {
-                        1: null,
-                        2: null,
-                        3: null,
-                        4: null,
-                        5: null,
-                        6: null,
-                        7: null,
-                        8: null,
-                        9: null,
-                        10: null,
-                        11: null,
-                        12: null,
-                        13: null,
-                        14: null,
-                        15: null,
-                        16: null,
-                    },
-                    metadata: {
-                        sourceId: node.id,
-                        lastSet: new Date().toISOString(),
-                        name: node.name || config.path,
-                        path: node.varName,
-                        store: node.storeName || 'default',
-                        type: typeof(node.defaultValue)
-                    }
-                };
-                return { state: state, existing: false };
+            try {
+                // Check if data exists
+                let state = await utils.getGlobalState(node, node.varName, node.storeName);
+                if (!state || typeof state !== 'object' || !state.priority) {
+                    // If not, set default
+                    const newState = buildDefaultState();
+                    await utils.setGlobalState(node, node.varName, node.storeName, newState);
+                    node.status({ fill: "grey", shape: "dot", text: `initialized: default:${node.defaultValue}` });
+                }
+            } catch (err) {
+                // Silently fail or log if init fails (DB down on boot?)
+                node.error(`Init Error: ${err.message}`);
+                node.status({ fill: "red", shape: "dot", text: "Init Error" });
             }
-            return { state: state, existing: true };
-        }
+        })();
 
-        node.isBusy = false;
-
-        const st = getState();
-        if (st !== null && st.existing === false) {
-            // Initialize global variable
-            node.context().global.set(node.varName, st.state, node.storeName);
-            node.status({ fill: "grey", shape: "dot", text: `initialized: default:${node.defaultValue}` });
-        }
-
+        // --- INPUT HANDLER ---
         node.on('input', async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
             let prefix = '';
-            let valPretty = '';
 
-            // Guard against invalid msg
-            if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
-                if (done) done();
-                return;
-            }  
-
-            // Evaluate dynamic properties
             try {
-
-                // Check busy lock
+                // Basic Validation
+                if (!msg) return utils.sendError(node, msg, done, "invalid message");
+                
                 if (node.isBusy) {
-                    // Update status to let user know they are pushing too fast
                     node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
                     if (done) done(); 
                     return;
                 }
-
-                // Lock node during evaluation
                 node.isBusy = true;
 
-                // Begin evaluations
-                const evaluations = [];                    
-                
-                evaluations.push(
-                    utils.requiresEvaluation(config.writePriorityType) 
-                        ? utils.evaluateNodeProperty( config.writePriority, config.writePriorityType, node, msg )
-                        : Promise.resolve(node.writePriority),
-                );
+                // Evaluate Dynamic Properties (Exact same logic as before)
+                try {
+                    const evaluations = [];
+                    evaluations.push(
+                        utils.requiresEvaluation(config.writePriorityType) 
+                            ? utils.evaluateNodeProperty(config.writePriority, config.writePriorityType, node, msg)
+                            : Promise.resolve(node.writePriority)
+                    );
+                    const results = await Promise.all(evaluations);   
+                    node.writePriority = results[0];
+                } catch (err) {
+                    throw new Error(`Property Eval Error: ${err.message}`);
+                } finally {
+                    node.isBusy = false;
+                }
 
-                const results = await Promise.all(evaluations);   
+                // Get State (Async)
+                let state = await utils.getGlobalState(node, node.varName, node.storeName);
+                if (!state || typeof state !== 'object' || !state.priority) {
+                    // Fallback if data is missing (e.g., if message arrives before init finishes)
+                    state = buildDefaultState();
+                }
 
-                // Update runtime with evaluated values
-                node.writePriority = results[0];
-            } catch (err) {
-                node.error(`Error evaluating properties: ${err.message}`);
-                if (done) done();
-                return;
-            } finally {
-                // Release, all synchronous from here on
-                node.isBusy = false;
-            }
-
-            // Get existing state or initialize new
-            let state = {};
-            state = getState().state;
-
-            if (msg.hasOwnProperty("context") && typeof msg.context === "string") {
+                // Handle Reload
                 if (msg.context === "reload") {
-                    // Fire Event
-                    RED.events.emit("bldgblocks-global-update", {
-                        key: node.varName,
-                        store: node.storeName,
-                        data: state
-                    });
+                    RED.events.emit("bldgblocks-global-update", { key: node.varName, store: node.storeName, data: state });
+                    await utils.setGlobalState(node, node.varName, node.storeName, state);
                     
-                    // Send flow
-                    node.context().global.set(node.varName, state, node.storeName);
                     prefix = state.activePriority === 'default' ? '' : 'P';
-                    node.status({ fill: "green", shape: "dot", text: `reload: ${prefix}${state.activePriority}:${state.value}${state.units}` });
-                    node.send({ ...state });
-                    if (done) done();
-                    return;
+                    const statusText = `reload: ${prefix}${state.activePriority}:${state.value}${state.units}`;
+                    
+                    return utils.sendSuccess(node, { ...state }, done, statusText, null, "dot");
                 }
-            }
 
-            const inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
-            try {
+                // Get Input Value
+                const inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
                 if (inputValue === undefined) {
-                    node.status({ fill: "red", shape: "ring", text: `msg.${node.inputProperty} not found` });
-                    if (done) done();
-                    return;
+                    return utils.sendError(node, msg, done, `msg.${node.inputProperty} not found`);
                 }
-            } catch (error) {
-                node.status({ fill: "red", shape: "ring", text: `Error accessing msg.${node.inputProperty}` });
-                if (done) done();
-                return;
-            }
 
-
-            // Update Default, can not be set null
-            if (node.writePriority === 'default') {
-                state.defaultValue = inputValue === null || inputValue === "null" ? node.defaultValue : inputValue;
-            } else {
-                const priority = parseInt(node.writePriority, 10);
-                if (isNaN(priority) || priority < 1 || priority > 16) {
-                    node.status({ fill: "red", shape: "ring", text: `Invalid priority: ${node.writePriority}` });
-                    if (done) done();
-                    return;
+                // Update State
+                if (node.writePriority === 'default') {
+                    state.defaultValue = inputValue === null || inputValue === "null" ? node.defaultValue : inputValue;
+                } else {
+                    const priority = parseInt(node.writePriority, 10);
+                    if (isNaN(priority) || priority < 1 || priority > 16) {
+                        return utils.sendError(node, msg, done, `Invalid priority: ${node.writePriority}`);
+                    }
+                    if (inputValue !== undefined) {
+                        state.priority[node.writePriority] = inputValue;
+                    }
                 }
                 
-                if (inputValue !== undefined) {
-                    state.priority[node.writePriority] = inputValue;
+                if (state.defaultValue === null || state.defaultValue === "null" || state.defaultValue === undefined) {
+                    state.defaultValue = node.defaultValue;
                 }
-            }
-            
-            // Ensure defaultValue always has a value
-            if (state.defaultValue === null || state.defaultValue === "null" || state.defaultValue === undefined) {
-                state.defaultValue = node.defaultValue;
-            }
 
-            // Calculate Winner
-            const { value, priority } = calculateWinner(state);
-            if (value === state.value && priority === state.activePriority) {
-                // No change, exit early
+                // Calculate Winner
+                const { value, priority } = utils.getHighestPriority(state);
+
+                // Check for change
+                if (value === state.value && priority === state.activePriority) {
+                    prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
+                    const noChangeText = `no change: ${prefix}${node.writePriority}:${state.value}${state.units}`;
+                    node.status({ fill: "green", shape: "dot", text: noChangeText });
+                    if (done) done();
+                    return;
+                }
+
+                // Update Values
+                state.payload = value;
+                state.value = value;
+                state.activePriority = priority;
+
+                state.metadata.sourceId = node.id;
+                state.metadata.lastSet = new Date().toISOString();
+                state.metadata.name = node.name || config.path;
+                state.metadata.path = node.varName; 
+                state.metadata.store = node.storeName || 'default';
+                state.metadata.type = typeof(value) || node.type;
+
+                // Capture Units
+                let capturedUnits = null;
+                if (msg.units !== undefined) {
+                    capturedUnits = msg.units;
+                } else if (inputValue !== null && typeof inputValue === 'object' && inputValue.units) {
+                    capturedUnits = inputValue.units;
+                }
+                state.units = capturedUnits;
+
+                // Save (Async) and Emit
+                await utils.setGlobalState(node, node.varName, node.storeName, state);
+
                 prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
-                node.status({ fill: "green", shape: "dot", text: `no change: ${prefix}${node.writePriority}:${state.value}${state.units}` });
-                if (done) done();
-                return;
+                const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
+                const statusText = `write: ${prefix}${node.writePriority}:${inputValue}${state.units} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units}`;
+
+                RED.events.emit("bldgblocks-global-update", {
+                    key: node.varName,
+                    store: node.storeName,
+                    data: state
+                });
+                
+                utils.sendSuccess(node, { ...state }, done, statusText, null, "dot");
+
+            } catch (err) {
+                node.error(err);
+                utils.sendError(node, msg, done, `Internal Error: ${err.message}`);
             }
-            state.payload = value;
-            state.value = value;
-            state.activePriority = priority;
-
-            // Update Metadata
-            state.metadata.sourceId = node.id;
-            state.metadata.lastSet = new Date().toISOString();
-            state.metadata.name = node.name || config.path;
-            state.metadata.path = node.varName; 
-            state.metadata.store = node.storeName || 'default';
-            state.metadata.type = typeof(value) || node.type;
-
-            // Units logic
-            let capturedUnits = null;
-            if (msg.units !== undefined) {
-                capturedUnits = msg.units;
-            } else if (inputValue !== null && typeof inputValue === 'object' && inputValue.units) {
-                capturedUnits = inputValue.units;
-            }
-
-            state.units = capturedUnits;
-
-            // Save & Emit
-            node.context().global.set(node.varName, state, node.storeName);
-            prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
-            const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
-            node.status({ fill: "blue", shape: "dot", text: `write: ${prefix}${node.writePriority}:${inputValue}${state.units} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units}` });
-
-            // Fire Event
-            RED.events.emit("bldgblocks-global-update", {
-                key: node.varName,
-                store: node.storeName,
-                data: state
-            });
-            
-            // Send copy
-            node.send({ ...state });
-            if (done) done();
         });
 
         node.on('close', function(removed, done) {
             if (removed && node.varName) {
                 RED.events.removeAllListeners("bldgblocks-global-update");
-                node.context().global.set(node.varName, undefined, node.storeName); 
+                // Callback style safe for close
+                node.context().global.set(node.varName, undefined, node.storeName, function() {
+                    done();
+                });
+            } else {
+                done();
             }
-            done();
         });
     }
     RED.nodes.registerType("global-setter", GlobalSetterNode);

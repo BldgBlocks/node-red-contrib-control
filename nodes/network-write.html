@@ -47,6 +47,7 @@ Writes network commands to Global Variables using the Priority Array logic.
 
 ### Input
 : payload (object) : A command object containing
+  * `action` (string): Not used by the node, used for routing to the correct node over the network when received.
   * `pointId` (number): The integer ID of the point.
   * `priority` (number): The priority level (1-16) to write to.
   * `value` (any): The value to set. Send `null` to relinquish (clear) this priority level.
