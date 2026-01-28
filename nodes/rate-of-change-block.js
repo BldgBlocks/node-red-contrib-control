@@ -9,6 +9,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             maxSamples: parseInt(config.sampleSize),
+            inputProperty: config.inputProperty || "payload",
             samples: [], // Array of {timestamp: Date, value: number}
             units: config.units || "minutes", // minutes, seconds, hours
             lastRate: null,
@@ -146,8 +147,16 @@ module.exports = function(RED) {
                 return;
             }
 
+            // Get input from configured property
+            const input = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            if (input === undefined) {
+                node.status({ fill: "red", shape: "ring", text: "missing input property" });
+                if (done) done();
+                return;
+            }
+
             // Process input
-            const inputValue = parseFloat(msg.payload);
+            const inputValue = parseFloat(input);
             const timestamp = msg.timestamp ? new Date(msg.timestamp) : new Date();
             
             if (isNaN(inputValue) || inputValue < node.runtime.minValid || inputValue > node.runtime.maxValid) {

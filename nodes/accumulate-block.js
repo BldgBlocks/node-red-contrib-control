@@ -6,6 +6,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name,
+            inputProperty: config.inputProperty || "payload",
             mode: config.mode,
             count: 0,
             lastCount: null
@@ -42,19 +43,11 @@ module.exports = function(RED) {
 
             // Process input based on mode
             if (node.runtime.mode !== "flows") {
-                // Check for missing payload
-                if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
-                    node.warn("Missing payload");
-                    if (done) done();
-                    return;
-                }
-
-                // Validate input
-                const inputValue = msg.payload;
+                // Get input value from configured property
+                const inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
                 if (typeof inputValue !== "boolean") {
                     node.status({ fill: "red", shape: "ring", text: "invalid input" });
-                    node.warn("Invalid input: non-boolean payload");
+                    node.warn("Invalid input: non-boolean value");
                     if (done) done();
                     return;
                 }

@@ -4,6 +4,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-conversion" title="Select the unit conversion to perform"><i class="fa fa-exchange"></i> Conversion</label>
         <select id="node-input-conversion">
             <optgroup label="Temperature">
@@ -62,6 +66,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             conversion: { value: "C to F", required: true }
         },
         inputs: 1,
@@ -117,54 +122,35 @@
 </script>
 
 <script type="text/markdown" data-help-name="convert-block">
-Converts numeric input payload between temperature or pressure units.
+Converts numeric input from a configured property between various units.
 
 ### Inputs
+: input-property (number) : Numeric value to convert, read from the configured Input Property.
 : context (string) : Configures the conversion (`"conversion"`). Unmatched values ignored.
-: payload (number) : Numeric value to convert 
 
 ### Outputs
 : payload (number) : Converted value (e.g., °C to °F, Pa to inH₂O).
 
-### Details
-Converts `msg.payload` between units based on the selected conversion.
+### Properties
+: name (string) : Display name in editor.
+: inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: conversion (string) : Conversion type to apply (e.g., "F to C", "Pa to inH₂O").
 
-### validConversions = [
-            "F to C", 
-            "C to F", 
-            "K to C",
-            "C to K", 
-            "K to F",
-            "F to K",
-            "R to F",
-            "F to R",
-            "decimal to %", 
-            "% to decimal", 
-            "Pa to inH₂O", 
-            "inH₂O to Pa", 
-            "Pa to inHg", 
-            "inHg to Pa", 
-            "Pa to bar", 
-            "bar to Pa", 
-            "Pa to psi", 
-            "psi to Pa",
-            "m to ft",
-            "ft to m",
-            "m to in",
-            "in to m",
-            "mm to in",
-            "in to mm",
-            "kg to lb",
-            "lb to kg",
-            "L to gal",
-            "gal to L",
-            "kW to hp",
-            "hp to kW",
-            "rad to deg",
-            "deg to rad",
-            "s to min",
-            "min to s"
-        ];
+### Details
+Converts numeric input (read from the configured **Input Property**, default: `msg.payload`) between units based on the selected conversion.
+
+Supported conversions include:
+- Temperature: F to C, C to F, K to C, C to K, K to F, F to K, R to F, F to R
+- Percentage: decimal to %, % to decimal
+- Pressure: Pa to inH₂O, inH₂O to Pa, Pa to inHg, inHg to Pa, Pa to bar, bar to Pa, Pa to psi, psi to Pa
+- Distance: m to ft, ft to m, m to in, in to m, mm to in, in to mm
+- Weight: kg to lb, lb to kg
+- Volume: L to gal, gal to L
+- Power: kW to hp, hp to kW
+- Angle: rad to deg, deg to rad
+- Time: s to min, min to s
+
+Output is always written to `msg.payload`.
 
 ### Status
 - Green (dot): Configuration update

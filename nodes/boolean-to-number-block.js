@@ -6,31 +6,33 @@ module.exports = function(RED) {
         // Initialize runtime for editor display
         node.runtime = {
             name: config.name,
+            inputProperty: config.inputProperty || "payload",
             nullToZero: Boolean(config.nullToZero)
         };
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
-            // Check for missing payload
-            if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+            // Check for missing input property
+            const inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            if (inputValue === undefined) {
+                node.status({ fill: "red", shape: "ring", text: "missing input property" });
                 if (done) done();
                 return;
             }
 
-            // Validate and convert payload
-            const inputDisplay = msg.payload === null ? "null" : String(msg.payload);
-            if (msg.payload === null) {
+            // Validate and convert input
+            const inputDisplay = inputValue === null ? "null" : String(inputValue);
+            if (inputValue === null) {
                 msg.payload = node.runtime.nullToZero ? 0 : -1;
                 node.status({ fill: "blue", shape: "dot", text: `in: ${inputDisplay}, out: ${msg.payload}` });
                 send(msg);
-            } else if (typeof msg.payload === "boolean") {
-                msg.payload = msg.payload ? 1 : 0;
+            } else if (typeof inputValue === "boolean") {
+                msg.payload = inputValue ? 1 : 0;
                 node.status({ fill: "blue", shape: "dot", text: `in: ${inputDisplay}, out: ${msg.payload}` });
                 send(msg);
             } else {
-                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+                node.status({ fill: "red", shape: "ring", text: "invalid input type" });
             }
 
             if (done) done();

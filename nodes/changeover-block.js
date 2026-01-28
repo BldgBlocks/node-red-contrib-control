@@ -10,6 +10,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name,
+            inputProperty: config.inputProperty || "payload",
             initWindow: parseFloat(config.initWindow),
             lastTemperature: null,
             lastModeChange: 0,
@@ -306,7 +307,7 @@ module.exports = function(RED) {
                 return;
             }
 
-            let input = parseFloat(msg.payload);
+            let input = parseFloat(RED.util.getMessageProperty(msg, node.runtime.inputProperty));
             if (isNaN(input)) {
                 node.status({ fill: "red", shape: "ring", text: "invalid temperature payload" });
                 if (done) done();

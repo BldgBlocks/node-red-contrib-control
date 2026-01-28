@@ -4,6 +4,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read label from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-contextPropertyName" title="Context property to set (e.g., priority, clear, in1)"><i class="fa fa-key"></i> Context Property</label>
         <input type="text" id="node-input-contextPropertyName" placeholder="e.g., priority">
     </div>
@@ -19,6 +23,7 @@ RED.nodes.registerType("contextual-label-block", {
     color: "#301934",
     defaults: {
         name: { value: "" },
+        inputProperty: { value: "payload" },
         contextPropertyName: { 
             value: "in1", 
             required: true, 

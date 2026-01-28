@@ -6,6 +6,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name,
+            inputProperty: config.inputProperty || "payload",
             precision: config.precision
         };
 
@@ -48,15 +49,16 @@ module.exports = function(RED) {
             }
 
             // Passthrough: Process payload if numeric, else pass unchanged
-            if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+            const input = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            if (input === undefined) {
+                node.status({ fill: "red", shape: "ring", text: "missing input property" });
                 send(msg);
                 if (done) done();
                 return;
             }
 
-            const input = parseFloat(msg.payload);
-            if (isNaN(input) || !isFinite(input)) {
+            const inputValue = parseFloat(input);
+            if (isNaN(inputValue) || !isFinite(inputValue)) {
                 node.status({ fill: "red", shape: "ring", text: "invalid input" });
                 send(msg);
                 if (done) done();
@@ -67,17 +69,17 @@ module.exports = function(RED) {
             let result;
             const precision = parseFloat(node.runtime.precision);
             if (precision === 0.01) {
-                result = Math.round(input * 100) / 100;
+                result = Math.round(inputValue * 100) / 100;
             } else if (precision === 0.1) {
-                result = Math.round(input * 10) / 10;
+                result = Math.round(inputValue * 10) / 10;
             } else if (precision === 0.5) {
-                result = Math.round(input / 0.5) * 0.5;
+                result = Math.round(inputValue / 0.5) * 0.5;
             } else {
-                result = Math.round(input);
+                result = Math.round(inputValue);
             }
 
             msg.payload = result;
-            node.status({ fill: "blue", shape: "dot", text: `in: ${input.toFixed(2)}, out: ${result}` });
+            node.status({ fill: "blue", shape: "dot", text: `in: ${inputValue.toFixed(2)}, out: ${result}` });
             send(msg);
             if (done) done();
         });

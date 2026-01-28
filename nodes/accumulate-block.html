@@ -4,6 +4,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-mode" title="Select accumulation mode"><i class="fa fa-cog"></i> Mode</label>
         <select id="node-input-mode">
             <option value="true">Accumulate True</option>
@@ -19,6 +23,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             mode: { value: "true", required: true }
         },
         inputs: 1,
@@ -40,22 +45,27 @@
 </script>
 
 <script type="text/markdown" data-help-name="accumulate-block">
-Counts consecutive inputs based on the selected mode, resetting on specific conditions.
+Counts consecutive inputs from a configured property based on the selected mode, resetting on specific conditions.
 
 ### Inputs
-: context (string) : Configuration commands = reset (`"reset"` to clear count).
-: payload (boolean) : For `Accumulate True`, `true` increments count, `false` resets; for `Accumulate False`, `false` increments count, `true` resets; ignored in `Accumulate Flows`.
+: input-property (boolean, for true/false modes) : Input value to evaluate, read from the configured Input Property.
+: context (string) : Configuration commands (`"reset"` to clear count).
 
 ### Outputs
 : payload (number) : Current count based on mode.
 
-### Details
-Counts inputs according to the selected mode 
-- `Accumulate True` counts consecutive `true` `msg.payload` inputs (reset on `false` or explicit reset)
-- `Accumulate False` counts consecutive `false` `msg.payload` inputs (reset on `true` or explicit reset)
-- `Accumulate Flows` counts all valid input messages (reset only on explicit reset). 
+### Properties
+: name (string) : Display name in editor.
+: inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: mode (string) : Accumulation mode (`"true"`, `"false"`, `"flows"`).
 
-Reset via `msg.context = "reset"` with `msg.payload = true` applies immediately;
+### Details
+Counts inputs according to the selected mode, reading from the configured **Input Property** (default: `msg.payload`):
+- **Accumulate True**: counts consecutive `true` values (resets on `false` or explicit reset)
+- **Accumulate False**: counts consecutive `false` values (resets on `true` or explicit reset)
+- **Accumulate Flows**: counts all valid input messages (resets only on explicit reset)
+
+Reset via `msg.context = "reset"` with `msg.payload = true`.
 
 Used to track sustained events or message frequency.
 

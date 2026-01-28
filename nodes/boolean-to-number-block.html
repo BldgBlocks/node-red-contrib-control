@@ -5,6 +5,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-nullToZero"><i class="fa fa-cog"></i> Null Mapping</label>
         <input type="checkbox" id="node-input-nullToZero" style="width: auto; margin-left: 10px;"> Map null to 0
     </div>
@@ -17,6 +21,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             nullToZero: { value: false }
         },
         inputs: 1,
@@ -33,18 +38,26 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="boolean-to-number-block">
-Converts a boolean or null input payload to a numeric output.
+Converts a boolean or null input from a configured property to a numeric output.
 
 ### Inputs
-: payload (boolean | null) : Value to convert (`true`, `false`, `null`).
+: input-property (boolean | null) : Value to convert, read from the configured Input Property.
 
 ### Outputs
-: payload (number) : Converted value `null` to `0` (if `nullToZero`) or `-1`, `false` to `0`, `true` to `1`.
+: payload (number) : Converted value: `null` to `0` (if `nullToZero` is true) or `-1`, `false` to `0`, `true` to `1`.
+
+### Properties
+: name (string) : Display name in editor.
+: inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: nullToZero (boolean) : When checked, `null` maps to `0`; when unchecked, `null` maps to `-1`.
 
 ### Details
-Converts `msg.payload` (boolean or null) to a number `null` maps to `0` (if `nullToZero` is `true`) or `-1` (if `false`), `false` to `0`, `true` to `1`. 
+Converts boolean or null input (read from the configured **Input Property**, default: `msg.payload`) to a number:
+- `true` → `1`
+- `false` → `0`
+- `null` → `0` (if **Null Mapping** is checked) or `-1` (if unchecked)
 
-Passthrough all other input message properties
+Output is always written to `msg.payload`. All other input message properties are passed through unchanged.
 
 ### Status
 - Green (dot): Configuration update

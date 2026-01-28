@@ -22,7 +22,9 @@
     
     <div class="form-row">
         <label for="node-input-outputProperty"><i class="fa fa-arrow-right"></i> Output</label>
-        <input type="text" id="node-input-outputProperty" placeholder="payload" style="width:70%;">
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+        <input type="hidden" id="node-input-outputPropertyType">
+        <input type="hidden" id="node-input-dropdownPath">
     </div>
 
     <div class="form-row">
@@ -34,7 +36,9 @@
     </div>
 
     <div class="form-tips">
-        <b>Note:</b> Targeting by Node ID allows the source path to change without breaking this link.
+        <b>Note:</b> Source path may change without breaking this link. 'Reactive' events do not cause disk reads.
+        Setter node will always write to its configured store and 'default' to ensure data stays in memory during operation (avoids disk IO hammering).
+        'Manual' reads from 'default' store in memory first. Will fallback to 'persistent'.
     </div>
 </script>
 
@@ -46,6 +50,8 @@
             name: { value: "" },
             targetNode: { value: "", required: true },
             outputProperty: { value: "payload", required: true },
+            outputPropertyType: { value: "msg", required: true },
+            dropdownPath: { value: "", required: false },
             updates: { value: "always", required: true },
             detail: {value: "getObject", required: true }
         },
@@ -76,9 +82,11 @@
                     if (displayPath.startsWith("#") && displayPath.includes(":")) {
                         displayPath = displayPath.substring(displayPath.indexOf(":") + 1);
                     }
+                    
                     candidateNodes.push({
                         value: n.id,
-                        label: displayPath + (n.name ? ` (${n.name})` : "")
+                        label: displayPath + (n.name ? ` (${n.name})` : ""),
+                        path: displayPath
                     });
                 }
             });
@@ -88,8 +96,34 @@
             $("#node-input-targetNode").typedInput({
                 types: [{ value: "target", options: candidateNodes }]
             });
+            
+            $("#node-input-outputProperty").typedInput({
+                default: "msg",
+                types: ["msg", "flow",
+                    {
+                        value: "dropdown",
+                        options: [
+                            { value: "sourceToFlow", label: "Source To Flow"}
+                        ]
+                    }],
+                typeField: "#node-input-outputPropertyType"
+            }).typedInput("type", node.outputPropertyType || "msg").typedInput("value", node.outputProperty);
 
-            $("#node-input-outputProperty").typedInput({ types: ['msg'] });
+            function updateOutputValue() {
+                const currentType = $("#node-input-outputProperty").typedInput("type");
+                
+                if (currentType === "dropdown" && node.outputProperty === "sourceToFlow") {
+                    const selectedSourceId = $("#node-input-targetNode").val();
+                    const selectedOption = candidateNodes.find(opt => opt.value === selectedSourceId);
+                    
+                    if (selectedOption && selectedOption.path) {
+                        $("#node-input-dropdownPath").val(selectedOption.path);
+                    }
+                }
+            }
+
+            $("#node-input-targetNode").on("change", updateOutputValue);
+            $("#node-input-outputProperty").on("change", updateOutputValue);
 
             $("#node-config-find-source").on("click", function() {
                 const selectedId = $("#node-input-targetNode").val();
@@ -130,3 +164,5 @@ Reactive updates means every time the source is updated those nodes will receive
 - [Node-RED Documentation](https://nodered.org/docs/)  
 - [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
 </script>
+
+

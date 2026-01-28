@@ -42,6 +42,7 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         node.runtime = {
+            inputProperty: config.inputProperty || "payload",
             conversion: validConversions.includes(config.conversion) ? config.conversion : "C to F"
         };
 
@@ -78,16 +79,17 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Validate input payload
-            if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+            // Get input from configured property
+            const input = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            if (input === undefined) {
+                node.status({ fill: "red", shape: "ring", text: "missing input property" });
                 if (done) done();
                 return;
             }
 
-            const inputValue = parseFloat(msg.payload);
+            const inputValue = parseFloat(input);
             if (isNaN(inputValue) || !isFinite(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: `Invalid payload` });
+                node.status({ fill: "red", shape: "ring", text: `Invalid input` });
                 if (done) done();
                 return;
             }
@@ -268,7 +270,14 @@ module.exports = function(RED) {
             }
 
             // Format status numbers
-            const inDisplay = msg.payload % 1 === 0 ? msg.payload : msg.payload.toFixed(2);
+            let num = Number(msg.payload);
+            let inDisplay = 0
+            if (isNaN(num)) {
+                inDisplay = 0;
+            } else {
+                inDisplay = num % 1 === 0 ? num : num.toFixed(2);
+                msg.payload = inDisplay;
+            }
             const outDisplay = output % 1 === 0 ? output : output.toFixed(2);
 
             // Update status and send output

@@ -4,10 +4,82 @@
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
-    <div class="form-row">
+    <div class="form-row">        
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">        
         <label for="node-input-unit" title="Unit to append to msg.units"><i class="fa fa-tag"></i> Unit</label>
-        <input type="text" id="node-input-unit">
-        <input type="hidden" id="node-input-unitType">
+        <select id="node-input-unit">
+            <option value="">Text (none)</option>
+            <optgroup label="Temperature">
+                <option value="°C">°C (Celsius)</option>
+                <option value="°F">°F (Fahrenheit)</option>
+                <option value="K">K (Kelvin)</option>
+                <option value="°R">°R (Rankine)</option>
+            </optgroup>
+            <optgroup label="Humidity">
+                <option value="%RH">%RH (Relative Humidity)</option>
+                <option value="%">% (Percent)</option>
+            </optgroup>
+            <optgroup label="Pressure">
+                <option value="Pa">Pa (Pascal)</option>
+                <option value="kPa">kPa (Kilopascal)</option>
+                <option value="bar">bar</option>
+                <option value="mbar">mbar (Millibar)</option>
+                <option value="psi">psi</option>
+                <option value="inHg">inHg (Inches of Mercury)</option>
+                <option value="atm">atm (Atmosphere)</option>
+                <option value="inH₂O">inH₂O (Inches of Water)</option>
+                <option value="mmH₂O">mmH₂O (Millimeters of Water)</option>
+            </optgroup>
+            <optgroup label="Flow Rate">
+                <option value="CFM">CFM (Cubic Feet per Minute)</option>
+                <option value="m³/h">m³/h (Cubic Meters per Hour)</option>
+                <option value="L/s">L/s (Liters per Second)</option>
+            </optgroup>
+            <optgroup label="Electrical">
+                <option value="V">V (Volt)</option>
+                <option value="mV">mV (Millivolt)</option>
+                <option value="A">A (Ampere)</option>
+                <option value="mA">mA (Milliampere)</option>
+                <option value="W">W (Watt)</option>
+                <option value="kW">kW (Kilowatt)</option>
+                <option value="hp">hp (Horsepower)</option>
+                <option value="Ω">Ω (Ohm)</option>
+            </optgroup>
+            <optgroup label="Distance">
+                <option value="m">m (Meter)</option>
+                <option value="cm">cm (Centimeter)</option>
+                <option value="mm">mm (Millimeter)</option>
+                <option value="km">km (Kilometer)</option>
+                <option value="ft">ft (Foot)</option>
+                <option value="in">in (Inch)</option>
+            </optgroup>
+            <optgroup label="Mass">
+                <option value="kg">kg (Kilogram)</option>
+                <option value="g">g (Gram)</option>
+                <option value="lb">lb (Pound)</option>
+            </optgroup>
+            <optgroup label="Time">
+                <option value="s">s (Second)</option>
+                <option value="min">min (Minute)</option>
+                <option value="h">h (Hour)</option>
+            </optgroup>
+            <optgroup label="Volume">
+                <option value="L">L (Liter)</option>
+                <option value="mL">mL (Milliliter)</option>
+                <option value="gal">gal (Gallon)</option>
+            </optgroup>
+            <optgroup label="Light">
+                <option value="lx">lx (Lux)</option>
+                <option value="cd">cd (Candela)</option>
+            </optgroup>
+            <optgroup label="Other">
+                <option value="B">B (Bel)</option>
+                <option value="T">T (Tesla)</option>
+            </optgroup>
+        </select>
     </div>
 </script>
 
@@ -18,8 +90,8 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            unit: { value: "°F" },
-            unitType: { value: "str" }
+            inputProperty: { value: "payload" },
+            unit: { value: "°F" }
         },
         inputs: 1,
         outputs: 1,
@@ -30,62 +102,6 @@
         label: function() {
             return this.name || `units ${this.unit}`;
         },
-        oneditprepare: function() {
-            $("#node-input-unit").typedInput({
-                default: "str",
-                types: [{
-                    value: "str",
-                    options: [
-                        { value: "", label: "Text (none)" },
-                        { value: "°C", label: "°C (Celsius)" },
-                        { value: "°F", label: "°F (Fahrenheit)" },
-                        { value: "K", label: "K (Kelvin)" },
-                        { value: "°R", label: "°R (Rankine)" },
-                        { value: "%RH", label: "%RH (Relative Humidity)" },
-                        { value: "%", label: "% (Percent)" },
-                        { value: "Pa", label: "Pa (Pascal)" },
-                        { value: "kPa", label: "kPa (Kilopascal)" },
-                        { value: "bar", label: "bar" },
-                        { value: "mbar", label: "mbar (Millibar)" },
-                        { value: "psi", label: "psi" },
-                        { value: "inHg", label: "inHg (Inches of Mercury)" },
-                        { value: "atm", label: "atm (Atmosphere)" },
-                        { value: "inH₂O", label: "inH₂O (Inches of Water)" },
-                        { value: "mmH₂O", label: "mmH₂O (Millimeters of Water)" },
-                        { value: "CFM", label: "CFM (Cubic Feet per Minute)" },
-                        { value: "m³/h", label: "m³/h (Cubic Meters per Hour)" },
-                        { value: "L/s", label: "L/s (Liters per Second)" },
-                        { value: "V", label: "V (Volt)" },
-                        { value: "mV", label: "mV (Millivolt)" },
-                        { value: "A", label: "A (Ampere)" },
-                        { value: "mA", label: "mA (Milliampere)" },
-                        { value: "W", label: "W (Watt)" },
-                        { value: "kW", label: "kW (Kilowatt)" },
-                        { value: "hp", label: "hp (Horsepower)" },
-                        { value: "Ω", label: "Ω (Ohm)" },
-                        { value: "m", label: "m (Meter)" },
-                        { value: "cm", label: "cm (Centimeter)" },
-                        { value: "mm", label: "mm (Millimeter)" },
-                        { value: "km", label: "km (Kilometer)" },
-                        { value: "ft", label: "ft (Foot)" },
-                        { value: "in", label: "in (Inch)" },
-                        { value: "kg", label: "kg (Kilogram)" },
-                        { value: "g", label: "g (Gram)" },
-                        { value: "lb", label: "lb (Pound)" },
-                        { value: "s", label: "s (Second)" },
-                        { value: "min", label: "min (Minute)" },
-                        { value: "h", label: "h (Hour)" },
-                        { value: "L", label: "L (Liter)" },
-                        { value: "mL", label: "mL (Milliliter)" },
-                        { value: "gal", label: "gal (Gallon)" },
-                        { value: "lx", label: "lx (Lux)" },
-                        { value: "cd", label: "cd (Candela)" },
-                        { value: "B", label: "B (Bel)" },
-                        { value: "T", label: "T (Tesla)" }
-                    ]
-                }], typeField: "#node-input-unitType"
-            }).typedInput("type", node.unitType).typedInput("value", node.unit);
-        }
     });
 </script>
 
@@ -94,17 +110,22 @@
 Appends a selected unit to `msg.units` of every input message.
 
 ### Inputs
-: context (string) : Configures unit (`"unit"`) if provided. Ignored otherwise.  
-: payload (any) : Input payload to pass through unchanged.
+: input-property (any) : Input value to read from the configured Input Property.  
+: context (string) : Configures unit (`"unit"`) if provided. Ignored otherwise.
 
 ### Outputs
-: payload (any) : Original payload.  
-: units (string) : Selected unit (e.g., °F, %RH, inH₂O).  
+: payload (any) : Original payload from configured Input Property.  
+: units (string) : Selected unit (e.g., °F, %RH, inH₂O).
+
+### Properties
+: name (string) : Display name in editor.
+: inputProperty (string) : Message property to read from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: unit (string) : Unit label to append to `msg.units`.
 
 ### Details
-Appends `msg.units` with the configured unit to every input message.  
-Unit can be set via editor or dynamically with `msg.context = "unit"` and a valid unit in `msg.payload`.  
-Supports units like °C, °F, %RH, inH₂O, CFM for HVAC and control systems.  
+Appends `msg.units` with the configured unit to every input message. The input value is read from the configured **Input Property** (default: `msg.payload`).
+Unit can be set via editor or dynamically with `msg.context = "unit"` and a valid unit in `msg.payload`.
+Supports units like °C, °F, %RH, inH₂O, CFM for HVAC and control systems.
 Processes every input message, preserving all original properties, just adding `msg.units`.
 
 ### Status
@@ -115,6 +136,6 @@ Processes every input message, preserving all original properties, just adding `
 - Yellow (ring): Warning
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/)  
+- [Node-RED Documentation](https://nodered.org/docs/)
 - [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
 </script>

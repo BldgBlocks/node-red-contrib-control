@@ -4,6 +4,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-sampleSize" title="Number of samples to track (minimum 2)"><i class="fa fa-list-ol"></i> Sample Size</label>
         <input type="number" id="node-input-sampleSize" placeholder="10" min="2" step="1">
     </div>
@@ -33,6 +37,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             sampleSize: {
                 value: 10,
                 required: true,
@@ -80,31 +85,45 @@
 </script>
 
 <script type="text/markdown" data-help-name="rate-of-change-block">
-Calculates the rate of temperature change over time for HVAC applications.
+Calculates the rate of value change over time.
 
 ### Inputs
+: input-property (number) : Numeric value to track for rate calculation, read from the configured Input Property.
 : context (string) : Configures reset (`"reset"`), sample size (`"sampleSize"`), or units (`"units"`).
-: payload (number) : Temperature value for rate calculation.
-: timestamp (optional) : Custom timestamp for the reading.
+: payload (number | boolean | string) : Value for configuration (numeric for rate, boolean for reset, string for units).
+: timestamp (optional) : Custom timestamp for the reading (ms since epoch).
 
 ### Outputs
-: payload (number | null) : Rate of change in temperature per time unit.
+: payload (number | null) : Rate of change in value per time unit.
 : samples (number) : Current number of samples in buffer.
-: units (string) : Rate units ("°/s", "°/min", "°/hr").
-: currentValue (number) : Most recent temperature value.
+: units (string) : Rate units ("per second", "per minute", "per hour").
+: currentValue (number) : Most recent value.
 : timeSpan (number) : Time span of sample buffer in seconds.
 
+### Properties
+: name (string) : Display name in editor.
+: inputProperty (string) : Message property to read values from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: sampleSize (number) : Number of samples to maintain (≥ 2).
+: rateUnits (string) : Units for rate output (`"seconds"`, `"minutes"`, `"hours"`).
+
 ### Details
-Tracks temperature changes over a rolling window of samples. Calculates rate as (last_value - first_value) / time_difference.
+Tracks value changes over a rolling window of samples. Calculates rate as `(last_value - first_value) / time_difference`.
 
-Useful for detecting HVAC issues like temperature droop, defrost cycles, or rapid changes.
+Useful for detecting system issues like rapid changes, droop, or anomalies.
 
-### Configuration
-- Reset via `msg.context = "reset"` with `msg.payload = true`
-- Change sample size via `msg.context = "sampleSize"` with numeric payload
-- Change units via `msg.context = "units"` with "seconds", "minutes", or "hours"
+Configuration via `msg.context`:
+- `"reset"`: Clears sample buffer (no output).
+- `"sampleSize"`: Changes number of samples with numeric `msg.payload`.
+- `"units"`: Changes rate units with `msg.payload` as `"seconds"`, `"minutes"`, or `"hours"`.
 
 ### Status
-- Shows current rate with units
-- Color indicates state change
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
 </script>

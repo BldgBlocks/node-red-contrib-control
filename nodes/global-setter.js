@@ -168,6 +168,12 @@ module.exports = function(RED) {
 
                 // Save (Async) and Emit
                 await utils.setGlobalState(node, node.varName, node.storeName, state);
+                // *** REQUIRE DEFAULT STORE ***
+                // Require default store to keep values in memory for polled getter nodes so they are not constantly re-reading from DB
+                // to avoid hammering edge devices with repeated reads. Writes are only on change. On event (reactive) sends the data in the event. 
+                if (node.storeName !== 'default') {
+                    await utils.setGlobalState(node, node.varName, 'default', state);
+                }
 
                 prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
                 const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;

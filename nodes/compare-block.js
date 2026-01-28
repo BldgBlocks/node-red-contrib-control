@@ -3,6 +3,7 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
+        node.inputProperty = config.inputProperty || "payload";
         node.setpoint = Number(config.setpoint);
 
         node.on("input", function(msg, send, done) {
@@ -40,14 +41,15 @@ module.exports = function(RED) {
                 }
             }
 
-            // Validate input
-            if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing input" });
+            // Get input from configured property
+            const input = RED.util.getMessageProperty(msg, node.inputProperty);
+            if (input === undefined) {
+                node.status({ fill: "red", shape: "ring", text: "missing input property" });
                 if (done) done();
                 return;
             }
 
-            const inputValue = parseFloat(msg.payload);
+            const inputValue = parseFloat(input);
             if (isNaN(inputValue) || !isFinite(inputValue)) {
                 node.status({ fill: "red", shape: "ring", text: "invalid input" });
                 if (done) done();

@@ -5,6 +5,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-inMin" title="Minimum input value (number)"><i class="fa fa-arrow-down"></i> Input Min</label>
         <input type="number" id="node-input-inMin" placeholder="0.0" step="any">
     </div>
@@ -33,6 +37,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             inMin: { value: 0.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
             inMax: { value: 100.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
             outMin: { value: 0.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
@@ -53,16 +58,18 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="scale-range-block">
-Scales a numeric input from one range to another and passes the original message.
+Scales numeric input from one range to another.
 
 ### Inputs
+: input-property (number) : Numeric value to scale, read from the configured Input Property.
 : context (string) : Configures settings (`"inMin"`, `"inMax"`, `"outMin"`, `"outMax"`, `"clamp"`). Unmatched values trigger error.
-: payload (number | boolean) : Number for input or range configuration, boolean for clamp.
 
 ### Outputs
 : payload (number) : Scaled output value.
 
 ### Properties
+: name (string) : Display name in editor.
+: inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
 : inMin (number) : Minimum input value.
 : inMax (number) : Maximum input value (> inMin).
 : outMin (number) : Minimum output value.
@@ -70,12 +77,11 @@ Scales a numeric input from one range to another and passes the original message
 : clamp (boolean) : Clamp output to output range.
 
 ### Details
-Scales `msg.payload` (number) from an input range (`inMin` to `inMax`) to an output range (`outMin` to `outMax`) using linear interpolation, with optional 
-clamping to `[outMin, outMax]` if `clamp` is `true`.
+Scales numeric input (read from the configured **Input Property**, default: `msg.payload`) from an input range (`inMin` to `inMax`) to an output range (`outMin` to `outMax`) using linear interpolation, with optional clamping to `[outMin, outMax]` if `clamp` is enabled.
 
-Outputs the input message with `msg.payload` set to the scaled value, preserving other properties. 
+Formula: `outValue = outMin + (inValue - inMin) * (outMax - outMin) / (inMax - inMin)`
 
-Outputs on valid input or configuration change (recalculates with last input).
+Output is always written to `msg.payload`.
 
 ### Status
 - Green (dot): Configuration update

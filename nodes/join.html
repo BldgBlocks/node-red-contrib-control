@@ -1,0 +1,73 @@
+<!-- Data Template -->
+<script type="text/html" data-template-name="bldgblocks-join">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-count"><i class="fa fa-sort-numeric-asc"></i> Key Count</label>
+        <input type="number" id="node-input-count" placeholder="4">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-excludedKeys"><i class="fa fa-ban"></i> Exclude</label>
+        <input type="text" id="node-input-excludedKeys" placeholder="status, req, res">
+        <div style="font-size: 0.8em; color: #888; margin-left: 105px;">Comma separated list of properties to ignore</div>
+    </div>
+</script>
+
+<!-- Registration & logic -->
+<script type="text/javascript">
+    RED.nodes.registerType('bldgblocks-join', {
+        category: "bldgblocks control",
+        color: '#301934',
+        defaults: {
+            name: { value: "" },
+            count: { value: 4, required: true, validate: RED.validators.number() },
+            excludedKeys: { value: "status" } // Default to 'status' to maintain previous behavior
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-compress",
+        label: function() {
+            return this.name || "join (" + this.count + ")";
+        },
+        paletteLabel: "join",
+        oneditprepare: function() {
+            // Optional: visual tweaks when opening the edit dialog
+        }
+    });
+</script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="bldgblocks-join">
+Joins multiple messages into a single message by accumulating unique properties. 
+This differs from the standard Node-RED Join node by focusing on unique keys rather than message counts or parts
+and combines to root level using property names.
+
+### Inputs 
+: all (any) : All unique properties from incoming messages.
+: Key Count (number) : The number of unique keys required before the node emits the accumulated message.
+: Exclude (string) : A comma-separated list of properties to ignore (e.g., `status, topic`).
+
+### Outputs
+: msg (any) : All unique properties combined at root level into a single message.
+
+### Details
+1. The node stores a running list of properties from every `msg` it receives.
+2. It ignores properties starting with `_` (like `_msgid`).
+3. It ignores any properties listed in the `Exclude` configuration.
+4. When the number of stored unique keys equals or exceeds the `Key Count`, it emits the combined object as a new message.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)  
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

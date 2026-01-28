@@ -7,6 +7,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name,
+            inputProperty: config.inputProperty || "payload",
             points: null,
             lastOutput: null
         };
@@ -80,15 +81,8 @@ module.exports = function(RED) {
                 }
             }
 
-            // Check for missing payload
-            if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
-                if (done) done();
-                return;
-            }
-
-            // Process input
-            const inputValue = parseFloat(msg.payload);
+            // Check for missing input property
+            const inputValue = parseFloat(RED.util.getMessageProperty(msg, node.runtime.inputProperty));
             if (isNaN(inputValue)) {
                 node.status({ fill: "red", shape: "ring", text: "invalid input" });
                 if (done) done();

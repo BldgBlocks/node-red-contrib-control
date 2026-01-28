@@ -6,6 +6,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name || "",
+            inputProperty: config.inputProperty || "payload",
             lastIn: false,
             lastEdge: 0,
             completeCycle: false,
@@ -98,13 +99,7 @@ module.exports = function(RED) {
             }
 
             // Validate input payload
-            if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
-                if (done) done();
-                return;
-            }
-
-            const inputValue = msg.payload;
+            const inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
             if (typeof inputValue !== "boolean") {
                 node.status({ fill: "red", shape: "ring", text: "invalid payload" });
                 if (done) done();

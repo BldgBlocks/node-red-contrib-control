@@ -5,6 +5,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-upperLimit"><i class="fa fa-arrow-up"></i> Upper Limit (turn on)</label>
         <input type="text" id="node-input-upperLimit" placeholder="50">
         <input type="hidden" id="node-input-upperLimitType">
@@ -34,6 +38,7 @@
     color: "#301934",
     defaults: {
         name: { value: "" },
+        inputProperty: { value: "payload" },
         upperLimit: { value: 50, required: true },
         upperLimitType: { value: "num" },
         lowerLimit: { value: 30, required: true },

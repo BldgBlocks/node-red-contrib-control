@@ -4,7 +4,11 @@
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
-    <div class="form-row">
+    <div class="form-row">        
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">        
         <label for="node-input-algorithm" title="Transition to detect (true-to-false or false-to-true)"><i class="fa fa-exchange"></i> Algorithm</label>
         <select id="node-input-algorithm">
             <option value="true-to-false">True to False</option>
@@ -20,6 +24,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             algorithm: { value: "true-to-false", required: true }
         },
         inputs: 1,
@@ -36,27 +41,29 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="edge-block">
-Detects configured boolean transitions (true-to-false or false-to-true) in `msg.payload`.
+Detects boolean state transitions (true-to-false or false-to-true).
 
 ### Inputs
-: payload (boolean) : Boolean to monitor for transitions.
+: input-property (boolean) : Boolean value to monitor for transitions, read from the configured Input Property.
 : context (string) : Action (`"algorithm"` to set transition type, `"reset"` to clear state). Unknown `msg.context` is ignored.
 : payload (string | boolean) : Transition type (`"true-to-false"`, `"false-to-true"`) for `"algorithm"`, true for `"reset"`.
 
 ### Outputs
-: payload (boolean) : `true` when the specified transition occurs (true-to-false or false-to-true).
+: payload (boolean) : `true` when the specified transition occurs; `false` otherwise.
 
 ### Properties
 : name (string) : Display name in editor.
+: inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
 : algorithm (string) : Transition to detect (`"true-to-false"`, `"false-to-true"`).
 
 ### Details
-Detects transitions in boolean payloads based on the configured `algorithm`. 
-Outputs `msg.payload` as true only when the specified transition occurs (true-to-false or false-to-true). 
-No output on first input after reset, if no transition occurs, or for non-boolean inputs. 
-Configuration via `msg.context`
-- `"algorithm"` Sets transition type, no output.
-- `"reset"` Clears state, no output.
+Detects transitions in boolean input (read from the configured **Input Property**, default: `msg.payload`) based on the configured `algorithm`.
+Outputs `msg.payload` as true only when the specified transition occurs (true-to-false or false-to-true).
+No output on first input after reset, if no transition occurs, or for non-boolean inputs.
+
+Configuration via `msg.context`:
+- `"algorithm"`: Sets transition type, no output.
+- `"reset"`: Clears state, no output.
 
 ### Status
 - Green (dot): Configuration

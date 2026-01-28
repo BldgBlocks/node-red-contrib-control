@@ -5,6 +5,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-precision" title="Rounding precision (0.1 for tenths, 0.5 for halves, 1.0 for whole numbers)"><i class="fa fa-ruler"></i> Precision</label>
         <select id="node-input-precision">
             <option value="0.01">0.01 (hundreths)</option>
@@ -22,6 +26,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             precision: { value: "0.01", required: true }
         },
         inputs: 1,
@@ -38,10 +43,10 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="round-block">
-Rounds a float in `msg.payload` to the nearest configurable precision (tenth, half, or whole number).
+Rounds a float to the nearest configurable precision (tenth, half, or whole number).
 
 ### Inputs
-: payload (number) : Float to round.
+: input-property (number) : Float to round, read from the configured Input Property.
 : context (string, optional) : Action (`"precision"` to set precision). Unknown `msg.context` values are ignored.
 : payload (string, for `"precision"`) : Precision value
 
@@ -50,16 +55,16 @@ Rounds a float in `msg.payload` to the nearest configurable precision (tenth, ha
 
 ### Properties
 : name (string) : Display name in editor.
+: inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
 : precision (string) : Rounding precision
 
 ### Details
-Rounds a float in `msg.payload` to the nearest hundreth (0.01), tenth (0.1), half (0.5), or whole number (1.0), set via editor or `msg.context = "precision"`. 
-
-Operates as a passthrough node, modifying `msg.payload` and forwarding the original message. 
-
-If `msg.payload` is not a finite number, the message is passed unchanged. 
-
-Unknown `msg.context` values are ignored.
+Rounds a float to the nearest hundreth (0.01), tenth (0.1), half (0.5), or whole number (1.0), set via editor or `msg.context = "precision"`.
+- Reads input from the message property specified in the **Input Property** field (default: `msg.payload`)
+- Output is always written to `msg.payload`
+- Operates as a passthrough node, modifying `msg.payload` and forwarding the original message
+- If input is not a finite number, the message is passed unchanged
+- Unknown `msg.context` values are ignored
 
 ### Status
 - Green (dot): Configuration update

@@ -5,6 +5,7 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
         node.name = config.name;
+        node.inputProperty = config.inputProperty || "payload";
         node.state = "within";
         node.isBusy = false;
         node.upperLimit = parseFloat(config.upperLimit);
@@ -125,7 +126,7 @@ module.exports = function(RED) {
                 if (done) done();
                 return;
             }
-            const inputValue = parseFloat(msg.payload);
+            const inputValue = parseFloat(RED.util.getMessageProperty(msg, node.inputProperty));
             if (isNaN(inputValue)) {
                 node.status({ fill: "red", shape: "ring", text: "invalid payload" });
                 if (done) done();

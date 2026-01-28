@@ -9,6 +9,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name,
+            inputProperty: config.inputProperty || "payload",
             lastValue: null,
             blockTimer: null,
             period: parseFloat(config.period),
@@ -102,7 +103,15 @@ module.exports = function(RED) {
                 return;
             }
 
-            const currentValue = msg.payload;
+            const inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            if (inputValue === undefined) {
+                node.status({ fill: "red", shape: "ring", text: "missing input property" });
+                send(msg);
+                if (done) done();
+                return;
+            }
+
+            const currentValue = inputValue;
 
             // Deep comparison function
             function isEqual(a, b) {

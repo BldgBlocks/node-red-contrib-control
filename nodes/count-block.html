@@ -4,6 +4,10 @@
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
+    <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
 </script>
 
 <!-- JavaScript Section: Registers the node and handles editor logic -->
@@ -12,7 +16,8 @@
         category: "bldgblocks control",
         color: "#301934",
         defaults: {
-            name: { value: "" }
+            name: { value: "" },
+            inputProperty: { value: "payload" }
         },
         inputs: 1,
         outputs: 1,
@@ -28,21 +33,22 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="count-block">
-Counts boolean rising edges in the input.
+Counts boolean rising edges from a configured property.
 
 ### Inputs
+: input-property (boolean) : Boolean value to detect rising edges, read from the configured Input Property.
 : context (string) : Resets count (`"reset"`). Unmatched values trigger error.
-: payload (boolean) : Input boolean to detect rising edges.
 
 ### Outputs
 : payload (number) : Current count of rising edges.
 
 ### Properties
 : name (string) : Display name in editor.
+: inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
 
 ### Details
-Counts rising edges (false-to-true transitions) in `msg.payload` (boolean), incrementing the count on each transition. 
-Resets count to 0 via `msg.context = "reset"` with `msg.payload = true`. 
+Counts rising edges (false-to-true transitions) in the configured **Input Property** (default: `msg.payload`), incrementing the count on each transition.
+Resets count to 0 via `msg.context = "reset"` with `msg.payload = true`.
 
 ### Status
 - Green (dot): Configuration update

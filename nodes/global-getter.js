@@ -5,6 +5,7 @@ module.exports = function(RED) {
         const node = this;
         node.targetNodeId = config.targetNode;
         node.outputProperty = config.outputProperty || "payload";
+        node.dropdownPath = config.dropdownPath || "";
         node.updates = config.updates;
         node.detail = config.detail;
         
@@ -18,7 +19,7 @@ module.exports = function(RED) {
         
         // --- Output Helper ---
         function sendValue(storedObject, msgToReuse, done) {
-            const msg = msgToReuse || {}; 
+            const msg = RED.util.cloneMessage(msgToReuse) || {};
 
             if (storedObject !== undefined && storedObject !== null) {
                 // Check if this is our custom wrapper object
@@ -26,15 +27,34 @@ module.exports = function(RED) {
                     if (node.detail === "getObject") {
                         Object.assign(msg, storedObject);
                     }
-                    RED.util.setMessageProperty(msg, node.outputProperty, storedObject.value);
+                    if (config.outputPropertyType === "flow" || config.outputPropertyType === "dropdown") {
+                        if (config.outputProperty === "sourceToFlow") {
+                            node.context().flow.set(node.dropdownPath, storedObject.value);
+                        } else {
+                            node.context().flow.set(node.outputProperty, storedObject.value);
+                        }
+                    } else {
+                        RED.util.setMessageProperty(msg, node.outputProperty, storedObject.value);
+                    }
                 } else {
                     // Legacy/Raw values
-                    RED.util.setMessageProperty(msg, node.outputProperty, storedObject);
+                    if (config.outputPropertyType === "flow" || config.outputPropertyType === "dropdown") {
+                        if (config.outputProperty === "sourceToFlow") {
+                            node.context().flow.set(node.dropdownPath, storedObject);
+                        } else {
+                            node.context().flow.set(node.outputProperty, storedObject);
+                        }
+                    } else {
+                        RED.util.setMessageProperty(msg, node.outputProperty, storedObject);
+                    }
                     msg.metadata = { path: setterNode ? setterNode.varName : "unknown", legacy: true };
                 }
                 
-                let valDisplay = RED.util.getMessageProperty(msg, node.outputProperty);
-                valDisplay = typeof valDisplay === "number" ? valDisplay : valDisplay;
+                let valDisplay = storedObject.value;
+                if (valDisplay === null) valDisplay = "null";
+                else if (valDisplay === undefined) valDisplay = "undefined";
+                else if (typeof valDisplay === "object") valDisplay = JSON.stringify(valDisplay);
+                else valDisplay = typeof valDisplay === "number" ? valDisplay : valDisplay;
                 
                 utils.sendSuccess(node, msg, done, `get: ${valDisplay}`, null, "dot");
             } else {
@@ -110,8 +130,13 @@ module.exports = function(RED) {
                 setterNode ??= RED.nodes.getNode(node.targetNodeId);
 
                 if (setterNode && setterNode.varName) {
-                    // Async Get
-                    const storedObject = await utils.getGlobalState(node, setterNode.varName, setterNode.storeName);
+                    // Async Get - required default store to keep values in memory for polled getter nodes. 
+                    // 'persistant' for cross reboot storage.
+                    let storedObject = await utils.getGlobalState(node, setterNode.varName, 'default');
+                    if (!storedObject) {
+                        // Fallback to persistant store if not found in default. Should not happen normally.
+                        storedObject = await utils.getGlobalState(node, setterNode.varName, setterNode.storeName);
+                    }
                     sendValue(storedObject, msg, done);
                 } else {
                     node.warn("Source node not found or not configured.");

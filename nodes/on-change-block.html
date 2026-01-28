@@ -5,6 +5,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-period" title="Filter period in milliseconds (non-negative number from msg, flow, global, or static value)"><i class="fa fa-clock-o"></i> Filter Period (ms)</label>
         <input type="text" id="node-input-period" placeholder="0">
         <input type="hidden" id="node-input-periodType">
@@ -18,6 +22,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             period: { value: 0 },
             periodType: { value: "num" }
         },
@@ -42,10 +47,10 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="on-change-block">
-Filters redundant messages based on value changes and a configurable period.
+Filters redundant messages based on value changes from a configured property.
 
 ### Inputs
-: payload (any) : Input value to compare.
+: input-property (any) : Value to monitor for changes, read from the configured Input Property.
 : context (string, optional) : Configures period (`"period"`) or queries state (`"status"`).
 : payload (number | any, for `context`) : Non-negative number for `"period"` (ms), any for `"status"`.
 
@@ -54,16 +59,19 @@ Filters redundant messages based on value changes and a configurable period.
 : payload (object, for `msg.context = "status"`) : `{ period, periodType }`.
 
 ### Properties
-: name (string) : Display name in editor. Default "" (shows "on change").
-: period (number) : Filter period in milliseconds (≥ 0, static or from `msg`, `flow`, `global`). Default 0.
+: name (string) : Display name in editor.
+: inputProperty (string) : Message property to monitor for changes (default: `payload`). Supports nested properties (e.g., `data.value`).
+: period (number) : Filter period in milliseconds (≥ 0). Default 0.
 : periodType (string) : Source of period (`"num"`, `"msg"`, `"flow"`, `"global"`). Default `"num"`.
 
 ### Details
-Filters messages based on value changes (deep comparison) and a filter period. When `period = 0`, outputs the input message only if `msg.payload` 
-differs from the last output value. When `period > 0`, outputs the first message, suppresses all messages during the period (including blips). 
-Supports complex payloads (objects, arrays) via deep comparison. 
-Configuration
-- `msg.context = "period"` Sets period (ms), no output.
+Filters messages based on value changes (deep comparison) to the input property and an optional filter period.
+When `period = 0`, outputs the input message only if the input property differs from the last output value.
+When `period > 0`, outputs the first message, then suppresses all messages during the period.
+
+Supports complex payloads (objects, arrays) via deep comparison.
+
+Configuration via `msg.context = "period"` with numeric `msg.payload` sets the filter period in milliseconds (no output).
 
 ### Status
 - Green (dot): Configuration update

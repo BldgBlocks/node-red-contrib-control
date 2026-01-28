@@ -7,6 +7,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name,
+            inputProperty: config.inputProperty || "payload",
             unit: config.unit
         };
 
@@ -22,29 +23,15 @@ module.exports = function(RED) {
             }
 
             try {
-                // Handle configuration messages
-                if (msg.hasOwnProperty("context")) {
-                    // Configuration handling
-                    if (msg.context === "unit") {
-                        if (typeof msg.payload === "string") {
-                            node.runtime.unit = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `unit: ${node.runtime.unit}` });
-                        } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid unit" });
-                        }
-                        if (done) done();
-                        return;
-                    }
-
-                    // Handle unknown context
-                    if (msg.context && msg.context !== "unit") {
-                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
-                        // Continue processing as passthrough
-                    }
-                }
-
                 // Process input
-                const payloadPreview = msg.payload !== null ? (typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload).slice(0, 20)) : "none";
+                const input = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                if (input === undefined) {
+                    node.status({ fill: "red", shape: "ring", text: "missing input property" });
+                    if (done) done();
+                    return;
+                }
+                
+                const payloadPreview = input !== null ? (typeof input === "number" ? input.toFixed(2) : JSON.stringify(input).slice(0, 20)) : "none";
 
                 node.status({ fill: "blue", shape: "dot", text: `in: ${payloadPreview} unit: ${node.runtime.unit !== "" ? node.runtime.unit : "none"}` });
 

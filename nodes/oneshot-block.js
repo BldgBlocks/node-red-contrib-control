@@ -7,6 +7,7 @@ module.exports = function(RED) {
         const durationMultiplier = config.durationUnits === "seconds" ? 1000 : config.durationUnits === "minutes" ? 60000 : 1;
         node.runtime = {
             name: config.name,
+            inputProperty: config.inputProperty || "payload",
             duration: (parseFloat(config.duration)) * durationMultiplier,
             durationUnits: config.durationUnits,
             resetRequireTrue: config.resetRequireTrue,
@@ -96,8 +97,16 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Validate payload for trigger
-            if (msg.payload !== true) {
+            // Get trigger input from configured property
+            const triggerValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            if (triggerValue === undefined) {
+                node.status({ fill: "red", shape: "ring", text: "missing input property" });
+                if (done) done();
+                return;
+            }
+
+            // Validate trigger input
+            if (triggerValue !== true) {
                 node.status({
                     fill: "yellow",
                     shape: "ring",

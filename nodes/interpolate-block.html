@@ -4,6 +4,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-points" title="Default points table for interpolation (array of {x, y} objects, ≥2 points)"><i class="fa fa-table"></i> Points</label>
         <textarea id="node-input-points" placeholder='[{"x": 0, "y": 0}, {"x": 100, "y": 100}]' style="height: 100px;"></textarea>
     </div>
@@ -15,6 +19,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             points: {
                 value: JSON.stringify([{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2),
                 required: true,
@@ -43,11 +48,24 @@
 </script>
 
 <script type="text/markdown" data-help-name="interpolate-block">
-Linearly interpolates a numeric input using a configurable points table.
+Linearly interpolates numeric input from a configured property using a points table.
 
 ### Inputs
+: input-property (number) : Numeric value to interpolate, read from the configured Input Property.
 : context (string) : Configures points table (`"points"`).
-: payload (number | array) : Number for interpolation, or array of `{x, y}` objects for points configuration.
+: payload (array, for context) : Array of `{x, y}` objects for points configuration.
+
+### Outputs
+: payload (number) : Interpolated output value.
+
+### Properties
+: name (string) : Display name in editor.
+: inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: points (array) : Array of `{x, y}` objects defining the interpolation curve (minimum 2 points).
+
+### Details
+Linearly interpolates numeric input (read from the configured **Input Property**, default: `msg.payload`) using a configurable points table.
+Points can be updated dynamically via `msg.context = "points"` with an array of `{x, y}` objects in `msg.payload`.
 
 ### Outputs
 : payload (number) : Interpolated output value.

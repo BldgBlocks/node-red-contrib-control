@@ -4,6 +4,10 @@
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
+    <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
 </script>
 
 <!-- JavaScript Section: Registers the node and handles editor logic -->
@@ -12,7 +16,8 @@
         category: "bldgblocks control",
         color: "#301934",
         defaults: {
-            name: { value: "" }
+            name: { value: "" },
+            inputProperty: { value: "payload" }
         },
         inputs: 1,
         outputs: 1,

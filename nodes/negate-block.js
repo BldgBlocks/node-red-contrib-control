@@ -7,6 +7,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.runtime = {
             name: config.name,
+            inputProperty: config.inputProperty || "payload",
             lastOutput: null
         };
 
@@ -20,14 +21,15 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Check for missing payload
-            if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing input" });
+            // Get input value from the specified property
+            const inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            
+            if (inputValue === undefined) {
+                node.status({ fill: "red", shape: "ring", text: "missing input property" });
                 if (done) done();
                 return;
             }
 
-            const inputValue = msg.payload;
             let outputValue;
             let statusText;
 

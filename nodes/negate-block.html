@@ -3,6 +3,10 @@
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
+    <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
 </script>
 
 <script type="text/javascript">
@@ -10,7 +14,8 @@
         category: "bldgblocks control",
         color: "#301934",
         defaults: {
-            name: { value: "" }
+            name: { value: "" },
+            inputProperty: { value: "payload" }
         },
         inputs: 1,
         outputs: 1,
@@ -28,17 +33,22 @@
 Negates a number or boolean input value.
 
 ### Inputs
-: payload (number | boolean) : Value to negate (number or boolean).
+: input-property (number | boolean) : Value to negate (number or boolean), read from the configured Input Property.
 
 ### Outputs
 : payload (number | boolean) : Negated value (-number or !boolean).
 
-### Details
-Negates `msg.payload` in a passthrough manner, updating the original message.
-- For numbers, outputs the negative (e.g., 5 becomes -5). 
-- For booleans, outputs the inverse (e.g., true becomes false). 
+### Properties
+: name (string) : Display name in editor.
+: inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
 
-Preserves other message properties (e.g., `msg.topic`, `msg.context`).
+### Details
+Negates a number or boolean value in a passthrough manner, updating the original message.
+- Reads input from the message property specified in the **Input Property** field (default: `msg.payload`)
+- For numbers, outputs the negative (e.g., 5 becomes -5)
+- For booleans, outputs the inverse (e.g., true becomes false)
+- Output is always written to `msg.payload`
+- Preserves other message properties (e.g., `msg.topic`, `msg.context`)
 
 ### Status
 - Green (dot): Configuration update

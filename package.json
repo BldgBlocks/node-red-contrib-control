@@ -1,6 +1,6 @@
 {
   "name": "@bldgblocks/node-red-contrib-control",
-  "version": "0.1.34",
+  "version": "0.1.35",
   "description": "Sedona-inspired control nodes for Node-RED",
   "keywords": [ "node-red", "sedona", "control", "hvac" ],
   "files": ["nodes/*.js", "nodes/*.html"],
@@ -33,6 +33,7 @@
         "frequency-block": "nodes/frequency-block.js",
         "hysteresis-block": "nodes/hysteresis-block.js",
         "interpolate-block": "nodes/interpolate-block.js",
+        "join": "nodes/join.js",        
         "latch-block": "nodes/latch-block.js",
         "load-sequence-block": "nodes/load-sequence-block.js",
         "max-block": "nodes/max-block.js",
