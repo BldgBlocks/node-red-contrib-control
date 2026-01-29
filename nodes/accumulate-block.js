@@ -30,23 +30,26 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Handle reset command with intentional payload requirement
             if (msg.context === "reset") {
                 if (msg.payload === true) {
                     node.runtime.count = 0;
-                    updateStatus();
+                    node.status({fill:"yellow",shape:"ring",text:"resest"})
                     if (done) done();
                     return;
                 }
-                // payload !== true: treat as normal message, don't reset
             }
 
             // Process input based on mode
             if (node.runtime.mode !== "flows") {
                 // Get input value from configured property
-                const inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                let inputValue;
+                try {
+                    inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                } catch (err) {
+                    inputValue = undefined;
+                }
                 if (typeof inputValue !== "boolean") {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                    node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
                     node.warn("Invalid input: non-boolean value");
                     if (done) done();
                     return;

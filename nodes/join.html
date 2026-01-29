@@ -15,6 +15,11 @@
         <input type="text" id="node-input-excludedKeys" placeholder="status, req, res">
         <div style="font-size: 0.8em; color: #888; margin-left: 105px;">Comma separated list of properties to ignore</div>
     </div>
+
+    <div class="form-tips">
+        <b>Note:</b> Works with root properties only and must all be unique. Nested properties are not supported.
+        Instead of incoming properties like 'outdoor.temp' (a nested object), consider using outdoor/temp or outdoorTemp as property names.
+    </div>
 </script>
 
 <!-- Registration & logic -->

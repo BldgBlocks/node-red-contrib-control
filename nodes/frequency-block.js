@@ -99,9 +99,14 @@ module.exports = function(RED) {
             }
 
             // Validate input payload
-            const inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            let inputValue;
+            try {
+                inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            } catch (err) {
+                inputValue = undefined;
+            }
             if (typeof inputValue !== "boolean") {
-                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+                node.status({ fill: "red", shape: "ring", text: "invalid or missing input property" });
                 if (done) done();
                 return;
             }

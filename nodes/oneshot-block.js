@@ -98,9 +98,14 @@ module.exports = function(RED) {
             }
 
             // Get trigger input from configured property
-            const triggerValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            let triggerValue;
+            try {
+                triggerValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            } catch (err) {
+                triggerValue = undefined;
+            }
             if (triggerValue === undefined) {
-                node.status({ fill: "red", shape: "ring", text: "missing input property" });
+                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
                 if (done) done();
                 return;
             }

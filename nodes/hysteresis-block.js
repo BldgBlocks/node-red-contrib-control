@@ -121,14 +121,14 @@ module.exports = function(RED) {
                 return;
             }
 
-            if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
-                if (done) done();
-                return;
+            let inputValue;
+            try {
+                inputValue = parseFloat(RED.util.getMessageProperty(msg, node.inputProperty));
+            } catch (err) {
+                inputValue = NaN;
             }
-            const inputValue = parseFloat(RED.util.getMessageProperty(msg, node.inputProperty));
             if (isNaN(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+                node.status({ fill: "red", shape: "ring", text: "invalid input" });
                 if (done) done();
                 return;
             }

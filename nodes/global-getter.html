@@ -37,7 +37,7 @@
 
     <div class="form-tips">
         <b>Note:</b> Source path may change without breaking this link. 'Reactive' events do not cause disk reads.
-        Setter node will always write to its configured store and 'default' to ensure data stays in memory during operation (avoids disk IO hammering).
+        Setter nodes will always write, on change, to its configured store and 'default' to ensure data stays 'in memory' during operation (avoids disk IO hammering).
         'Manual' reads from 'default' store in memory first. Will fallback to 'persistent'.
     </div>
 </script>

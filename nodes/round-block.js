@@ -49,9 +49,14 @@ module.exports = function(RED) {
             }
 
             // Passthrough: Process payload if numeric, else pass unchanged
-            const input = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            let input;
+            try {
+                input = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            } catch (err) {
+                input = undefined;
+            }
             if (input === undefined) {
-                node.status({ fill: "red", shape: "ring", text: "missing input property" });
+                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
                 send(msg);
                 if (done) done();
                 return;

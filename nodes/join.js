@@ -27,8 +27,7 @@ module.exports = function(RED) {
                 // 2. Key must NOT start with '_' (internal Node-RED props)
                 // 3. Key must NOT be in the user-defined excluded list
                 if (
-                    msg[key] !== undefined && 
-                    msg[key] !== null && 
+                    msg[key] !== undefined &&  
                     !key.startsWith('_') && 
                     !excludedSet.has(key)
                 ) {

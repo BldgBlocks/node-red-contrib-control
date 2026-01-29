@@ -5,6 +5,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-kp" title="Proportional gain (number)"><i class="fa fa-sliders"></i> Kp</label>
         <input type="text" id="node-input-kp" placeholder="0" step="any">
         <input type="hidden" id="node-input-kpType">
@@ -28,6 +32,11 @@
         <label for="node-input-deadband" title="Deadband range around setpoint (non-negative number)"><i class="fa fa-arrows-h"></i> Deadband</label>
         <input type="text" id="node-input-deadband" placeholder="0" step="any" min="0">
         <input type="hidden" id="node-input-deadbandType">
+    </div>
+    <div class="form-row">
+        <label for="node-input-setpointRateLimit" title="Maximum setpoint change per second (non-negative number, 0 = no limit)"><i class="fa fa-arrow-right"></i> Setpoint Rate Limit</label>
+        <input type="text" id="node-input-setpointRateLimit" placeholder="0" step="any" min="0">
+        <input type="hidden" id="node-input-setpointRateLimitType">
     </div>
     <div class="form-row">
         <label for="node-input-dbBehavior" title="Deadband behavior: ReturnToZero or HoldLastResult"><i class="fa fa-cog"></i> Deadband Behavior</label>
@@ -69,6 +78,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             kp: { value: 0, required: true },
             kpType: { value: "num" },
             ki: { value: 0, required: true },
@@ -79,6 +89,8 @@
             setpointType: { value: "num" },
             deadband: { value: 0, required: true },
             deadbandType: { value: "num" },
+            setpointRateLimit: { value: 0, required: true },
+            setpointRateLimitType: { value: "num" },
             dbBehavior: { value: "ReturnToZero" },
             outMin: { value: null },
             outMinType: { value: "num" },
@@ -134,6 +146,12 @@
                     typeField: "#node-input-deadbandType"
                 }).typedInput("type", node.deadbandType || "num").typedInput("value", node.deadband);
 
+                $("#node-input-setpointRateLimit").typedInput({
+                    default: "num",
+                    types: ["num", "msg", "flow", "global"],
+                    typeField: "#node-input-setpointRateLimitType"
+                }).typedInput("type", node.setpointRateLimitType || "num").typedInput("value", node.setpointRateLimit);
+
                 $("#node-input-outMin").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
@@ -185,6 +203,7 @@ Implements a PID controller with deadband, output limits, and tuning.
 : kd (number) : Derivative gain. Default: 0.
 : setpoint (number) : Target setpoint. Default: 0.
 : deadband (number) : Deadband range around setpoint (non-negative). Default: 0.
+: setpointRateLimit (number) : Maximum setpoint change per second (non-negative, 0 = no limit). Default: 0.
 : dbBehavior (string) : Deadband behavior (`"ReturnToZero"`, `"HoldLastResult"`). Default: `"ReturnToZero"`.
 : outMin (number | null) : Minimum output limit (less than outMax). Default: null.
 : outMax (number | null) : Maximum output limit (greater than outMin). Default: null.
@@ -193,13 +212,44 @@ Implements a PID controller with deadband, output limits, and tuning.
 : run (boolean) : Enable (true) or disable (false) PID calculation. Default: true.
 
 ### Details
-Calculates PID control output based on numeric `msg.payload`, setpoint, and gains (`kp`, `ki`, `kd`). 
 
-Supports deadband, output limits, rate of change limit, direct/reverse action, integral clamping, and Ziegler-Nichols tuning. 
+**Core Algorithm**
+Calculates PID control output every cycle based on `msg.payload` (input), setpoint, and configurable gains (`kp`, `ki`, `kd`). Supports both **Direct Action** (cooling: error↑ → output↑) and **Reverse Action** (heating: error↑ → output↓) modes.
 
-Outputs `{ payload: number, diagnostics: object }` when output changes, or `{ tuneResult: object }` on tuning completion. 
+**Error Calculation**
+- Reverse Action (heating): `error = setpoint - input`
+- Direct Action (cooling): `error = input - setpoint`
 
-Ziegler-Nichols tuning sets `kp = 0.6*Ku`, `ki = 2*kp/Tu`, `kd = kp*Tu/8` after detecting oscillations. Outputs only on change.
+**PID Terms**
+- **P (Proportional)**: Immediate response to error. `pGain = Kp × error`
+- **I (Integral)**: Removes steady-state offset by accumulating error over time with anti-windup clamping to prevent excessive accumulation when output limits are active.
+- **D (Derivative)**: Low-pass filtered to prevent noise amplification. Uses exponential smoothing (0.1 new + 0.9 old).
+
+**Setpoint Rate Limiting**
+Smoothly ramps setpoint changes at configured rate (units per second) to prevent integrator wind-up and thermal shock. With `setpointRateLimit = 0`, setpoint changes immediately.
+
+**Deadband**
+No output generated when input is within ±deadband of setpoint. Behavior controlled by `dbBehavior`: 
+- `ReturnToZero`: Output becomes 0
+- `HoldLastResult`: Output holds previous value
+
+**Output Limiting**
+Hard limits applied before output transmission. `maxChange` further limits rate of change to prevent abrupt jumps (units per second).
+
+**Relay Auto-Tuning (Ziegler-Nichols)**
+Send `{context: "tune", payload: true}` to start automatic tuning. Uses bang-bang relay control to oscillate the system and measure:
+- **Tu** (Ultimate Period): Time for one complete oscillation cycle
+- **Ku** (Ultimate Gain): Peak oscillation amplitude
+
+Calculates conservative "no overshoot" gains:
+- `Kp = 0.2 × Ku`
+- `Ki = 0.4 × Kp / Tu`
+- `Kd = 0.066 × Kp × Tu`
+
+Tuning data persists across input messages but resets on flow restart. Progress shown in status bar during measurement.
+
+**Output**
+Sends every calculation cycle: `{ payload: number, diagnostics: {...} }` showing P/I/D breakdown and current state. On tuning completion: `{ tuneResult: {...} }` with calculated gains and oscillation count.
 
 ### Error Handling
 - Missing `msg`: No output, red status (`invalid message`).

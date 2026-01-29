@@ -111,9 +111,14 @@ module.exports = function(RED) {
                 }
 
                 // Get Input Value
-                const inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
+                let inputValue;
+                try {
+                    inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
+                } catch (err) {
+                    inputValue = undefined;
+                }
                 if (inputValue === undefined) {
-                    return utils.sendError(node, msg, done, `msg.${node.inputProperty} not found`);
+                    return utils.sendError(node, msg, done, `msg.${node.inputProperty} not found or invalid property path`);
                 }
 
                 // Update State

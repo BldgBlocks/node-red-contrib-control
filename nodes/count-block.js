@@ -50,9 +50,14 @@ module.exports = function(RED) {
             }
 
             // Get input value from configured property
-            const inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            let inputValue;
+            try {
+                inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+            } catch (err) {
+                inputValue = undefined;
+            }
             if (typeof inputValue !== "boolean") {
-                node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
                 if (done) done();
                 return;
             }
