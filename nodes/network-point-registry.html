@@ -76,13 +76,16 @@
 </script>
 
 <script type="text/markdown" data-help-name="network-point-registry">
-Configuration node: Central registry mapping Point IDs to global variables.
+Map Point IDs to global variables.
 
 ### Details
-
 Maintains the mapping between integer Point IDs and global variable paths. This registry is used by network-read, network-write, and network-register nodes to decouple access by ID from variable path implementation details.
 
 Create a single registry for your network of nodes and reference it from each network-register node.
+
+**API for Developers:**
+* `register(id, meta)`: Claim an ID.
+* `lookup(id)`: Find the path/store for an ID.
 
 ### Status
 - Green (dot): Configuration valid
@@ -91,4 +94,5 @@ Create a single registry for your network of nodes and reference it from each ne
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)
 - [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+
 </script>
