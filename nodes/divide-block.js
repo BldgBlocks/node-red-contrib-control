@@ -41,12 +41,13 @@ module.exports = function(RED) {
 
             // Handle configuration messages
             if (msg.context === "reset") {
-                if (typeof msg.payload !== "boolean") {
-                    utils.setStatusError(node, "invalid reset");
+                const boolVal = utils.validateBoolean(msg.payload);
+                if (!boolVal.valid) {
+                    utils.setStatusError(node, boolVal.error);
                     if (done) done();
                     return;
                 }
-                if (msg.payload === true) {
+                if (boolVal.value === true) {
                     node.runtime.inputs = Array(node.runtime.slots).fill(1);
                     node.runtime.lastResult = null;
                     utils.setStatusOK(node, "state reset");
@@ -54,25 +55,26 @@ module.exports = function(RED) {
                     return;
                 }
             } else if (msg.context === "slots") {
-                let newSlots = parseInt(msg.payload);
-                if (isNaN(newSlots) || newSlots < 1) {
-                    utils.setStatusError(node, "invalid slots");
+                const slotsVal = utils.validateIntRange(msg.payload, { min: 1 });
+                if (!slotsVal.valid) {
+                    utils.setStatusError(node, slotsVal.error);
                     if (done) done();
                     return;
                 }
-                node.runtime.slots = newSlots;
+                node.runtime.slots = slotsVal.value;
                 node.runtime.inputs = Array(newSlots).fill(1);
                 node.runtime.lastResult = null;
                 utils.setStatusOK(node, `slots: ${node.runtime.slots}`);
                 if (done) done();
                 return;
             } else if (msg.context.startsWith("in")) {
-                let slotIndex = parseInt(msg.context.slice(2)) - 1;
-                if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= node.runtime.slots) {
-                    utils.setStatusError(node, `invalid input slot ${msg.context}`);
+                const slotVal = utils.validateSlotIndex(msg.context, node.runtime.slots);
+                if (!slotVal.valid) {
+                    utils.setStatusError(node, slotVal.error);
                     if (done) done();
                     return;
                 }
+                const slotIndex = slotVal.index - 1;
                 let newValue = parseFloat(msg.payload);
                 if (isNaN(newValue)) {
                     utils.setStatusError(node, "invalid input");

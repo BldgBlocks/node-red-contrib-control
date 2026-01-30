@@ -85,7 +85,7 @@ module.exports = function(RED) {
                     retryAction = null;
                 }
                 
-                node.status({ fill: "green", shape: "dot", text: "Connected" });
+                utils.setStatusOK(node, "Connected");
                 return true;
             }
             return false;
@@ -98,7 +98,7 @@ module.exports = function(RED) {
                 if (!hasOurListener) {
                     node.warn("Event listener lost, reconnecting...");
                     if (establishListener()) {
-                        node.status({ fill: "green", shape: "dot", text: "Reconnected" });
+                        utils.setStatusOK(node, "Reconnected");
                     }
                 }
                 setTimeout(check, 30000);

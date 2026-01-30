@@ -40,9 +40,9 @@ module.exports = function(RED) {
 
             // Process input slot
             if (msg.context.startsWith("in")) {
-                let index = parseInt(msg.context.slice(2), 10);
-                if (!isNaN(index) && index >= 1 && index <= node.slots) {
-                    node.inputs[index - 1] = Boolean(msg.payload);
+                const slotVal = utils.validateSlotIndex(msg.context, node.slots);
+                if (slotVal.valid) {
+                    node.inputs[slotVal.index - 1] = Boolean(msg.payload);
                     const result = node.inputs.every(v => v === true);
                     const isUnchanged = result === lastResult && node.inputs.every((v, i) => v === lastInputs[i]);
                     const statusText = `in: [${node.inputs.join(", ")}], out: ${result}`;
@@ -57,7 +57,7 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 } else {
-                    utils.setStatusError(node, `invalid input index ${index || "NaN"}`);
+                    utils.setStatusError(node, slotVal.error);
                     if (done) done();
                     return;
                 }

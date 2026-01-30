@@ -20,10 +20,10 @@ module.exports = function(RED) {
 
             if (success) {
                 node.isRegistered = true;
-                node.status({ fill: "yellow", shape: "ring", text: `ID: ${node.pointId} (Waiting)` });
+                utils.setStatusBusy(node, `ID: ${node.pointId} (Waiting)`);
             } else {
                 node.error(`Point ID ${node.pointId} is already in use.`);
-                node.status({ fill: "red", shape: "dot", text: "ID Conflict" });
+                utils.setStatusError(node, "ID Conflict");
             }
         }
 

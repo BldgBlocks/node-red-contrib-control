@@ -100,12 +100,13 @@ module.exports = function(RED) {
                 return;
             }
 
-            const inputValue = parseFloat(msg.payload);
-            if (isNaN(inputValue)) {
-                utils.setStatusError(node, "invalid payload");
+            const numVal = utils.validateNumericPayload(msg.payload);
+            if (!numVal.valid) {
+                utils.setStatusError(node, numVal.error);
                 if (done) done();
                 return;
             }
+            const inputValue = numVal.value;
 
             // Cap input at min
             const outputValue = Math.max(inputValue, node.runtime.min);

@@ -1,4 +1,5 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function ThermistorBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -17,35 +18,35 @@ module.exports = function(RED) {
 
         // Validate configuration
         if (isNaN(node.runtime.R_fixed) || node.runtime.R_fixed <= 0) {
-            node.status({ fill: "red", shape: "ring", text: "invalid r_fixed" });
+            utils.setStatusError(node, "invalid r_fixed");
             node.warn(`Invalid configuration: r_fixed=${node.runtime.R_fixed}`);
             return;
         }
         if (isNaN(node.runtime.Vsupply) || node.runtime.Vsupply <= 0) {
-            node.status({ fill: "red", shape: "ring", text: "invalid vsupply" });
+            utils.setStatusError(node, "invalid vsupply");
             node.warn(`Invalid configuration: vsupply=${node.runtime.Vsupply}`);
             return;
         }
         if (isNaN(node.runtime.Vref) || node.runtime.Vref <= 0) {
-            node.status({ fill: "red", shape: "ring", text: "invalid vref" });
+            utils.setStatusError(node, "invalid vref");
             node.warn(`Invalid configuration: vref=${node.runtime.Vref}`);
             return;
         }
         if (isNaN(node.runtime.ADC_max) || node.runtime.ADC_max <= 0) {
-            node.status({ fill: "red", shape: "ring", text: "invalid adc_max" });
+            utils.setStatusError(node, "invalid adc_max");
             node.warn(`Invalid configuration: adc_max=${node.runtime.ADC_max}`);
             return;
         }
 
         // Set initial status
-        node.status({ fill: "green", shape: "dot", text: `r_fixed: ${node.runtime.R_fixed}, vsupply: ${node.runtime.Vsupply}` });
+        utils.setStatusOK(node, `r_fixed: ${node.runtime.R_fixed}, vsupply: ${node.runtime.Vsupply}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Validate input
             if (!msg || typeof msg !== "object") {
-                node.status({ fill: "red", shape: "ring", text: "missing message" });
+                utils.setStatusError(node, "missing message");
                 node.warn(`Missing message`);
                 if (done) done();
                 return;
@@ -54,7 +55,7 @@ module.exports = function(RED) {
             let inputArray;
             if (Buffer.isBuffer(msg.payload)) {
                 if (msg.payload.length !== 2) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input: expected 2-byte buffer" });
+                    utils.setStatusError(node, "invalid input: expected 2-byte buffer");
                     node.warn(`Invalid input: expected 2-byte buffer, got ${JSON.stringify(msg.payload)}`);
                     if (done) done();
                     return;
@@ -63,7 +64,7 @@ module.exports = function(RED) {
             } else if (typeof msg.payload === "object" && msg.payload.type === "Buffer" && Array.isArray(msg.payload.data) && msg.payload.data.length === 2) {
                 inputArray = msg.payload.data;
                 if (typeof inputArray[0] !== "number" || typeof inputArray[1] !== "number") {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input: expected numeric [highByte, lowByte]" });
+                    utils.setStatusError(node, "invalid input: expected numeric [highByte, lowByte]");
                     node.warn(`Invalid input: expected numeric [highByte, lowByte], got ${JSON.stringify(msg.payload)}`);
                     if (done) done();
                     return;
@@ -71,7 +72,7 @@ module.exports = function(RED) {
             } else if (Array.isArray(msg.payload) && msg.payload.length === 2 && typeof msg.payload[0] === "number" && typeof msg.payload[1] === "number") {
                 inputArray = msg.payload;
             } else {
-                node.status({ fill: "red", shape: "ring", text: "invalid input: expected [highByte, lowByte] or 2-byte buffer" });
+                utils.setStatusError(node, "invalid input: expected [highByte, lowByte] or 2-byte buffer");
                 node.warn(`Invalid input: expected [highByte, lowByte] or 2-byte buffer, got ${JSON.stringify(msg.payload)}`);
                 if (done) done();
                 return;
@@ -81,7 +82,7 @@ module.exports = function(RED) {
                 // Calculate raw 16-bit value
                 const raw = (inputArray[0] << 8) | inputArray[1];
                 if (raw < 0 || raw > node.runtime.ADC_max) {
-                    node.status({ fill: "red", shape: "ring", text: "raw value out of range" });
+                    utils.setStatusError(node, "raw value out of range");
                     node.warn(`Raw value ${raw} out of range [0, ${node.runtime.ADC_max}]`);
                     if (done) done();
                     return;
@@ -90,7 +91,7 @@ module.exports = function(RED) {
                 // Calculate voltage
                 const voltage = (raw * node.runtime.Vref) / node.runtime.ADC_max;
                 if (voltage >= node.runtime.Vsupply || voltage <= 0) {
-                    node.status({ fill: "red", shape: "ring", text: "voltage out of range" });
+                    utils.setStatusError(node, "voltage out of range");
                     node.warn(`Voltage ${voltage} out of range (0, ${node.runtime.Vsupply})`);
                     if (done) done();
                     return;
@@ -99,7 +100,7 @@ module.exports = function(RED) {
                 // Calculate thermistor resistance
                 const R_thermistor = node.runtime.R_fixed * (voltage / (node.runtime.Vsupply - voltage));
                 if (isNaN(R_thermistor) || R_thermistor < 0) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid resistance" });
+                    utils.setStatusError(node, "invalid resistance");
                     node.warn(`Invalid resistance ${R_thermistor}`);
                     if (done) done();
                     return;
@@ -107,11 +108,11 @@ module.exports = function(RED) {
 
                 // Check if outputs have changed
                 const isUnchanged = voltage === node.runtime.lastVoltage && R_thermistor === node.runtime.lastResistance;
-                node.status({
-                    fill: "blue",
-                    shape: isUnchanged ? "ring" : "dot",
-                    text: `in: ${raw}, out: ${voltage.toFixed(2)}, ${R_thermistor.toFixed(2)}`
-                });
+                if (isUnchanged) {
+                    utils.setStatusUnchanged(node, `in: ${raw}, out: ${voltage.toFixed(2)}, ${R_thermistor.toFixed(2)}`);
+                } else {
+                    utils.setStatusChanged(node, `in: ${raw}, out: ${voltage.toFixed(2)}, ${R_thermistor.toFixed(2)}`);
+                }
 
                 if (!isUnchanged) {
                     // Update context and runtime
@@ -128,7 +129,7 @@ module.exports = function(RED) {
                 }
 
             } catch (error) {
-                node.status({ fill: "red", shape: "ring", text: "calculation error" });
+                utils.setStatusError(node, "calculation error");
                 node.warn(`Calculation error: ${error.message}`);
                 if (done) done(error);
                 return;

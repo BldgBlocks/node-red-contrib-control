@@ -231,7 +231,7 @@ module.exports = function(RED) {
                     })
                     .catch(err => {
                         node.error("Failed to save message on close: " + err.message);
-                        node.status({});
+                        utils.setStatusError(node, "save error");
                         done();
                     });
             } else {

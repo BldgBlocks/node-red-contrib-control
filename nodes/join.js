@@ -1,4 +1,5 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function BldgBlocksJoinNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -39,11 +40,11 @@ module.exports = function(RED) {
             const currentCount = Object.keys(valueMap).length;
 
             // Update status
-            node.status({
-                fill: currentCount >= node.targetCount ? "green" : "blue", 
-                shape: "dot", 
-                text: `${currentCount}/${node.targetCount} keys`
-            });
+            if (currentCount >= node.targetCount) {
+                utils.setStatusOK(node, `${currentCount}/${node.targetCount} keys`);
+            } else {
+                utils.setStatusChanged(node, `${currentCount}/${node.targetCount} keys`);
+            }
 
             // Save state back to context
             node.context().set("valueMap", valueMap);

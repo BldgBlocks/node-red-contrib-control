@@ -1,4 +1,5 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function ScaleRangeBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -20,7 +21,7 @@ module.exports = function(RED) {
             node.runtime.inMin = 0.0;
             node.runtime.inMax = 100.0;
             node.runtime.lastInput = 0.0;
-            node.status({ fill: "red", shape: "ring", text: "invalid input range" });
+            utils.setStatusError(node, "invalid input range");
         }
 
         node.on("input", function(msg, send, done) {
@@ -28,7 +29,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -36,7 +37,7 @@ module.exports = function(RED) {
             // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
+                    utils.setStatusError(node, `missing payload for ${msg.context}`);
                     if (done) done();
                     return;
                 }
@@ -49,36 +50,47 @@ module.exports = function(RED) {
                     case "outMax":
                         const value = parseFloat(msg.payload);
                         if (isNaN(value) || !isFinite(value)) {
-                            node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
+                            utils.setStatusError(node, `invalid ${msg.context}`);
                             if (done) done();
                             return;
                         }
                         node.runtime[msg.context] = value;
                         if (node.runtime.inMax <= node.runtime.inMin) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid input range" });
+                            utils.setStatusError(node, "invalid input range");
                             if (done) done();
                             return;
                         }
                         if (node.runtime.outMax <= node.runtime.outMin) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid output range" });
+                            utils.setStatusError(node, "invalid output range");
                             if (done) done();
                             return;
                         }
-                        node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${value.toFixed(2)}` });
+                        node.runtime[msg.context] = value;
+                        if (node.runtime.inMax <= node.runtime.inMin) {
+                            utils.setStatusError(node, "invalid input range");
+                            if (done) done();
+                            return;
+                        }
+                        if (node.runtime.outMax <= node.runtime.outMin) {
+                            utils.setStatusError(node, "invalid output range");
+                            if (done) done();
+                            return;
+                        }
+                        utils.setStatusOK(node, `${msg.context}: ${value.toFixed(2)}`);
                         shouldOutput = true;
                         break;
                     case "clamp":
                         if (typeof msg.payload !== "boolean") {
-                            node.status({ fill: "red", shape: "ring", text: "invalid clamp" });
+                            utils.setStatusError(node, "invalid clamp");
                             if (done) done();
                             return;
                         }
                         node.runtime.clamp = msg.payload;
-                        node.status({ fill: "green", shape: "dot", text: `clamp: ${node.runtime.clamp}` });
+                        utils.setStatusOK(node, `clamp: ${node.runtime.clamp}`);
                         shouldOutput = true;
                         break;
                     default:
-                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        utils.setStatusWarn(node, "unknown context");
                         if (done) done("Unknown context");
                         return;
                 }
@@ -87,7 +99,7 @@ module.exports = function(RED) {
                 if (shouldOutput) {
                     const out = calculate(node.runtime.lastInput, node.runtime.inMin, node.runtime.inMax, node.runtime.outMin, node.runtime.outMax, node.runtime.clamp);
                     msg.payload = out;
-                    node.status({ fill: "blue", shape: "dot", text: `in: ${node.runtime.lastInput.toFixed(2)}, out: ${out.toFixed(2)}` });
+                    utils.setStatusOK(node, `in: ${node.runtime.lastInput.toFixed(2)}, out: ${out.toFixed(2)}`);
                     send(msg);
                 }
                 if (done) done();
@@ -102,18 +114,18 @@ module.exports = function(RED) {
                 input = undefined;
             }
             if (input === undefined) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 if (done) done();
                 return;
             }
             const inputValue = parseFloat(input);
             if (isNaN(inputValue) || !isFinite(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                utils.setStatusError(node, "invalid input");
                 if (done) done();
                 return;
             }
             if (node.runtime.inMax <= node.runtime.inMin) {
-                node.status({ fill: "red", shape: "ring", text: "inMinx must be < inMax" });
+                utils.setStatusError(node, "inMinx must be < inMax");
                 if (done) done();
                 return;
             }
@@ -122,7 +134,7 @@ module.exports = function(RED) {
             node.runtime.lastInput = inputValue;
             const out = calculate(inputValue, node.runtime.inMin, node.runtime.inMax, node.runtime.outMin, node.runtime.outMax, node.runtime.clamp);
             msg.payload = out;
-            node.status({ fill: "blue", shape: "dot", text: `in: ${inputValue.toFixed(2)}, out: ${out.toFixed(2)}` });
+            utils.setStatusOK(node, `in: ${inputValue.toFixed(2)}, out: ${out.toFixed(2)}`);
             send(msg);
 
             if (done) done();

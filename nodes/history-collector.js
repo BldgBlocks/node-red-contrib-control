@@ -29,24 +29,24 @@ module.exports = function(RED) {
         node.on('input', function(msg) {
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 node.error('Invalid message received');
                 return;
             }
 
             // Validate configuration
             if (!node.historyConfig) {
-                node.status({ fill: "red", shape: "ring", text: "missing history config" });
+                utils.setStatusError(node, "missing history config");
                 node.error('Missing history configuration', msg);
                 return;
             }
             if (!node.seriesName) {
-                node.status({ fill: "red", shape: "ring", text: "missing series name" });
+                utils.setStatusError(node, "missing series name");
                 node.error('Missing series name', msg);
                 return;
             }
             if (!node.historyConfig.name) {
-                node.status({ fill: "red", shape: "ring", text: "missing bucket name" });
+                utils.setStatusError(node, "missing bucket name");
                 node.error('Missing bucket name in history configuration', msg);
                 return;
             }
@@ -64,13 +64,13 @@ module.exports = function(RED) {
                     formattedValue = parseInt(payloadValue); // Handle InfluxDB integer format
                 }
             } else {
-                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+                utils.setStatusError(node, "invalid payload");
                 node.warn(`Invalid payload type: ${typeof payloadValue}`);
                 return;
             }
 
             if (formattedValue === null) {
-                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+                utils.setStatusError(node, "invalid payload");
                 node.warn(`Invalid payload value: ${msg.payload}`);
                 return;
             }
@@ -87,7 +87,7 @@ module.exports = function(RED) {
             const line = `${escapedMeasurementName}${tagsString ? ',' + tagsString : ''} value=${valueString} ${timestamp}`;
 
             // Set initial status
-            node.status({ fill: "green", shape: "dot", text: "configuration received" });
+            utils.setStatusOK(node, "configuration received");
 
             // Handle storage type
             if (node.storageType === 'memory') {
@@ -103,12 +103,12 @@ module.exports = function(RED) {
                 }
 
                 node.context().global.set(contextKey, bucketData);
-                node.status({ fill: "blue", shape: "dot", text: `stored: ${valueString}` });
+                utils.setStatusChanged(node, `stored: ${valueString}`);
             } else if (node.storageType === 'lineProtocol') {
                 msg.measurement = escapedMeasurementName;
                 msg.payload = line;
                 node.send(msg);
-                node.status({ fill: "blue", shape: "dot", text: `sent: ${valueString}` });
+                utils.setStatusChanged(node, `sent: ${valueString}`);
             } else if (node.storageType === 'object') {
                 msg.measurement = escapedMeasurementName;
                 msg.payload = {
@@ -118,7 +118,7 @@ module.exports = function(RED) {
                     timestamp: timestamp
                 };
                 node.send(msg);
-                node.status({ fill: "blue", shape: "dot", text: `sent: ${valueString}` });
+                utils.setStatusChanged(node, `sent: ${valueString}`);
             } else if (node.storageType === 'objectArray') {
                 msg.measurement = escapedMeasurementName;
                 msg.timestamp = timestamp;
@@ -129,7 +129,7 @@ module.exports = function(RED) {
                     tagsObj
                 ]
                 node.send(msg);
-                node.status({ fill: "blue", shape: "dot", text: `sent: ${valueString}` });
+                utils.setStatusChanged(node, `sent: ${valueString}`);
             } else if (node.storageType === 'batchObject') {
                 msg.payload = {
                     measurement: escapedMeasurementName,
@@ -140,7 +140,7 @@ module.exports = function(RED) {
                     tags: tagsObj
                 }
                 node.send(msg);
-                node.status({ fill: "blue", shape: "dot", text: `sent: ${valueString}` });
+                utils.setStatusChanged(node, `sent: ${valueString}`);
             }
         });
 

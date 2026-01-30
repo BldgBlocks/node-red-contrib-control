@@ -46,12 +46,14 @@ module.exports = function(RED) {
                 } catch (err) {
                     inputValue = undefined;
                 }
-                if (typeof inputValue !== "boolean") {
-                    utils.setStatusError(node, "missing or invalid input property");
+                const boolVal = utils.validateBoolean(inputValue);
+                if (!boolVal.valid) {
+                    utils.setStatusError(node, boolVal.error);
                     node.warn("Invalid input: non-boolean value");
                     if (done) done();
                     return;
                 }
+                inputValue = boolVal.value;
 
                 // Prevent extended time running isues
                 if (node.runtime.count > 9999) {

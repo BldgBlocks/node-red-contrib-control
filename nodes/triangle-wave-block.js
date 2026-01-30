@@ -1,4 +1,5 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function TriangleWaveBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -18,15 +19,15 @@ module.exports = function(RED) {
         if (isNaN(node.runtime.lowerLimit) || isNaN(node.runtime.upperLimit) || !isFinite(node.runtime.lowerLimit) || !isFinite(node.runtime.upperLimit)) {
             node.runtime.lowerLimit = 0;
             node.runtime.upperLimit = 100;
-            node.status({ fill: "red", shape: "ring", text: "invalid limits" });
+            utils.setStatusError(node, "invalid limits");
         } else if (node.runtime.lowerLimit > node.runtime.upperLimit) {
             node.runtime.upperLimit = node.runtime.lowerLimit;
-            node.status({ fill: "red", shape: "ring", text: "invalid limits" });
+            utils.setStatusError(node, "invalid limits");
         }
         if (isNaN(node.runtime.period) || node.runtime.period <= 0 || !isFinite(node.runtime.period)) {
             node.runtime.period = 10000;
             node.runtime.periodUnits = "milliseconds";
-            node.status({ fill: "red", shape: "ring", text: "invalid period" });
+            utils.setStatusError(node, "invalid period");
         }
 
         node.on("input", function(msg, send, done) {
@@ -34,7 +35,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -42,18 +43,18 @@ module.exports = function(RED) {
             // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
+                    utils.setStatusError(node, `missing payload for ${msg.context}`);
                     if (done) done();
                     return;
                 }
                 if (typeof msg.context !== "string") {
-                    node.status({ fill: "red", shape: "ring", text: "invalid context" });
+                    utils.setStatusError(node, "invalid context");
                     if (done) done();
                     return;
                 }
                 let value = parseFloat(msg.payload);
                 if (isNaN(value) || !isFinite(value)) {
-                    node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
+                    utils.setStatusError(node, `invalid ${msg.context}`);
                     if (done) done();
                     return;
                 }
@@ -62,54 +63,34 @@ module.exports = function(RED) {
                         node.runtime.lowerLimit = value;
                         if (node.runtime.lowerLimit > node.runtime.upperLimit) {
                             node.runtime.upperLimit = node.runtime.lowerLimit;
-                            node.status({
-                                fill: "green",
-                                shape: "dot",
-                                text: `lower: ${node.runtime.lowerLimit.toFixed(2)}, upper adjusted to ${node.runtime.upperLimit.toFixed(2)}`
-                            });
+                            utils.setStatusOK(node, `lower: ${node.runtime.lowerLimit.toFixed(2)}, upper adjusted to ${node.runtime.upperLimit.toFixed(2)}`);
                         } else {
-                            node.status({
-                                fill: "green",
-                                shape: "dot",
-                                text: `lower: ${node.runtime.lowerLimit.toFixed(2)}`
-                            });
+                            utils.setStatusOK(node, `lower: ${node.runtime.lowerLimit.toFixed(2)}`);
                         }
                         break;
                     case "upperLimit":
                         node.runtime.upperLimit = value;
                         if (node.runtime.upperLimit < node.runtime.lowerLimit) {
                             node.runtime.lowerLimit = node.runtime.upperLimit;
-                            node.status({
-                                fill: "green",
-                                shape: "dot",
-                                text: `upper: ${node.runtime.upperLimit.toFixed(2)}, lower adjusted to ${node.runtime.lowerLimit.toFixed(2)}`
-                            });
+                            utils.setStatusOK(node, `upper: ${node.runtime.upperLimit.toFixed(2)}, lower adjusted to ${node.runtime.lowerLimit.toFixed(2)}`);
                         } else {
-                            node.status({
-                                fill: "green",
-                                shape: "dot",
-                                text: `upper: ${node.runtime.upperLimit.toFixed(2)}`
-                            });
+                            utils.setStatusOK(node, `upper: ${node.runtime.upperLimit.toFixed(2)}`);
                         }
                         break;
                     case "period":
                         const multiplier = msg.units === "minutes" ? 60000 : msg.units === "seconds" ? 1000 : 1;
                         value *= multiplier;
                         if (value <= 0) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid period" });
+                            utils.setStatusError(node, "invalid period");
                             if (done) done();
                             return;
                         }
                         node.runtime.period = value;
                         node.runtime.periodUnits = msg.units || "milliseconds";
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `period: ${node.runtime.period.toFixed(2)} ms`
-                        });
+                        utils.setStatusOK(node, `period: ${node.runtime.period.toFixed(2)} ms`);
                         break;
                     default:
-                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        utils.setStatusWarn(node, "unknown context");
                         if (done) done("Unknown context");
                         return;
                 }
@@ -124,7 +105,7 @@ module.exports = function(RED) {
 
             // Return lowerLimit if period is invalid
             if (node.runtime.period <= 0) {
-                node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.lowerLimit.toFixed(2)}, phase: ${node.runtime.phase.toFixed(2)}` });
+                utils.setStatusOK(node, `out: ${node.runtime.lowerLimit.toFixed(2)}, phase: ${node.runtime.phase.toFixed(2)}`);
                 send({ payload: node.runtime.lowerLimit });
                 if (done) done();
                 return;
@@ -139,7 +120,7 @@ module.exports = function(RED) {
             const value = node.runtime.lowerLimit + amplitude * triangleValue;
 
             // Output new message
-            node.status({ fill: "blue", shape: "dot", text: `out: ${value.toFixed(2)}, phase: ${node.runtime.phase.toFixed(2)}` });
+            utils.setStatusOK(node, `out: ${value.toFixed(2)}, phase: ${node.runtime.phase.toFixed(2)}`);
             send({ payload: value });
 
             if (done) done();

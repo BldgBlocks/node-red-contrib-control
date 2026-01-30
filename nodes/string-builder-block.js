@@ -16,7 +16,7 @@ module.exports = function(RED) {
             send = send || function() { node.send.apply(node, arguments); };
 
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -27,7 +27,7 @@ module.exports = function(RED) {
                 // Check busy lock
                 if (node.isBusy) {
                     // Update status to let user know they are pushing too fast
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -82,7 +82,7 @@ module.exports = function(RED) {
             if (msg.hasOwnProperty("context")) {
 
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    utils.setStatusError(node, "missing payload");
                     if (done) done();
                     return;
                 }
@@ -94,12 +94,12 @@ module.exports = function(RED) {
                         if (config[`in${index}Type`] === "str") {
                             node[`in${index}`] = msg.payload;
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: `Field type is ${config[`in${index}Type`]}` });
+                            utils.setStatusError(node, `Field type is ${config[`in${index}Type`]}`);
                             if (done) done();
                             return;
                         }
                     } else {
-                        node.status({ fill: "red", shape: "ring", text: `invalid input index ${index || "NaN"}` });
+                        utils.setStatusError(node, `invalid input index ${index || "NaN"}`);
                         if (done) done();
                         return;
                     }
@@ -107,7 +107,7 @@ module.exports = function(RED) {
             }
 
             const output = { payload: `${node.in1}${node.in2}${node.in3}${node.in4}` };
-            node.status({ fill: "blue", shape: "dot", text: `${ output.payload }` });
+            utils.setStatusOK(node, `${ output.payload }`);
             send(output);
 
             if (done) done();

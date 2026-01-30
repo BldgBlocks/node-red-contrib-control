@@ -41,7 +41,7 @@ module.exports = function(RED) {
         // This runs in background immediately after deployment
         (async function initialize() {
             if (!node.varName) {
-                node.status({ fill: "red", shape: "ring", text: "no variable defined" });
+                utils.setStatusError(node, "no variable defined");
                 return;
             }
             try {
@@ -51,12 +51,12 @@ module.exports = function(RED) {
                     // If not, set default
                     const newState = buildDefaultState();
                     await utils.setGlobalState(node, node.varName, node.storeName, newState);
-                    node.status({ fill: "grey", shape: "dot", text: `initialized: default:${node.defaultValue}` });
+                    utils.setStatusOK(node, `initialized: default:${node.defaultValue}`);
                 }
             } catch (err) {
                 // Silently fail or log if init fails (DB down on boot?)
                 node.error(`Init Error: ${err.message}`);
-                node.status({ fill: "red", shape: "dot", text: "Init Error" });
+                utils.setStatusError(node, "Init Error");
             }
         })();
 
@@ -70,7 +70,7 @@ module.exports = function(RED) {
                 if (!msg) return utils.sendError(node, msg, done, "invalid message");
                 
                 if (node.isBusy) {
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -145,7 +145,7 @@ module.exports = function(RED) {
                 if (value === state.value && priority === state.activePriority) {
                     prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
                     const noChangeText = `no change: ${prefix}${node.writePriority}:${state.value}${state.units}`;
-                    node.status({ fill: "green", shape: "dot", text: noChangeText });
+                    utils.setStatusUnchanged(node, noChangeText);
                     if (done) done();
                     return;
                 }

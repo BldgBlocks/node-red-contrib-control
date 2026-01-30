@@ -1,4 +1,5 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function TickTockBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -13,7 +14,7 @@ module.exports = function(RED) {
         // Validate initial config
         if (isNaN(node.runtime.period) || node.runtime.period <= 0 || !isFinite(node.runtime.period)) {
             node.runtime.period = 10;
-            node.status({ fill: "red", shape: "ring", text: "invalid period" });
+            utils.setStatusError(node, "invalid period");
         }
 
         let intervalId = null;
@@ -23,7 +24,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -31,12 +32,12 @@ module.exports = function(RED) {
             // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
+                    utils.setStatusError(node, `missing payload for ${msg.context}`);
                     if (done) done();
                     return;
                 }
                 if (typeof msg.context !== "string") {
-                    node.status({ fill: "red", shape: "ring", text: "invalid context" });
+                    utils.setStatusError(node, "invalid context");
                     if (done) done();
                     return;
                 }
@@ -44,28 +45,28 @@ module.exports = function(RED) {
                     case "period":
                         const value = parseFloat(msg.payload);
                         if (isNaN(value) || value <= 0 || !isFinite(value)) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid period" });
+                            utils.setStatusError(node, "invalid period");
                             if (done) done();
                             return;
                         }
                         node.runtime.period = value;
-                        node.status({ fill: "green", shape: "dot", text: `period: ${node.runtime.period.toFixed(2)}` });
+                        utils.setStatusOK(node, `period: ${node.runtime.period.toFixed(2)}`);
                         if (intervalId) {
                             clearInterval(intervalId);
                             node.runtime.state = true;
                             const halfPeriodMs = (node.runtime.period * 1000) / 2;
                             send({ payload: node.runtime.state });
-                            node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.state}` });
+                            utils.setStatusChanged(node, `out: ${node.runtime.state}`);
                             intervalId = setInterval(() => {
                                 node.runtime.state = !node.runtime.state;
                                 send({ payload: node.runtime.state });
-                                node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.state}` });
+                                utils.setStatusChanged(node, `out: ${node.runtime.state}`);
                             }, halfPeriodMs);
                         }
                         break;
                     case "command":
                         if (typeof msg.payload !== "string" || !["start", "stop"].includes(msg.payload)) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid command" });
+                            utils.setStatusError(node, "invalid command");
                             if (done) done();
                             return;
                         }
@@ -73,21 +74,21 @@ module.exports = function(RED) {
                             node.runtime.state = true;
                             const halfPeriodMs = (node.runtime.period * 1000) / 2;
                             send({ payload: node.runtime.state });
-                            node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.state}` });
+                            utils.setStatusChanged(node, `out: ${node.runtime.state}`);
                             intervalId = setInterval(() => {
                                 node.runtime.state = !node.runtime.state;
                                 send({ payload: node.runtime.state });
-                                node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.state}` });
+                                utils.setStatusChanged(node, `out: ${node.runtime.state}`);
                             }, halfPeriodMs);
-                            node.status({ fill: "green", shape: "dot", text: `started, period: ${node.runtime.period.toFixed(2)}` });
+                            utils.setStatusOK(node, `started, period: ${node.runtime.period.toFixed(2)}`);
                         } else if (msg.payload === "stop" && intervalId) {
                             clearInterval(intervalId);
                             intervalId = null;
-                            node.status({ fill: "yellow", shape: "dot", text: "stopped" });
+                            utils.setStatusWarn(node, "stopped");
                         }
                         break;
                     default:
-                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        utils.setStatusWarn(node, "unknown context");
                         if (done) done("Unknown context");
                         return;
                 }

@@ -9,25 +9,21 @@ module.exports = function(RED) {
         node.state = config.state;
 
         // Set initial status
-        node.status({
-            fill: "green",
-            shape: "dot",
-            text: `state: ${node.state}`
-        });
+        utils.setStatusOK(node, `state: ${node.state}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
 
             // Validate context
             if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid context" });
+                utils.setStatusError(node, "missing or invalid context");
                 if (done) done();
                 return;
             }
@@ -36,44 +32,28 @@ module.exports = function(RED) {
             switch (msg.context) {
                 case "toggle":
                     node.state = !node.state;
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `state: ${node.state}`
-                    });
+                    utils.setStatusChanged(node, `state: ${node.state}`);
                     send([null, null, { payload: node.state }]);
                     break;
                 case "switch":
                     node.state = !!msg.payload;
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `state: ${node.state}`
-                    });
+                    utils.setStatusChanged(node, `state: ${node.state}`);
                     send([null, null, { payload: node.state }]);
                     break;
                 case "inTrue":
                     if (node.state) {
-                        node.status({
-                            fill: "blue",
-                            shape: "dot",
-                            text: `out: ${msg.payload}`
-                        });
+                        utils.setStatusOK(node, `out: ${msg.payload}`);
                         send([msg, null, { payload: node.state }]);
                     }
                     break;
                 case "inFalse":
                     if (!node.state) {
-                        node.status({
-                            fill: "blue",
-                            shape: "dot",
-                            text: `out: ${msg.payload}`
-                        });
+                        utils.setStatusOK(node, `out: ${msg.payload}`);
                         send([null, msg, { payload: node.state }]);
                     }
                     break;
                 default:
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done("Unknown context");
                     return;
             }

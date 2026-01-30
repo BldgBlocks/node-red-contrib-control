@@ -1,4 +1,5 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function LoadSequenceBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -28,7 +29,7 @@ module.exports = function(RED) {
         // Validate initial config
         if (isNaN(node.runtime.hysteresis) || node.runtime.hysteresis < 0) {
             node.runtime.hysteresis = 0.5;
-            node.status({ fill: "red", shape: "ring", text: "invalid hysteresis" });
+            utils.setStatusError(node, "invalid hysteresis");
         }
         if (isNaN(node.runtime.threshold1) || isNaN(node.runtime.threshold2) || isNaN(node.runtime.threshold3) || isNaN(node.runtime.threshold4) ||
             node.runtime.threshold1 < 0 || node.runtime.threshold2 < 0 || node.runtime.threshold3 < 0 || node.runtime.threshold4 < 0 ||
@@ -37,7 +38,7 @@ module.exports = function(RED) {
             node.runtime.threshold2 = 20.0;
             node.runtime.threshold3 = 30.0;
             node.runtime.threshold4 = 40.0;
-            node.status({ fill: "red", shape: "ring", text: "invalid threshold order" });
+            utils.setStatusError(node, "invalid threshold order");
         }
 
         node.on("input", function(msg, send, done) {
@@ -45,7 +46,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -53,29 +54,29 @@ module.exports = function(RED) {
             // Handle configuration updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
+                    utils.setStatusError(node, `missing payload for ${msg.context}`);
                     if (done) done();
                     return;
                 }
                 switch (msg.context) {
                     case "enable":
                         if (typeof msg.payload !== "boolean") {
-                            node.status({ fill: "red", shape: "ring", text: "invalid enable" });
+                            utils.setStatusError(node, "invalid enable");
                             if (done) done();
                             return;
                         }
                         node.runtime.enable = msg.payload;
-                        node.status({ fill: "green", shape: "dot", text: `enable: ${node.runtime.enable}` });
+                        utils.setStatusOK(node, `enable: ${node.runtime.enable}`);
                         break;
                     case "hysteresis":
                         const hystValue = parseFloat(msg.payload);
                         if (isNaN(hystValue) || hystValue < 0) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid hysteresis" });
+                            utils.setStatusError(node, "invalid hysteresis");
                             if (done) done();
                             return;
                         }
                         node.runtime.hysteresis = hystValue;
-                        node.status({ fill: "green", shape: "dot", text: `hysteresis: ${node.runtime.hysteresis}` });
+                        utils.setStatusOK(node, `hysteresis: ${node.runtime.hysteresis}`);
                         break;
                     case "threshold1":
                     case "threshold2":
@@ -83,7 +84,7 @@ module.exports = function(RED) {
                     case "threshold4":
                         const threshValue = parseFloat(msg.payload);
                         if (isNaN(threshValue) || threshValue < 0) {
-                            node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
+                            utils.setStatusError(node, `invalid ${msg.context}`);
                             if (done) done();
                             return;
                         }
@@ -92,27 +93,27 @@ module.exports = function(RED) {
                         const newThresholds = [...prevThresholds];
                         newThresholds[index] = threshValue;
                         if (newThresholds[0] >= newThresholds[1] || newThresholds[1] >= newThresholds[2] || newThresholds[2] >= newThresholds[3]) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid threshold order" });
+                            utils.setStatusError(node, "invalid threshold order");
                             if (done) done();
                             return;
                         }
                         node.runtime[`threshold${index + 1}`] = threshValue;
-                        node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${threshValue}` });
+                        utils.setStatusOK(node, `${msg.context}: ${threshValue}`);
                         break;
                     case "feedback1":
                     case "feedback2":
                     case "feedback3":
                     case "feedback4":
                         if (typeof msg.payload !== "boolean") {
-                            node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
+                            utils.setStatusError(node, `invalid ${msg.context}`);
                             if (done) done();
                             return;
                         }
                         node.runtime[msg.context] = msg.payload;
-                        node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${msg.payload}` });
+                        utils.setStatusOK(node, `${msg.context}: ${msg.payload}`);
                         break;
                     default:
-                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        utils.setStatusWarn(node, "unknown context");
                         if (done) done("Unknown context");
                         return;
                 }
@@ -124,7 +125,7 @@ module.exports = function(RED) {
                 inputValue = node.runtime.lastInput;
             } else {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    utils.setStatusError(node, "missing payload");
                     if (done) done();
                     return;
                 }
@@ -133,7 +134,7 @@ module.exports = function(RED) {
                 } else {
                     inputValue = parseFloat(msg.payload);
                     if (isNaN(inputValue)) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+                        utils.setStatusError(node, "invalid payload");
                         if (done) done();
                         return;
                     }
@@ -146,7 +147,7 @@ module.exports = function(RED) {
                 node.runtime.out1 = node.runtime.out2 = node.runtime.out3 = node.runtime.out4 = false;
                 node.runtime.dOn = 0;
                 node.runtime.lastOutputs = [false, false, false, false];
-                node.status({ fill: "red", shape: "dot", text: "kill: all off" });
+                utils.setStatusError(node, "kill: all off");
                 send([{ payload: false }, { payload: false }, { payload: false }, { payload: false }]);
                 if (done) done();
                 return;
@@ -154,7 +155,7 @@ module.exports = function(RED) {
 
             // Validate thresholds
             if (node.runtime.threshold1 >= node.runtime.threshold2 || node.runtime.threshold2 >= node.runtime.threshold3 || node.runtime.threshold3 >= node.runtime.threshold4) {
-                node.status({ fill: "red", shape: "ring", text: "invalid threshold order" });
+                utils.setStatusError(node, "invalid threshold order");
                 if (done) done();
                 return;
             }
@@ -246,18 +247,10 @@ module.exports = function(RED) {
             node.runtime.lastOutputs = [node.runtime.out1, node.runtime.out2, node.runtime.out3, node.runtime.out4];
 
             if (outputsChanged) {
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `in: ${inputValue.toFixed(2)}, out: [${node.runtime.out1}, ${node.runtime.out2}, ${node.runtime.out3}, ${node.runtime.out4}]`
-                });
+                utils.setStatusChanged(node, `in: ${inputValue.toFixed(2)}, out: [${node.runtime.out1}, ${node.runtime.out2}, ${node.runtime.out3}, ${node.runtime.out4}]`);
                 send(newMsg);
             } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `in: ${inputValue.toFixed(2)}, out: [${node.runtime.out1}, ${node.runtime.out2}, ${node.runtime.out3}, ${node.runtime.out4}]`
-                });
+                utils.setStatusUnchanged(node, `in: ${inputValue.toFixed(2)}, out: [${node.runtime.out1}, ${node.runtime.out2}, ${node.runtime.out3}, ${node.runtime.out4}]`);
             }
 
             if (done) done();

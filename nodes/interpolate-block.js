@@ -1,4 +1,5 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function InterpolateBlockNode(config) {
         RED.nodes.createNode(this, config);
         
@@ -19,17 +20,13 @@ module.exports = function(RED) {
                 !node.runtime.points.every(p => typeof p.x === "number" && !isNaN(p.x) &&
                                                 typeof p.y === "number" && !isNaN(p.y))) {
                 node.runtime.points = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
-                node.status({ fill: "red", shape: "ring", text: "invalid points, using default" });
+                utils.setStatusError(node, "invalid points, using default");
             } else {
-                node.status({
-                    fill: "green",
-                    shape: "dot",
-                    text: `name: ${node.runtime.name}, points: ${node.runtime.points.length}`
-                });
+                utils.setStatusOK(node, `name: ${node.runtime.name}, points: ${node.runtime.points.length}`);
             }
         } catch (e) {
             node.runtime.points = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
-            node.status({ fill: "red", shape: "ring", text: "invalid points, using default" });
+            utils.setStatusError(node, "invalid points, using default");
         }
 
         node.on("input", function(msg, send, done) {
@@ -37,7 +34,7 @@ module.exports = function(RED) {
 
             // Guard against invalid msg
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -45,12 +42,12 @@ module.exports = function(RED) {
             // Handle configuration messages
             if (msg.context) {
                 if (typeof msg.context !== "string" || !msg.context.trim()) {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done();
                     return;
                 }
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    utils.setStatusError(node, "missing payload");
                     if (done) done();
                     return;
                 }
@@ -61,21 +58,17 @@ module.exports = function(RED) {
                             newPoints.every(p => typeof p.x === "number" && !isNaN(p.x) &&
                                                 typeof p.y === "number" && !isNaN(p.y))) {
                             node.runtime.points = newPoints;
-                            node.status({
-                                fill: "green",
-                                shape: "dot",
-                                text: `points: ${newPoints.length}`
-                            });
+                            utils.setStatusOK(node, `points: ${newPoints.length}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid points" });
+                            utils.setStatusError(node, "invalid points");
                         }
                     } catch (e) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid points" });
+                        utils.setStatusError(node, "invalid points");
                     }
                     if (done) done();
                     return;
                 } else {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done();
                     return;
                 }
@@ -89,7 +82,7 @@ module.exports = function(RED) {
                 inputValue = NaN;
             }
             if (isNaN(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 if (done) done();
                 return;
             }
@@ -110,18 +103,16 @@ module.exports = function(RED) {
             }
 
             if (isNaN(outputValue)) {
-                node.status({ fill: "red", shape: "ring", text: "input out of range" });
+                utils.setStatusError(node, "input out of range");
                 if (done) done();
                 return;
             }
 
             // Check if output value has changed
             const isUnchanged = outputValue === node.runtime.lastOutput;
-            node.status({
-                fill: "blue",
-                shape: isUnchanged ? "ring" : "dot",
-                text: `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`
-            });
+            const statusShape = isUnchanged ? "ring" : "dot";
+            utils.setStatusOK(node, `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`);
+            if (statusShape === "ring") utils.setStatusUnchanged(node, `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`);
 
             if (!isUnchanged) {
                 node.runtime.lastOutput = outputValue;

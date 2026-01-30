@@ -48,12 +48,13 @@ module.exports = function(RED) {
 
             // Handle configuration messages
             if (msg.context === "reset") {
-                if (typeof msg.payload !== "boolean") {
-                    utils.setStatusError(node, "invalid reset");
+                const boolVal = utils.validateBoolean(msg.payload);
+                if (!boolVal.valid) {
+                    utils.setStatusError(node, boolVal.error);
                     if (done) done();
                     return;
                 }
-                if (msg.payload === true) {
+                if (boolVal.value === true) {
                     node.runtime.inputs = Array(node.runtime.slots).fill(1);
                     node.runtime.lastResult = null;
                     utils.setStatusOK(node, "state reset");
@@ -74,12 +75,13 @@ module.exports = function(RED) {
                 if (done) done();
                 return;
             } else if (msg.context.startsWith("in")) {
-                let slotIndex = parseInt(msg.context.slice(2)) - 1;
-                if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= node.runtime.slots) {
-                    utils.setStatusError(node, `invalid input slot ${msg.context}`);
+                const slotVal = utils.validateSlotIndex(msg.context, node.runtime.slots);
+                if (!slotVal.valid) {
+                    utils.setStatusError(node, slotVal.error);
                     if (done) done();
                     return;
                 }
+                const slotIndex = slotVal.index - 1;
                 let newValue = parseFloat(msg.payload);
                 if (isNaN(newValue)) {
                     utils.setStatusError(node, "invalid input");

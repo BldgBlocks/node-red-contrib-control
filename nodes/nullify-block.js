@@ -1,4 +1,5 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function NullifyBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -19,9 +20,9 @@ module.exports = function(RED) {
             return rule;
         });
         if (!valid) {
-            node.status({ fill: "red", shape: "ring", text: "invalid rules, using defaults" });
+            utils.setStatusError(node, "invalid rules, using defaults");
         } else {
-            node.status({ fill: "green", shape: "dot", text: `rules: ${node.runtime.rules.map(r => r.property).join(", ")}` });
+            utils.setStatusOK(node, `rules: ${node.runtime.rules.map(r => r.property).join(", ")}`);
         }
 
         node.on("input", function(msg, send, done) {
@@ -29,7 +30,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "missing message" });
+                utils.setStatusError(node, "missing message");
                 if (done) done();
                 return;
             }
@@ -37,18 +38,18 @@ module.exports = function(RED) {
             // Handle configuration messages
             if (msg.context) {
                 if (typeof msg.context !== "string" || !msg.context.trim()) {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done();
                     return;
                 }
                 if (msg.context === "rules") {
                     if (!msg.hasOwnProperty("payload") || !Array.isArray(msg.payload) || !msg.payload.every(r => r.property && typeof r.property === "string" && r.propertyType === "msg")) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid rules" });
+                        utils.setStatusError(node, "invalid rules");
                         if (done) done();
                         return;
                     }
                     node.runtime.rules = msg.payload;
-                    node.status({ fill: "green", shape: "dot", text: `rules: ${node.runtime.rules.map(r => r.property).join(", ")}` });
+                    utils.setStatusOK(node, `rules: ${node.runtime.rules.map(r => r.property).join(", ")}`);
                     if (done) done();
                     return;
                 }
@@ -63,7 +64,7 @@ module.exports = function(RED) {
             });
 
             // Update status and send output
-            node.status({ fill: "blue", shape: "dot", text: `nullified: ${nullified.join(", ")}` });
+            utils.setStatusOK(node, `nullified: ${nullified.join(", ")}`);
             send(outputMsg);
 
             if (done) done();

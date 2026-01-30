@@ -31,12 +31,13 @@ module.exports = function(RED) {
                     return;
                 }
                 if (msg.context === "reset") {
-                    if (typeof msg.payload !== "boolean") {
-                        utils.setStatusError(node, "invalid reset");
+                    const boolVal = utils.validateBoolean(msg.payload);
+                    if (!boolVal.valid) {
+                        utils.setStatusError(node, boolVal.error);
                         if (done) done();
                         return;
                     }
-                    if (msg.payload === true) {
+                    if (boolVal.value === true) {
                         node.runtime.count = 0;
                         node.runtime.prevState = false;
                         utils.setStatusOK(node, "state reset");

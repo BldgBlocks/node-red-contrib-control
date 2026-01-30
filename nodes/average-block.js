@@ -21,7 +21,7 @@ module.exports = function(RED) {
 
             // Guard against invalid msg
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }    
@@ -32,7 +32,7 @@ module.exports = function(RED) {
                 // Check busy lock
                 if (node.isBusy) {
                     // Update status to let user know they are pushing too fast
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -73,7 +73,7 @@ module.exports = function(RED) {
 
             // Validate values
             if (isNaN(node.runtime.maxValid) || isNaN(node.runtime.minValid) || node.runtime.maxValid <= node.runtime.minValid ) {
-                node.status({ fill: "red", shape: "ring", text: `invalid evaluated values ${node.runtime.minValid}, ${node.runtime.maxValid}` });
+                utils.setStatusError(node, `invalid evaluated values ${node.runtime.minValid}, ${node.runtime.maxValid}`);
                 if (done) done();
                 return;
             }
@@ -81,42 +81,43 @@ module.exports = function(RED) {
             // Handle configuration messages
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    utils.setStatusError(node, "missing payload");
                     if (done) done();
                     return;
                 }
                 
                 switch (msg.context) {
                     case "reset":
-                        if (typeof msg.payload !== "boolean") {
-                            node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                        const boolVal = utils.validateBoolean(msg.payload);
+                        if (!boolVal.valid) {
+                            utils.setStatusError(node, boolVal.error);
                             if (done) done();
                             return;
                         }
-                        if (msg.payload === true) {
+                        if (boolVal.value === true) {
                             node.runtime.values = [];
                             node.runtime.lastAvg = null;
-                            node.status({ fill: "green", shape: "dot", text: "state reset" });
+                            utils.setStatusOK(node, "state reset");
                         }
                         break;
                         
                     case "sampleSize":
-                        let newMaxValues = parseInt(msg.payload);
-                        if (isNaN(newMaxValues) || newMaxValues < 1) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid window size" });
+                        const sizeVal = utils.validateIntRange(msg.payload, { min: 1 });
+                        if (!sizeVal.valid) {
+                            utils.setStatusError(node, sizeVal.error);
                             if (done) done();
                             return;
                         }
-                        node.runtime.maxValues = newMaxValues;
+                        node.runtime.maxValues = sizeVal.value;
                         // Trim values if new window is smaller
                         if (node.runtime.values.length > newMaxValues) {
                             node.runtime.values = node.runtime.values.slice(-newMaxValues);
                         }
-                        node.status({ fill: "green", shape: "dot", text: `window: ${newMaxValues}` });
+                        utils.setStatusOK(node, `window: ${newMaxValues}`);
                         break;
                         
                     default:
-                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        utils.setStatusWarn(node, "unknown context");
                         break;
                 }                
                 if (done) done();
@@ -125,18 +126,19 @@ module.exports = function(RED) {
 
             // Check for missing payload
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                utils.setStatusError(node, "missing payload");
                 if (done) done();
                 return;
             }
 
             // Process input
-            const inputValue = parseFloat(msg.payload);
-            if (isNaN(inputValue) || inputValue < node.runtime.minValid || inputValue > node.runtime.maxValid) {
-                node.status({ fill: "yellow", shape: "ring", text: "out of range" });
+            const numVal = utils.validateNumericPayload(msg.payload, { min: node.runtime.minValid, max: node.runtime.maxValid });
+            if (!numVal.valid) {
+                utils.setStatusWarn(node, "out of range");
                 if (done) done();
                 return;
             }
+            const inputValue = numVal.value;
 
             // Update rolling window
             node.runtime.values.push(inputValue);
@@ -149,7 +151,11 @@ module.exports = function(RED) {
             const isUnchanged = avg === node.runtime.lastAvg;
 
             // Send new message
-            node.status({ fill: "blue", shape: isUnchanged ? "ring" : "dot", text: `out: ${avg !== null ? avg.toFixed(3) : "null"}` });
+            if (isUnchanged) {
+                utils.setStatusUnchanged(node, `out: ${avg !== null ? avg.toFixed(3) : "null"}`);
+            } else {
+                utils.setStatusChanged(node, `out: ${avg !== null ? avg.toFixed(3) : "null"}`);
+            }
             node.runtime.lastAvg = avg;
             send({ payload: avg });
 

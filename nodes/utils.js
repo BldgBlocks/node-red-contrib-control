@@ -108,7 +108,142 @@ module.exports = function(RED) {
     function setStatusBusy(node, text = "busy - dropped msg") {
         node.status({ fill: "yellow", shape: "ring", text });
     }
-    
+
+    // ============================================================================
+    // Validation Helper Functions
+    // ============================================================================
+    // Common validation patterns used across control blocks
+
+    /**
+     * Validate that msg exists and contains required properties
+     * @param {Object} msg - The message object to validate
+     * @param {string[]} requiredProps - Array of required property names (e.g., ["payload"])
+     * @returns {boolean} true if valid, false otherwise
+     */
+    function validateMessage(msg, requiredProps = []) {
+        if (!msg || typeof msg !== 'object') {
+            return false;
+        }
+        return requiredProps.every(prop => msg.hasOwnProperty(prop));
+    }
+
+    /**
+     * Validate and parse numeric payload
+     * @param {*} payload - The payload to validate
+     * @param {Object} options - Validation options {min, max, allowZero}
+     * @returns {Object} {valid: boolean, value: number|null, error: string|null}
+     */
+    function validateNumericPayload(payload, options = {}) {
+        const { min = -Infinity, max = Infinity, allowZero = true } = options;
+        
+        if (payload === null || payload === undefined) {
+            return { valid: false, value: null, error: "missing payload" };
+        }
+
+        const value = parseFloat(payload);
+        
+        if (isNaN(value)) {
+            return { valid: false, value: null, error: "invalid numeric payload" };
+        }
+
+        if (!allowZero && value === 0) {
+            return { valid: false, value: null, error: "payload cannot be zero" };
+        }
+
+        if (value < min || value > max) {
+            return { valid: false, value: null, error: `payload out of range [${min}, ${max}]` };
+        }
+
+        return { valid: true, value, error: null };
+    }
+
+    /**
+     * Validate slot index for multi-slot blocks
+     * @param {string|number} slotId - The slot identifier (e.g., "in1", "in2")
+     * @param {number} maxSlots - Maximum number of slots available
+     * @returns {Object} {valid: boolean, index: number|null, error: string|null}
+     */
+    function validateSlotIndex(slotId, maxSlots) {
+        if (!slotId) {
+            return { valid: false, index: null, error: "missing slot identifier" };
+        }
+
+        // Handle numeric string (e.g., "1") or prefixed (e.g., "in1")
+        let indexStr = slotId;
+        if (typeof slotId === 'string' && slotId.match(/^[a-z]+(\d+)$/i)) {
+            indexStr = slotId.match(/\d+/)[0];
+        }
+
+        const index = parseInt(indexStr, 10);
+
+        if (isNaN(index)) {
+            return { valid: false, index: null, error: `invalid slot index: ${slotId}` };
+        }
+
+        if (index < 1 || index > maxSlots) {
+            return { valid: false, index: null, error: `slot out of range [1, ${maxSlots}]` };
+        }
+
+        return { valid: true, index, error: null };
+    }
+
+    /**
+     * Validate boolean payload
+     * @param {*} payload - The payload to validate
+     * @returns {Object} {valid: boolean, value: boolean|null, error: string|null}
+     */
+    function validateBoolean(payload) {
+        if (payload === null || payload === undefined) {
+            return { valid: false, value: null, error: "missing boolean payload" };
+        }
+
+        if (typeof payload === 'boolean') {
+            return { valid: true, value: payload, error: null };
+        }
+
+        if (typeof payload === 'string') {
+            const lower = payload.toLowerCase();
+            if (lower === 'true' || lower === '1' || lower === 'on') {
+                return { valid: true, value: true, error: null };
+            }
+            if (lower === 'false' || lower === '0' || lower === 'off') {
+                return { valid: true, value: false, error: null };
+            }
+        }
+
+        if (typeof payload === 'number') {
+            return { valid: true, value: payload !== 0, error: null };
+        }
+
+        return { valid: false, value: null, error: "invalid boolean payload" };
+    }
+
+    /**
+     * Validate integer within range
+     * @param {*} payload - The payload to validate
+     * @param {Object} options - Validation options {min, max}
+     * @returns {Object} {valid: boolean, value: number|null, error: string|null}
+     */
+    function validateIntRange(payload, options = {}) {
+        const { min = -Infinity, max = Infinity } = options;
+
+        if (payload === null || payload === undefined) {
+            return { valid: false, value: null, error: "missing payload" };
+        }
+
+        const value = parseInt(payload, 10);
+
+        if (isNaN(value)) {
+            return { valid: false, value: null, error: "invalid integer payload" };
+        }
+
+        if (value < min || value > max) {
+            return { valid: false, value: null, error: `value out of range [${min}, ${max}]` };
+        }
+
+        return { valid: true, value, error: null };
+    }
+
     // Usage:
     // const utils = require('./utils')(RED);
 
@@ -125,6 +260,11 @@ module.exports = function(RED) {
         setStatusUnchanged,
         setStatusError,
         setStatusWarn,
-        setStatusBusy
+        setStatusBusy,
+        validateMessage,
+        validateNumericPayload,
+        validateSlotIndex,
+        validateBoolean,
+        validateIntRange
     };
 }

@@ -16,9 +16,9 @@ module.exports = function(RED) {
         const validPrecisions = ["0.01", "0.1", "0.5", "1.0"];
         if (!validPrecisions.includes(node.runtime.precision)) {
             node.runtime.precision = "1.0";
-            node.status({ fill: "red", shape: "ring", text: "invalid precision, using 1.0" });
+            utils.setStatusError(node, "invalid precision, using 1.0");
         } else {
-            node.status({ fill: "green", shape: "dot", text: `name: ${node.runtime.name || "round"}, precision: ${node.runtime.precision}` });
+            utils.setStatusOK(node, `name: ${node.runtime.name || "round"}, precision: ${node.runtime.precision}`);
         }
 
         node.on("input", function(msg, send, done) {
@@ -26,7 +26,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -34,18 +34,18 @@ module.exports = function(RED) {
             // Handle precision configuration
             if (msg.hasOwnProperty("context") && msg.context === "precision") {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    utils.setStatusError(node, "missing payload");
                     if (done) done();
                     return;
                 }
                 const newPrecision = String(msg.payload);
                 if (!validPrecisions.includes(newPrecision)) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid precision" });
+                    utils.setStatusError(node, "invalid precision");
                     if (done) done();
                     return;
                 }
                 node.runtime.precision = newPrecision;
-                node.status({ fill: "green", shape: "dot", text: `precision: ${newPrecision}` });
+                utils.setStatusOK(node, `precision: ${newPrecision}`);
                 if (done) done();
                 return;
             }
@@ -58,19 +58,20 @@ module.exports = function(RED) {
                 input = undefined;
             }
             if (input === undefined) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 send(msg);
                 if (done) done();
                 return;
             }
 
-            const inputValue = parseFloat(input);
-            if (isNaN(inputValue) || !isFinite(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid input" });
+            const numVal = utils.validateNumericPayload(input);
+            if (!numVal.valid) {
+                utils.setStatusError(node, numVal.error);
                 send(msg);
                 if (done) done();
                 return;
             }
+            const inputValue = numVal.value;
 
             // Round based on precision
             let result;
@@ -86,7 +87,7 @@ module.exports = function(RED) {
             }
 
             msg.payload = result;
-            node.status({ fill: "blue", shape: "dot", text: `in: ${inputValue.toFixed(2)}, out: ${result}` });
+            utils.setStatusOK(node, `in: ${inputValue.toFixed(2)}, out: ${result}`);
             send(msg);
             if (done) done();
         });

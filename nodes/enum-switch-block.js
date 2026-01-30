@@ -21,7 +21,7 @@ module.exports = function(RED) {
 
             // Guard against invalid msg
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }  
@@ -34,7 +34,7 @@ module.exports = function(RED) {
                 // Check busy lock
                 if (node.isBusy) {
                     // Update status to let user know they are pushing too fast
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -57,7 +57,7 @@ module.exports = function(RED) {
                 matchAgainst = results[0];   
 
                 if (matchAgainst === undefined) {
-                    node.status({ fill: "red", shape: "ring", text: "property evaluation failed" });
+                    utils.setStatusError(node, "property evaluation failed");
                     if (done) done();
                     return;
                 }
@@ -97,7 +97,7 @@ module.exports = function(RED) {
                 
                 if (match) {
                     matched = true;
-                    node.status({ fill: "blue", shape: "dot", text: `Matched: ${rule.value}` });
+                    utils.setStatusChanged(node, `Matched: ${rule.value}`);
                 }
             }
 
@@ -113,9 +113,9 @@ module.exports = function(RED) {
             send(messages);
 
             if (!matched && rules.length > 0) {
-                node.status({ fill: "blue", shape: "ring", text: "No match" });
+                utils.setStatusUnchanged(node, "No match");
             } else if (rules.length === 0) {
-                node.status({ fill: "yellow", shape: "ring", text: "No rules configured" });
+                utils.setStatusWarn(node, "No rules configured");
             }
 
             if (done) done();

@@ -1,4 +1,5 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function TimeSequenceBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -13,7 +14,7 @@ module.exports = function(RED) {
         // Validate initial config
         if (isNaN(node.runtime.delay) || node.runtime.delay < 0 || !isFinite(node.runtime.delay)) {
             node.runtime.delay = 5000;
-            node.status({ fill: "red", shape: "ring", text: "invalid delay" });
+            utils.setStatusError(node, "invalid delay");
         }
 
         let timer = null;
@@ -23,7 +24,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -31,39 +32,35 @@ module.exports = function(RED) {
             // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (typeof msg.context !== "string") {
-                    node.status({ fill: "red", shape: "ring", text: "invalid context" });
+                    utils.setStatusError(node, "invalid context");
                     if (done) done();
                     return;
                 }
                 switch (msg.context) {
                     case "delay":
                         if (!msg.hasOwnProperty("payload")) {
-                            node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
+                            utils.setStatusError(node, `missing payload for ${msg.context}`);
                             if (done) done();
                             return;
                         }
                         const delayValue = parseFloat(msg.payload);
                         if (isNaN(delayValue) || delayValue < 0 || !isFinite(delayValue)) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid delay" });
+                            utils.setStatusError(node, "invalid delay");
                             if (done) done();
                             return;
                         }
                         node.runtime.delay = delayValue;
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `delay: ${node.runtime.delay.toFixed(2)} ms`
-                        });
+                        utils.setStatusOK(node, `delay: ${node.runtime.delay.toFixed(2)} ms`);
                         if (done) done();
                         return;
                     case "reset":
                         if (!msg.hasOwnProperty("payload")) {
-                            node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
+                            utils.setStatusError(node, `missing payload for ${msg.context}`);
                             if (done) done();
                             return;
                         }
                         if (typeof msg.payload !== "boolean" || !msg.payload) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                            utils.setStatusError(node, "invalid reset");
                             if (done) done();
                             return;
                         }
@@ -73,11 +70,7 @@ module.exports = function(RED) {
                         }
                         node.runtime.stage = 0;
                         const resetMsg = { payload: false };
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: "state reset"
-                        });
+                        utils.setStatusOK(node, "state reset");
                         send([resetMsg, resetMsg, resetMsg, resetMsg]);
                         if (done) done();
                         return;
@@ -88,14 +81,14 @@ module.exports = function(RED) {
 
             // Validate input
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing input" });
+                utils.setStatusError(node, "missing input");
                 if (done) done();
                 return;
             }
 
             // Process input
             if (node.runtime.stage !== 0) {
-                node.status({ fill: "yellow", shape: "ring", text: "sequence already running" });
+                utils.setStatusWarn(node, "sequence already running");
                 if (done) done();
                 return;
             }
@@ -111,11 +104,7 @@ module.exports = function(RED) {
                 const outputs = [null, null, null, null];
                 cloneMsg.stage = node.runtime.stage;
                 outputs[node.runtime.stage - 1] = cloneMsg;
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `stage: ${stageLabels[node.runtime.stage - 1]}, in: ${JSON.stringify(cloneMsg.payload).slice(0, 20)}`
-                });
+                utils.setStatusOK(node, `stage: ${stageLabels[node.runtime.stage - 1]}, in: ${JSON.stringify(cloneMsg.payload).slice(0, 20)}`);
                 send(outputs);
 
                 node.runtime.stage++;

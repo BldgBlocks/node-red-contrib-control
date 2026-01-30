@@ -10,7 +10,7 @@ module.exports = function(RED) {
             
             try {
                 if (!node.registry) {
-                    node.status({ fill: "red", shape: "ring", text: "Registry missing" });
+                    utils.setStatusError(node, "Registry missing");
                     if (done) done();
                     return;
                 }

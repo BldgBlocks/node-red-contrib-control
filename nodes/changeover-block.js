@@ -39,7 +39,7 @@ module.exports = function(RED) {
             send = send || function() { node.send.apply(node, arguments); };
 
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }             
@@ -49,7 +49,7 @@ module.exports = function(RED) {
                 // Check busy lock
                 if (node.isBusy) {
                     // Update status to let user know they are pushing too fast
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -157,24 +157,24 @@ module.exports = function(RED) {
             if (node.runtime.coolingSetpoint < node.runtime.heatingSetpoint 
                 || node.runtime.maxTempSetpoint < node.runtime.minTempSetpoint 
                 || node.runtime.deadband <= 0 || node.runtime.extent < 0) {
-                node.status({ fill: "red", shape: "ring", text: "error validating properties, check setpoints" });
+                utils.setStatusError(node, "error validating properties, check setpoints");
                 if (done) done(err);
                 return;
             }
             
             if (node.runtime.swapTime < 60) {
                 node.runtime.swapTime = 60;
-                node.status({ fill: "red", shape: "ring", text: "swapTime below 60s, using 60" });
+                utils.setStatusError(node, "swapTime below 60s, using 60");
             }
 
             if (node.runtime.coolingSetpoint < node.runtime.heatingSetpoint) {
                 node.runtime.coolingSetpoint = node.runtime.heatingSetpoint + 4;
-                node.status({ fill: "red", shape: "ring", text: "invalid setpoints, using fallback" });
+                utils.setStatusError(node, "invalid setpoints, using fallback");
             }
 
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
+                    utils.setStatusError(node, `missing payload for ${msg.context}`);
                     if (done) done();
                     return;
                 }
@@ -183,113 +183,113 @@ module.exports = function(RED) {
                 switch (msg.context) {
                     case "operationMode":
                         if (!["auto", "heat", "cool"].includes(msg.payload)) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid operationMode" });
+                            utils.setStatusError(node, "invalid operationMode");
                             if (done) done();
                             return;
                         }
                         node.runtime.operationMode = msg.payload;
-                        node.status({ fill: "green", shape: "dot", text: `in: operationMode=${msg.payload}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: operationMode=${msg.payload}, out: ${node.runtime.currentMode}`);
                         break;
                     case "algorithm":
                         if (!["single", "split"].includes(msg.payload)) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid algorithm" });
+                            utils.setStatusError(node, "invalid algorithm");
                             if (done) done();
                             return;
                         }
                         node.runtime.algorithm = msg.payload;
-                        node.status({ fill: "green", shape: "dot", text: `in: algorithm=${msg.payload}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: algorithm=${msg.payload}, out: ${node.runtime.currentMode}`);
                         break;
                     case "setpoint":
                         if (isNaN(value) || value < node.runtime.minTempSetpoint || value > node.runtime.maxTempSetpoint) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid setpoint" });
+                            utils.setStatusError(node, "invalid setpoint");
                             if (done) done();
                             return;
                         }
                         node.runtime.setpoint = value.toString();
                         node.runtime.setpointType = "num";
-                        node.status({ fill: "green", shape: "dot", text: `in: setpoint=${value.toFixed(1)}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: setpoint=${value.toFixed(1)}, out: ${node.runtime.currentMode}`);
                         break;
                     case "deadband":
                         if (isNaN(value) || value <= 0) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid deadband" });
+                            utils.setStatusError(node, "invalid deadband");
                             if (done) done();
                             return;
                         }
                         node.runtime.deadband = value;
-                        node.status({ fill: "green", shape: "dot", text: `in: deadband=${value.toFixed(1)}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: deadband=${value.toFixed(1)}, out: ${node.runtime.currentMode}`);
                         break;
                     case "heatingSetpoint":
                         if (isNaN(value) || value < node.runtime.minTempSetpoint || value > node.runtime.maxTempSetpoint || value > node.runtime.coolingSetpoint) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid heatingSetpoint" });
+                            utils.setStatusError(node, "invalid heatingSetpoint");
                             if (done) done();
                             return;
                         }
                         node.runtime.heatingSetpoint = value.toString();
                         node.runtime.heatingSetpointType = "num";
-                        node.status({ fill: "green", shape: "dot", text: `in: heatingSetpoint=${value.toFixed(1)}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: heatingSetpoint=${value.toFixed(1)}, out: ${node.runtime.currentMode}`);
                         break;
                     case "coolingSetpoint":
                         if (isNaN(value) || value < node.runtime.minTempSetpoint || value > node.runtime.maxTempSetpoint || value < node.runtime.heatingSetpoint) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid coolingSetpoint" });
+                            utils.setStatusError(node, "invalid coolingSetpoint");
                             if (done) done();
                             return;
                         }
                         node.runtime.coolingSetpoint = value.toString();
                         node.runtime.coolingSetpointType = "num";
-                        node.status({ fill: "green", shape: "dot", text: `in: coolingSetpoint=${value.toFixed(1)}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: coolingSetpoint=${value.toFixed(1)}, out: ${node.runtime.currentMode}`);
                         break;
                     case "extent":
                         if (isNaN(value) || value < 0) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid extent" });
+                            utils.setStatusError(node, "invalid extent");
                             if (done) done();
                             return;
                         }
                         node.runtime.extent = value;
-                        node.status({ fill: "green", shape: "dot", text: `in: extent=${value.toFixed(1)}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: extent=${value.toFixed(1)}, out: ${node.runtime.currentMode}`);
                         break;
                     case "swapTime":
                         if (isNaN(value) || value < 60) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid swapTime, minimum 60s" });
+                            utils.setStatusError(node, "invalid swapTime, minimum 60s");
                             if (done) done();
                             return;
                         }
                         node.runtime.swapTime = value.toString();
                         node.runtime.swapTimeType = "num";
-                        node.status({ fill: "green", shape: "dot", text: `in: swapTime=${value.toFixed(0)}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: swapTime=${value.toFixed(0)}, out: ${node.runtime.currentMode}`);
                         break;
                     case "minTempSetpoint":
                         if (isNaN(value) || value >= node.runtime.maxTempSetpoint ||
                             (node.runtime.algorithm === "single" && value > node.runtime.setpoint) ||
                             (node.runtime.algorithm === "split" && (value > node.runtime.heatingSetpoint || value > node.runtime.coolingSetpoint))) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid minTempSetpoint" });
+                            utils.setStatusError(node, "invalid minTempSetpoint");
                             if (done) done();
                             return;
                         }
                         node.runtime.minTempSetpoint = value;
-                        node.status({ fill: "green", shape: "dot", text: `in: minTempSetpoint=${value.toFixed(1)}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: minTempSetpoint=${value.toFixed(1)}, out: ${node.runtime.currentMode}`);
                         break;
                     case "maxTempSetpoint":
                         if (isNaN(value) || value <= node.runtime.minTempSetpoint ||
                             (node.runtime.algorithm === "single" && value < node.runtime.setpoint) ||
                             (node.runtime.algorithm === "split" && (value < node.runtime.heatingSetpoint || value < node.runtime.coolingSetpoint))) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid maxTempSetpoint" });
+                            utils.setStatusError(node, "invalid maxTempSetpoint");
                             if (done) done();
                             return;
                         }
                         node.runtime.maxTempSetpoint = value;
-                        node.status({ fill: "green", shape: "dot", text: `in: maxTempSetpoint=${value.toFixed(1)}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: maxTempSetpoint=${value.toFixed(1)}, out: ${node.runtime.currentMode}`);
                         break;
                     case "initWindow":
                         if (isNaN(value) || value < 0) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid initWindow" });
+                            utils.setStatusError(node, "invalid initWindow");
                             if (done) done();
                             return;
                         }
                         node.runtime.initWindow = value;
-                        node.status({ fill: "green", shape: "dot", text: `in: initWindow=${value.toFixed(0)}, out: ${node.runtime.currentMode}` });
+                        utils.setStatusOK(node, `in: initWindow=${value.toFixed(0)}, out: ${node.runtime.currentMode}`);
                         break;
                     default:
-                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        utils.setStatusWarn(node, "unknown context");
                         if (done) done();
                         return;
                 }
@@ -302,7 +302,7 @@ module.exports = function(RED) {
             }
 
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing temperature payload property" });
+                utils.setStatusError(node, "missing temperature payload property");
                 if (done) done();
                 return;
             }
@@ -314,7 +314,7 @@ module.exports = function(RED) {
                 input = NaN;
             }
             if (isNaN(input)) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 if (done) done();
                 return;
             }
@@ -463,18 +463,18 @@ module.exports = function(RED) {
             const inInitWindow = !initComplete && now - initStartTime < node.runtime.initWindow;
 
             if (inInitWindow) {
-                node.status({ fill: "yellow", shape: "ring", text: `initializing, out: ${node.runtime.currentMode}` });
+                utils.setStatusBusy(node, `initializing, out: ${node.runtime.currentMode}`);
             } else {
                 let statusText = `in: temp=${node.runtime.lastTemperature !== null ? node.runtime.lastTemperature.toFixed(1) : "unknown"}, out: ${node.runtime.currentMode}`;
                 if (pendingMode && conditionStartTime) {
                     const remaining = Math.max(0, node.runtime.swapTime - (now - conditionStartTime));
                     statusText += `, pending: ${pendingMode} in ${remaining.toFixed(0)}s`;
                 }
-                node.status({
-                    fill: "blue",
-                    shape: now - node.runtime.lastModeChange < 1 ? "dot" : "ring",
-                    text: statusText
-                });
+                if (now - node.runtime.lastModeChange < 1) {
+                    utils.setStatusChanged(node, statusText);
+                } else {
+                    utils.setStatusUnchanged(node, statusText);
+                }
             }
         }
 

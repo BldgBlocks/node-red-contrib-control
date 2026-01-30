@@ -13,7 +13,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -21,23 +21,23 @@ module.exports = function(RED) {
             // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload for setpoint" });
+                    utils.setStatusError(node, "missing payload for setpoint");
                     if (done) done();
                     return;
                 }
 
                 if (msg.context === "setpoint") {
-                    const setpointValue = parseFloat(msg.payload);
-                    if (!isNaN(setpointValue) && isFinite(setpointValue)) {
-                        node.setpoint = setpointValue;
-                        node.status({ fill: "green", shape: "dot", text: `setpoint: ${setpointValue.toFixed(2)}` });
+                    const numVal = utils.validateNumericPayload(msg.payload);
+                    if (numVal.valid) {
+                        node.setpoint = numVal.value;
+                        utils.setStatusOK(node, `setpoint: ${numVal.value.toFixed(2)}`);
                     } else {
-                        node.status({ fill: "red", shape: "ring", text: "invalid setpoint" });
+                        utils.setStatusError(node, "invalid setpoint");
                     }
                     if (done) done();
                     return;
                 } else {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done("Unknown context");
                     return;
                 }
@@ -51,14 +51,14 @@ module.exports = function(RED) {
                 input = undefined;
             }
             if (input === undefined) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 if (done) done();
                 return;
             }
 
             const inputValue = parseFloat(input);
             if (isNaN(inputValue) || !isFinite(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                utils.setStatusError(node, "invalid input");
                 if (done) done();
                 return;
             }
@@ -73,11 +73,7 @@ module.exports = function(RED) {
                 { payload: less }
             ];
 
-            node.status({
-                fill: "blue",
-                shape: "dot",
-                text: `in: ${inputValue.toFixed(2)}, sp: ${node.setpoint.toFixed(2)}, out: [${greater}, ${equal}, ${less}]`
-            });
+            utils.setStatusOK(node, `in: ${inputValue.toFixed(2)}, sp: ${node.setpoint.toFixed(2)}, out: [${greater}, ${equal}, ${less}]`);
             
             send(outputs);
 

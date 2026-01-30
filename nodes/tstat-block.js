@@ -33,7 +33,7 @@ module.exports = function(RED) {
             send = send || function() { node.send.apply(node, arguments); };
 
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -44,7 +44,7 @@ module.exports = function(RED) {
                 // Check busy lock
                 if (node.isBusy) {
                     // Update status to let user know they are pushing too fast
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -166,7 +166,7 @@ module.exports = function(RED) {
             // Handle configuration messages
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                    utils.setStatusError(node, "missing payload");
                     if (done) done();
                     return;
                 }
@@ -175,103 +175,101 @@ module.exports = function(RED) {
                     case "algorithm":
                         if (["single", "split", "specified"].includes(msg.payload)) {
                             node.algorithm = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `algorithm: ${msg.payload}` });
+                            utils.setStatusOK(node, `algorithm: ${msg.payload}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid algorithm" });
+                            utils.setStatusError(node, "invalid algorithm");
                         }
                         break;
                     case "setpoint":
                         if (typeof msg.payload === 'number') {
                             node.setpoint = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `setpoint: ${msg.payload.toFixed(2)}` });
+                            utils.setStatusOK(node, `setpoint: ${msg.payload.toFixed(2)}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid setpoint" });
+                            utils.setStatusError(node, "invalid setpoint");
                         }
                         break;
                     case "heatingSetpoint":
                         if (typeof msg.payload === 'number') {
                             node.heatingSetpoint = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `heatingSetpoint: ${msg.payload.toFixed(2)}`
-                            });
+                            utils.setStatusOK(node, `heatingSetpoint: ${msg.payload.toFixed(2)}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid heatingSetpoint" });
+                            utils.setStatusError(node, "invalid heatingSetpoint");
                         }
                         break;
                     case "coolingSetpoint":
                         if (typeof msg.payload === 'number') {
                             node.coolingSetpoint = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `coolingSetpoint: ${msg.payload.toFixed(2)}` });
+                            utils.setStatusOK(node, `coolingSetpoint: ${msg.payload.toFixed(2)}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid coolingSetpoint" });
+                            utils.setStatusError(node, "invalid coolingSetpoint");
                         }
                         break;
                     case "coolingOn":
                         if (typeof msg.payload === 'number') {
                             node.coolingOn = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `coolingOn: ${msg.payload.toFixed(2)}` });
+                            utils.setStatusOK(node, `coolingOn: ${msg.payload.toFixed(2)}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid coolingOn" });
+                            utils.setStatusError(node, "invalid coolingOn");
                         }
                         break;
                     case "coolingOff":
                         if (typeof msg.payload === 'number') {
                             node.coolingOff = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `coolingOff: ${msg.payload.toFixed(2)}`
-                            });
+                            utils.setStatusOK(node, `coolingOff: ${msg.payload.toFixed(2)}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid coolingOff" });
+                            utils.setStatusError(node, "invalid coolingOff");
                         }
                         break;
                     case "heatingOff":
                         if (typeof msg.payload === 'number') {
                             node.heatingOff = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `heatingOff: ${msg.payload.toFixed(2)}` });
+                            utils.setStatusOK(node, `heatingOff: ${msg.payload.toFixed(2)}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid heatingOff" });
+                            utils.setStatusError(node, "invalid heatingOff");
                         }
                         break;
                     case "heatingOn":
                         if (typeof msg.payload === 'number') {
                             node.heatingOn = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `heatingOn: ${msg.payload.toFixed(2)}` });
+                            utils.setStatusOK(node, `heatingOn: ${msg.payload.toFixed(2)}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid heatingOn" });
+                            utils.setStatusError(node, "invalid heatingOn");
                         }
                         break;
                     case "diff":
                         if (typeof msg.payload === 'number' && msg.payload >= 0.01) {
                             node.diff = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `diff: ${msg.payload.toFixed(2)}` });
+                            utils.setStatusOK(node, `diff: ${msg.payload.toFixed(2)}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid diff" });
+                            utils.setStatusError(node, "invalid diff");
                         }
                         break;
                     case "anticipator":
                         if (typeof msg.payload === 'number' && msg.payload >= -2) {
                             node.anticipator = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `anticipator: ${msg.payload.toFixed(2)}` });
+                            utils.setStatusOK(node, `anticipator: ${msg.payload.toFixed(2)}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid anticipator" });
+                            utils.setStatusError(node, "invalid anticipator");
                         }
                         break;
                     case "ignoreAnticipatorCycles":
                         if (typeof msg.payload === 'number' && msg.payload >= 0) {
                             node.ignoreAnticipatorCycles = Math.floor(msg.payload);
-                            node.status({ fill: "green", shape: "dot", text: `ignoreAnticipatorCycles: ${Math.floor(msg.payload)}` });
+                            utils.setStatusOK(node, `ignoreAnticipatorCycles: ${Math.floor(msg.payload)}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid ignoreAnticipatorCycles" });
+                            utils.setStatusError(node, "invalid ignoreAnticipatorCycles");
                         }
                         break;
                     case "isHeating":
                         if (typeof msg.payload === "boolean") {
                             node.isHeating = msg.payload;
-                            node.status({ fill: "green", shape: "dot", text: `isHeating: ${msg.payload}` });
+                            utils.setStatusOK(node, `isHeating: ${msg.payload}`);
                         } else {
-                            node.status({ fill: "red", shape: "ring", text: "invalid isHeating" });
+                            utils.setStatusError(node, "invalid isHeating");
                         }
                         break;
                     default:
-                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        utils.setStatusWarn(node, "unknown context");
                         break;
                 }
                 if (done) done();
@@ -279,21 +277,21 @@ module.exports = function(RED) {
             }
 
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                utils.setStatusError(node, "missing payload");
                 if (done) done();
                 return;
             }
 
             const input = parseFloat(msg.payload);
             if (isNaN(input)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+                utils.setStatusError(node, "invalid payload");
                 if (done) done();
                 return;
             }
 
             const isHeating = msg.hasOwnProperty("isHeating") && typeof msg.isHeating === "boolean" ? msg.isHeating : node.isHeating;
             if (msg.hasOwnProperty("isHeating") && typeof msg.isHeating !== "boolean") {
-                node.status({ fill: "red", shape: "ring", text: "invalid isHeating (must be boolean)" });
+                utils.setStatusError(node, "invalid isHeating (must be boolean)");
                 if (done) done();
                 return;
             }
@@ -458,17 +456,9 @@ module.exports = function(RED) {
             send(outputs);
 
             if (above === lastAbove && below === lastBelow) {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `in: ${input.toFixed(2)}, out: ${node.isHeating ? "heating" : "cooling"}, above: ${above}, below: ${below}`
-                });
+                utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: ${node.isHeating ? "heating" : "cooling"}, above: ${above}, below: ${below}`);
             } else {
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `in: ${input.toFixed(2)}, out: ${node.isHeating ? "heating" : "cooling"}, above: ${above}, below: ${below}`
-                });
+                utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${node.isHeating ? "heating" : "cooling"}, above: ${above}, below: ${below}`);
             }
 
             if (done) done();

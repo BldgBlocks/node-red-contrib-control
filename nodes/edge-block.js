@@ -13,11 +13,7 @@ module.exports = function(RED) {
             lastValue: null
         };
 
-        node.status({
-            fill: "green",
-            shape: "dot",
-            text: `name: ${node.runtime.name || "edge"}, algorithm: ${node.runtime.algorithm}`
-        });
+        utils.setStatusOK(node, `name: ${node.runtime.name || "edge"}, algorithm: ${node.runtime.algorithm}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -26,7 +22,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -35,31 +31,37 @@ module.exports = function(RED) {
             if (msg.hasOwnProperty("context") && typeof msg.context === "string") {
                 if (msg.context === "algorithm") {
                     if (!msg.hasOwnProperty("payload")) {
-                        node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                        utils.setStatusError(node, "missing payload");
                         if (done) done();
                         return;
                     }
                     const newAlgorithm = String(msg.payload);
                     if (!validAlgorithms.includes(newAlgorithm)) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid algorithm" });
+                        utils.setStatusError(node, "invalid algorithm");
                         if (done) done();
                         return;
                     }
                     node.runtime.algorithm = newAlgorithm;
-                    node.status({ fill: "green", shape: "dot", text: `algorithm: ${newAlgorithm}` });
+                    utils.setStatusOK(node, `algorithm: ${newAlgorithm}`);
                     if (done) done();
                     return;
                 }
 
                 if (msg.context === "reset") {
-                    if (!msg.hasOwnProperty("payload") || typeof msg.payload !== "boolean") {
-                        node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                    if (!msg.hasOwnProperty("payload")) {
+                        utils.setStatusError(node, "missing payload");
                         if (done) done();
                         return;
                     }
-                    if (msg.payload === true) {
+                    const boolVal = utils.validateBoolean(msg.payload);
+                    if (!boolVal.valid) {
+                        utils.setStatusError(node, boolVal.error);
+                        if (done) done();
+                        return;
+                    }
+                    if (boolVal.value === true) {
                         node.runtime.lastValue = null;
-                        node.status({ fill: "green", shape: "dot", text: "state reset" });
+                        utils.setStatusOK(node, "state reset");
                         if (done) done();
                         return;
                     }
@@ -77,13 +79,13 @@ module.exports = function(RED) {
                 inputValue = undefined;
             }
             if (inputValue === undefined) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 if (done) done();
                 return;
             }
 
             if (typeof inputValue !== "boolean") {
-                node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                utils.setStatusError(node, "invalid input");
                 if (done) done();
                 return;
             }
@@ -102,18 +104,10 @@ module.exports = function(RED) {
             }
 
             if (isTransition) {
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `in: ${currentValue}, out: true`
-                });
+                utils.setStatusChanged(node, `in: ${currentValue}, out: true`);
                 send({ payload: true });
             } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `in: ${currentValue}, out: none`
-                });
+                utils.setStatusUnchanged(node, `in: ${currentValue}, out: none`);
             }
 
             node.runtime.lastValue = currentValue;

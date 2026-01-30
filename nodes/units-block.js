@@ -1,5 +1,6 @@
 
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
     function UnitsBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -16,7 +17,7 @@ module.exports = function(RED) {
 
             // Validate input
             if (!msg || typeof msg !== "object" || !msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
 
                 if (done) done();
                 return;
@@ -31,20 +32,20 @@ module.exports = function(RED) {
                     input = undefined;
                 }
                 if (input === undefined) {
-                    node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                    utils.setStatusError(node, "missing or invalid input property");
                     if (done) done();
                     return;
                 }
                 
                 const payloadPreview = input !== null ? (typeof input === "number" ? input.toFixed(2) : JSON.stringify(input).slice(0, 20)) : "none";
 
-                node.status({ fill: "blue", shape: "dot", text: `in: ${payloadPreview} unit: ${node.runtime.unit !== "" ? node.runtime.unit : "none"}` });
+                utils.setStatusOK(node, `in: ${payloadPreview} unit: ${node.runtime.unit !== "" ? node.runtime.unit : "none"}`);
 
                 msg.units = node.runtime.unit;
                 send(msg);
                 if (done) done();
             } catch (error) {
-                node.status({ fill: "red", shape: "ring", text: "processing error" });
+                utils.setStatusError(node, "processing error");
 
                 if (done) done(error);
                 return;

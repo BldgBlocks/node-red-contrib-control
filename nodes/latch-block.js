@@ -53,7 +53,7 @@ module.exports = function(RED) {
                             node.state = false;
                             utils.setStatusChanged(node, `state: ${node.state}`);
                         } else {
-                            node.status({ fill: "blue", shape: "ring", text: `state: ${node.state}` });
+                            utils.setStatusUnchanged(node, `state: ${node.state}`);
                         }
                     }
                     send({ payload: node.state });

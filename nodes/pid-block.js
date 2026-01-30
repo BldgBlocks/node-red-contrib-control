@@ -105,7 +105,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -118,7 +118,7 @@ module.exports = function(RED) {
                 // Check busy lock - prevent concurrent processing since we're async
                 if (node.isBusy) {
                     // Drop message if already processing (too fast)
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -239,15 +239,15 @@ module.exports = function(RED) {
             
             // Validate config
             if (node.runtime.deadband < 0 || node.runtime.maxChange < 0) {
-                node.status({ fill: "red", shape: "ring", text: "invalid deadband or maxChange" });
+                utils.setStatusError(node, "invalid deadband or maxChange");
                 node.runtime.deadband = node.runtime.maxChange = 0;
             }
             if (node.runtime.outMin != null && node.runtime.outMax != null && node.runtime.outMax <= node.runtime.outMin) {
-                node.status({ fill: "red", shape: "ring", text: "invalid output range" });
+                utils.setStatusError(node, "invalid output range");
                 node.runtime.outMin = node.runtime.outMax = null;
             }
             if (!["ReturnToZero", "HoldLastResult"].includes(node.runtime.dbBehavior)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid dbBehavior" });
+                utils.setStatusError(node, "invalid dbBehavior");
                 node.runtime.dbBehavior = "ReturnToZero";
             }
 
@@ -258,24 +258,24 @@ module.exports = function(RED) {
             // ================================================================
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
+                    utils.setStatusError(node, `missing payload for ${msg.context}`);
                     if (done) done();
                     return;
                 }
                 if (typeof msg.context !== "string") {
-                    node.status({ fill: "red", shape: "ring", text: "invalid context" });
+                    utils.setStatusError(node, "invalid context");
                     if (done) done();
                     return;
                 }
                 if (["setpoint", "kp", "ki", "kd", "deadband", "outMin", "outMax", "maxChange", "setpointRateLimit"].includes(msg.context)) {
                     let value = parseFloat(msg.payload);
                     if (isNaN(value) || !isFinite(value)) {
-                        node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
+                        utils.setStatusError(node, `invalid ${msg.context}`);
                         if (done) done();
                         return;
                     }
                     if ((msg.context === "deadband" || msg.context === "maxChange" || msg.context === "setpointRateLimit") && value < 0) {
-                        node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
+                        utils.setStatusError(node, `invalid ${msg.context}`);
                         if (done) done();
                         return;
                     }
@@ -287,31 +287,37 @@ module.exports = function(RED) {
                     }
                     if (msg.context === "outMin" || msg.context === "outMax") {
                         if (node.runtime.outMin != null && node.runtime.outMax != null && node.runtime.outMax <= node.runtime.outMin) {
-                            node.status({ fill: "red", shape: "ring", text: "invalid output range" });
+                            utils.setStatusError(node, "invalid output range");
                             if (done) done();
                             return;
                         }
                     }
-                    node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${value.toFixed(2)}` });
+                    utils.setStatusOK(node, `${msg.context}: ${value.toFixed(2)}`);
+                    if (done) done();
+                    return;
                 } else if (["run", "directAction"].includes(msg.context)) {
                     if (typeof msg.payload !== "boolean") {
-                        node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
+                        utils.setStatusError(node, `invalid ${msg.context}`);
                         if (done) done();
                         return;
                     }
                     node.runtime[msg.context] = msg.payload;
-                    node.status({ fill: "green", shape: "dot", text: `${msg.context}: ${msg.payload}` });
+                    utils.setStatusOK(node, `${msg.context}: ${msg.payload}`);
+                    if (done) done();
+                    return;
                 } else if (msg.context === "dbBehavior") {
                     if (!["ReturnToZero", "HoldLastResult"].includes(msg.payload)) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid dbBehavior" });
+                        utils.setStatusError(node, "invalid dbBehavior");
                         if (done) done();
                         return;
                     }
                     node.runtime.dbBehavior = msg.payload;
-                    node.status({ fill: "green", shape: "dot", text: `dbBehavior: ${msg.payload}` });
+                    utils.setStatusOK(node, `dbBehavior: ${msg.payload}`);
+                    if (done) done();
+                    return;
                 } else if (msg.context === "reset") {
                     if (typeof msg.payload !== "boolean" || !msg.payload) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                        utils.setStatusError(node, "invalid reset");
                         if (done) done();
                         return;
                     }
@@ -321,12 +327,14 @@ module.exports = function(RED) {
                     node.runtime.result = 0;
                     node.runtime.tuneMode = false;
                     node.runtime.tuneData = { relayOutput: 1, peaks: [], lastPeak: null, lastTrough: null, oscillationCount: 0, startTime: null, Ku: 0, Tu: 0 };
-                    node.status({ fill: "green", shape: "dot", text: "reset" });
+                    utils.setStatusOK(node, "reset");
+                    if (done) done();
+                    return;
                     if (done) done();
                     return;
                 } else if (msg.context === "tune") {
                     if (typeof msg.payload !== "boolean" || !msg.payload) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid tune command" });
+                        utils.setStatusError(node, "invalid tune command");
                         if (done) done();
                         return;
                     }
@@ -334,11 +342,13 @@ module.exports = function(RED) {
                     node.runtime.tuneData = { relayOutput: 1, peaks: [], lastPeak: null, lastTrough: null, oscillationCount: 0, startTime: null, Ku: 0, Tu: 0 };
                     node.runtime.errorSum = 0;
                     node.runtime.lastError = 0;
-                    node.status({ fill: "yellow", shape: "dot", text: "tune: starting relay auto-tuning..." });
+                    utils.setStatusBusy(node, "tune: starting relay auto-tuning...");
+                    if (done) done();
+                    return;
                     if (done) done();
                     return;
                 } else {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done("Unknown context");
                     return;
                 }
@@ -360,12 +370,12 @@ module.exports = function(RED) {
             let input;
             
             if (inputValue === undefined || inputValue === null) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 input = 0;  // Failsafe: output 0 instead of NaN
             } else {
                 input = parseFloat(inputValue);
                 if (isNaN(input) || !isFinite(input)) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input property" });
+                    utils.setStatusError(node, "invalid input property");
                     input = 0;  // Failsafe: output 0 instead of NaN
                 }
             }
@@ -400,17 +410,9 @@ module.exports = function(RED) {
             if (!node.runtime.run || interval <= 0 || interval > 60 || node.runtime.kp === 0) {
                 if (lastOutput !== 0) {
                     lastOutput = 0;
-                    node.status({
-                        fill: "blue",
-                        shape: "dot",
-                        text: `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.runtime.setpoint.toFixed(2)}`
-                    });
+                    utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.runtime.setpoint.toFixed(2)}`);
                 } else {
-                    node.status({
-                        fill: "blue",
-                        shape: "ring",
-                        text: `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.runtime.setpoint.toFixed(2)}`
-                    });
+                    utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.runtime.setpoint.toFixed(2)}`);
                 }
                 send(outputMsg);
                 if (done) done();
@@ -429,18 +431,10 @@ module.exports = function(RED) {
                 const outputChanged = !lastOutput || lastOutput !== outputMsg.payload;
                 if (outputChanged) {
                     lastOutput = outputMsg.payload;
-                    node.status({
-                        fill: "blue",
-                        shape: "dot",
-                        text: `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`
-                    });
+                    utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`);
                     send(outputMsg);
                 } else {
-                    node.status({
-                        fill: "blue",
-                        shape: "ring",
-                        text: `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`
-                    });
+                    utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`);
                 }
                 if (done) done();
                 return;
@@ -569,22 +563,14 @@ module.exports = function(RED) {
                         oscillations: node.runtime.tuneData.oscillationCount
                     };
                     lastOutput = 0;
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `tune: completed, Kp=${node.runtime.kp.toFixed(2)}, Ki=${node.runtime.ki.toFixed(2)}, Kd=${node.runtime.kd.toFixed(2)}`
-                    });
+                    utils.setStatusOK(node, `tune: completed, Kp=${node.runtime.kp.toFixed(2)}, Ki=${node.runtime.ki.toFixed(2)}, Kd=${node.runtime.kd.toFixed(2)}`);
 
                     send(outputMsg);
                     if (done) done();
                     return;
                 } else {
                     // Still tuning - show progress
-                    node.status({
-                        fill: "yellow",
-                        shape: "dot",
-                        text: `tune: measuring oscillations (${node.runtime.tuneData.oscillationCount} half-cycles)...`
-                    });
+                    utils.setStatusBusy(node, `tune: measuring oscillations (${node.runtime.tuneData.oscillationCount} half-cycles)...`);
                 }
             }
 
@@ -664,7 +650,7 @@ module.exports = function(RED) {
             // Safety check: ensure payload is never NaN
             if (isNaN(outputMsg.payload) || !isFinite(outputMsg.payload)) {
                 outputMsg.payload = 0;
-                node.status({ fill: "red", shape: "ring", text: "NaN detected, output forced to 0" });
+                utils.setStatusError(node, "NaN detected, output forced to 0");
             }
             
             // ================================================================
@@ -688,11 +674,7 @@ module.exports = function(RED) {
             // Update node status - show current state to user
             // ================================================================
             // Update status to show current input, output, and setpoint values
-            node.status({
-                fill: "blue",
-                shape: "dot",
-                text: `in: ${input.toFixed(2)}, out: ${node.runtime.result.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`
-            });
+            utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${node.runtime.result.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`);
             
             // Track last output for comparison (optional, for flow logic)
             lastOutput = outputMsg.payload;

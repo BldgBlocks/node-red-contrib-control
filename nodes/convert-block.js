@@ -96,7 +96,7 @@ module.exports = function(RED) {
 
             const inputValue = parseFloat(input);
             if (isNaN(inputValue) || !isFinite(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: `Invalid input` });
+                utils.setStatusError(node, "invalid input");
                 if (done) done();
                 return;
             }
@@ -288,7 +288,7 @@ module.exports = function(RED) {
             const outDisplay = output % 1 === 0 ? output : output.toFixed(2);
 
             // Update status and send output
-            node.status({ fill: "blue", shape: "dot", text: `${inDisplay} ${inUnit} → ${outDisplay} ${outUnit}` });
+            utils.setStatusOK(node, `${inDisplay} ${inUnit} → ${outDisplay} ${outUnit}`);
 
             msg.payload = output;
             send(msg);

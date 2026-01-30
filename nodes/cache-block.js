@@ -33,7 +33,7 @@ module.exports = function(RED) {
                 case "update":
                     // Validate payload
                     if (!msg.hasOwnProperty("payload")) {
-                        node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                        utils.setStatusError(node, "missing payload");
                         if (done) done();
                         return;
                     }
