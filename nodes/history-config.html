@@ -230,7 +230,19 @@
 </script>
 
 <script type="text/markdown" data-help-name="history-config">
-Store configuration for history series selections.
+Configuration node for the History Collector. Defines storage behavior and data retention policies.
 
+### Details
 
+This node does not process messages directly. It serves as a configuration reference for one or more History Collector nodes. The properties you set here determine how data is collected, stored, and aged out of the history buffer.
+
+Configure the node in the editor panel on the right.
+
+### Status
+- Green (dot): Configuration valid
+- Red (ring): Error in configuration
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
 </script>

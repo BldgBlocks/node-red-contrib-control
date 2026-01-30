@@ -49,8 +49,18 @@ Reads a network point by pointId.
   : pointId (number) : The integer ID of the point.
 
 ### Output
-: payload (object) : Global data object
+: payload (any) : Value of the referenced global variable
 
 ### Details
+Looks up the global variable path corresponding to the provided `pointId` in the configured Network Point Registry.
 
+### Status
+- Green (dot): Point read successfully
+- Blue (ring): No change
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
 </script>

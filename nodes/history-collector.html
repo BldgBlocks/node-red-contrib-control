@@ -275,6 +275,13 @@ The node supports five `storageType` options, each producing a unique output for
 - Timestamp: Generated as nanoseconds (ms * 1e6) for InfluxDB v2 precision.
 - Error Handling: Invalid configurations or payloads trigger warnings and status updates (red ring).
 
+### Status
+- Green (dot): Configuration update
+- Blue (dot): Data collected successfully
+- Blue (ring): No state change
+- Red (ring): Configuration error or invalid payload
+- Yellow (ring): Warning (validation issue)
+
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)
 - [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control)
