@@ -7,11 +7,11 @@ module.exports = function(RED) {
 
         // Initialize properties
         node.name = config.name;
-        node.comment = config.comment;
+        node.comment = config.comment || "";
         node.statusDisplay = config.statusDisplay;
 
         // Ensure comment is within 100 characters
-        if (node.comment.length > 100) {
+        if (node.comment && node.comment.length > 100) {
             node.comment = node.comment.substring(0, 100);
         }
         
@@ -43,7 +43,7 @@ module.exports = function(RED) {
                 return;
             }
 
-            node.status(updateStatus());
+            updateStatus();
 
             send(msg);
             if (done) done();

@@ -1,2 +1,3 @@
 # Local-only files and folders
-.github/_ignore/
+.github/.local/
+.github/copilot-instructions.md
