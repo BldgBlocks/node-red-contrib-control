@@ -6,11 +6,10 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",
-            unit: config.unit
-        };
+        // Initialize state
+        node.name = config.name;
+        node.inputProperty = config.inputProperty || "payload";
+        node.unit = config.unit;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -27,7 +26,7 @@ module.exports = function(RED) {
                 // Process input
                 let input;
                 try {
-                    input = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                    input = RED.util.getMessageProperty(msg, node.inputProperty);
                 } catch (err) {
                     input = undefined;
                 }
@@ -39,9 +38,9 @@ module.exports = function(RED) {
                 
                 const payloadPreview = input !== null ? (typeof input === "number" ? input.toFixed(2) : JSON.stringify(input).slice(0, 20)) : "none";
 
-                utils.setStatusOK(node, `in: ${payloadPreview} unit: ${node.runtime.unit !== "" ? node.runtime.unit : "none"}`);
+                utils.setStatusOK(node, `in: ${payloadPreview} unit: ${node.unit !== "" ? node.unit : "none"}`);
 
-                msg.units = node.runtime.unit;
+                msg.units = node.unit;
                 send(msg);
                 if (done) done();
             } catch (error) {

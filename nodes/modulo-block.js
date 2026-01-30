@@ -6,20 +6,19 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            slots: parseInt(config.slots),
-            inputs: Array(parseInt(config.slots) || 2).fill(1),
-            lastResult: null
-        };
+        // Initialize state
+        node.name = config.name;
+        node.slots = parseInt(config.slots);
+        node.inputs = Array(parseInt(config.slots) || 2).fill(1);
+        node.lastResult = null;
 
         // Validate initial config
-        if (isNaN(node.runtime.slots) || node.runtime.slots < 1) {
-            node.runtime.slots = 2;
-            node.runtime.inputs = Array(2).fill(1);
+        if (isNaN(node.slots) || node.slots < 1) {
+            node.slots = 2;
+            node.inputs = Array(2).fill(1);
             utils.setStatusError(node, "invalid slots, using 2");
         } else {
-            utils.setStatusOK(node, `name: ${node.runtime.name || "modulo"}, slots: ${node.runtime.slots}`);
+            utils.setStatusOK(node, `name: ${node.name || "modulo"}, slots: ${node.slots}`);
         }
 
         node.on("input", function(msg, send, done) {
@@ -54,8 +53,8 @@ module.exports = function(RED) {
                     return;
                 }
                 if (boolVal.value === true) {
-                    node.runtime.inputs = Array(node.runtime.slots).fill(1);
-                    node.runtime.lastResult = null;
+                    node.inputs = Array(node.slots).fill(1);
+                    node.lastResult = null;
                     utils.setStatusOK(node, "state reset");
                     if (done) done();
                     return;
@@ -71,16 +70,16 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                node.runtime.slots = newSlots;
-                node.runtime.inputs = Array(newSlots).fill(1);
-                node.runtime.lastResult = null;
+                node.slots = newSlots;
+                node.inputs = Array(newSlots).fill(1);
+                node.lastResult = null;
                 utils.setStatusOK(node, `slots: ${newSlots}`);
                 if (done) done();
                 return;
             }
 
             if (msg.context.startsWith("in")) {
-                const slotVal = utils.validateSlotIndex(msg.context, node.runtime.slots);
+                const slotVal = utils.validateSlotIndex(msg.context, node.slots);
                 if (!slotVal.valid) {
                     utils.setStatusError(node, slotVal.error);
                     if (done) done();
@@ -98,11 +97,11 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                node.runtime.inputs[slotIndex] = newValue;
+                node.inputs[slotIndex] = newValue;
 
                 // Calculate modulo
-                const result = node.runtime.inputs.reduce((acc, val, idx) => idx === 0 ? val : acc % val, node.runtime.inputs[0]);
-                const isUnchanged = result === node.runtime.lastResult;
+                const result = node.inputs.reduce((acc, val, idx) => idx === 0 ? val : acc % val, node.inputs[0]);
+                const isUnchanged = result === node.lastResult;
                 const statusText = `in: ${msg.context}=${newValue.toFixed(2)}, out: ${result.toFixed(2)}`;
                 if (isUnchanged) {
                     utils.setStatusUnchanged(node, statusText);
@@ -110,7 +109,7 @@ module.exports = function(RED) {
                     utils.setStatusChanged(node, statusText);
                 }
 
-                node.runtime.lastResult = result;
+                node.lastResult = result;
                 send({ payload: result });
                 if (done) done();
                 return;

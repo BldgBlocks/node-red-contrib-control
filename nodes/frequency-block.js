@@ -5,19 +5,17 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        // Initialize runtime state
-        node.runtime = {
-            name: config.name || "",
-            inputProperty: config.inputProperty || "payload",
-            lastIn: false,
-            lastEdge: 0,
-            completeCycle: false,
-            ppm: 0,
-            pph: 0,
-            ppd: 0,
-            pulseHistory: [], // Array to store {start: timestamp, duration: ms}
-            currentPulseStart: 0
-        };
+        // Initialize state
+        node.name = config.name || "";
+        node.inputProperty = config.inputProperty || "payload";
+        node.lastIn = false;
+        node.lastEdge = 0;
+        node.completeCycle = false;
+        node.ppm = 0;
+        node.pph = 0;
+        node.ppd = 0;
+        node.pulseHistory = []; // Array to store {start: timestamp, duration: ms}
+        node.currentPulseStart = 0;
 
         utils.setStatusOK(node, "awaiting first pulse");
 
@@ -25,14 +23,14 @@ module.exports = function(RED) {
             const oneHourAgo = now - 3600000;
             
             // Clean up pulses older than 1 hour
-            node.runtime.pulseHistory = node.runtime.pulseHistory.filter(pulse => {
+            node.pulseHistory = node.pulseHistory.filter(pulse => {
                 return (pulse.start + pulse.duration) > oneHourAgo;
             });
 
             let totalOnTime = 0;
             
             // Sum all pulse durations within the last hour
-            node.runtime.pulseHistory.forEach(pulse => {
+            node.pulseHistory.forEach(pulse => {
                 const pulseEnd = pulse.start + pulse.duration;
                 const effectiveStart = Math.max(pulse.start, oneHourAgo);
                 const effectiveEnd = Math.min(pulseEnd, now);
@@ -42,8 +40,8 @@ module.exports = function(RED) {
             });
 
             // Add current ongoing pulse if active
-            if (currentInputValue && node.runtime.currentPulseStart > 0) {
-                const currentPulseTime = Math.max(node.runtime.currentPulseStart, oneHourAgo);
+            if (currentInputValue && node.currentPulseStart > 0) {
+                const currentPulseTime = Math.max(node.currentPulseStart, oneHourAgo);
                 totalOnTime += (now - currentPulseTime);
             }
 
@@ -77,14 +75,14 @@ module.exports = function(RED) {
                         return;
                     }
                     if (msg.payload === true) {
-                        node.runtime.lastIn = false;
-                        node.runtime.lastEdge = 0;
-                        node.runtime.completeCycle = false;
-                        node.runtime.ppm = 0;
-                        node.runtime.pph = 0;
-                        node.runtime.ppd = 0;
-                        node.runtime.pulseHistory = [];
-                        node.runtime.currentPulseStart = 0;
+                        node.lastIn = false;
+                        node.lastEdge = 0;
+                        node.completeCycle = false;
+                        node.ppm = 0;
+                        node.pph = 0;
+                        node.ppd = 0;
+                        node.pulseHistory = [];
+                        node.currentPulseStart = 0;
                         utils.setStatusOK(node, "reset");
                     }
                     if (done) done();
@@ -99,7 +97,7 @@ module.exports = function(RED) {
             // Validate input payload
             let inputValue;
             try {
-                inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 inputValue = undefined;
             }
@@ -112,18 +110,18 @@ module.exports = function(RED) {
             const now = Date.now();
 
             // Track pulse edges for duty cycle
-            if (inputValue && !node.runtime.lastIn) {
+            if (inputValue && !node.lastIn) {
                 // Rising edge - start new pulse
-                node.runtime.currentPulseStart = now;
-            } else if (!inputValue && node.runtime.lastIn) {
+                node.currentPulseStart = now;
+            } else if (!inputValue && node.lastIn) {
                 // Falling edge - record completed pulse
-                if (node.runtime.currentPulseStart > 0) {
-                    const duration = now - node.runtime.currentPulseStart;
-                    node.runtime.pulseHistory.push({
-                        start: node.runtime.currentPulseStart,
+                if (node.currentPulseStart > 0) {
+                    const duration = now - node.currentPulseStart;
+                    node.pulseHistory.push({
+                        start: node.currentPulseStart,
                         duration: duration
                     });
-                    node.runtime.currentPulseStart = 0;
+                    node.currentPulseStart = 0;
                 }
             }
 
@@ -132,21 +130,21 @@ module.exports = function(RED) {
 
             // Initialize output
             let output = {
-                ppm: node.runtime.ppm,
-                pph: node.runtime.pph,
-                ppd: node.runtime.ppd,
+                ppm: node.ppm,
+                pph: node.pph,
+                ppd: node.ppd,
                 dutyCycle: dutyData.dutyCycle.toFixed(2),
                 onTime: dutyData.onTime
             };
 
             // Detect rising edge
-            if (inputValue && !node.runtime.lastIn) { 
+            if (inputValue && !node.lastIn) { 
                 // Rising edge: true and lastIn was false
-                if (!node.runtime.completeCycle) {
-                    node.runtime.completeCycle = true;
+                if (!node.completeCycle) {
+                    node.completeCycle = true;
                 } else {
                     // Compute period in minutes
-                    let periodMs = now - node.runtime.lastEdge;
+                    let periodMs = now - node.lastEdge;
                     let periodMin = periodMs / 60000;
                     if (periodMin > 0.001) {
                         // Minimum 0.6ms period (1000 pulses/sec)
@@ -159,23 +157,23 @@ module.exports = function(RED) {
                         output.pph = 60000;
                         output.ppd = 1440000;
                     }
-                    node.runtime.ppm = output.ppm;
-                    node.runtime.pph = output.pph;
-                    node.runtime.ppd = output.ppd;
+                    node.ppm = output.ppm;
+                    node.pph = output.pph;
+                    node.ppd = output.ppd;
                 }
-                node.runtime.lastEdge = now;
-                node.runtime.completeCycle = true;
+                node.lastEdge = now;
+                node.completeCycle = true;
 
                 const edgeText = `input: ${inputValue}, ppm: ${output.ppm.toFixed(2)}, pph: ${output.pph.toFixed(2)}, ppd: ${output.ppd.toFixed(2)}, duty: ${output.dutyCycle}%`;
                 utils.setStatusChanged(node, edgeText);
                 send({ payload: output });
             } else {
-                const noEdgeText = `input: ${inputValue}, ppm: ${node.runtime.ppm.toFixed(2)}, pph: ${node.runtime.pph.toFixed(2)}, ppd: ${node.runtime.ppd.toFixed(2)}, duty: ${output.dutyCycle}%`;
+                const noEdgeText = `input: ${inputValue}, ppm: ${node.ppm.toFixed(2)}, pph: ${node.pph.toFixed(2)}, ppd: ${node.ppd.toFixed(2)}, duty: ${output.dutyCycle}%`;
                 utils.setStatusUnchanged(node, noEdgeText);
             }
 
             // Update lastIn
-            node.runtime.lastIn = inputValue;
+            node.lastIn = inputValue;
 
             if (done) done();
         });

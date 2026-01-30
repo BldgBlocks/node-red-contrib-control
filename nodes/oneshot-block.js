@@ -6,22 +6,21 @@ module.exports = function(RED) {
 
         // Initialize runtime state
         const durationMultiplier = config.durationUnits === "seconds" ? 1000 : config.durationUnits === "minutes" ? 60000 : 1;
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",
-            duration: (parseFloat(config.duration)) * durationMultiplier,
-            durationUnits: config.durationUnits,
-            resetRequireTrue: config.resetRequireTrue,
-            resetOnComplete: config.resetOnComplete,
-            triggerCount: 0,
-            locked: false,
-            output: false
-        };
+        // Initialize state
+        node.name = config.name;
+        node.inputProperty = config.inputProperty || "payload";
+        node.duration = (parseFloat(config.duration)) * durationMultiplier;
+        node.durationUnits = config.durationUnits;
+        node.resetRequireTrue = config.resetRequireTrue;
+        node.resetOnComplete = config.resetOnComplete;
+        node.triggerCount = 0;
+        node.locked = false;
+        node.output = false;
 
         // Validate initial config
-        if (isNaN(node.runtime.duration) || node.runtime.duration < 1) {
-            node.runtime.duration = 1000;
-            node.runtime.durationUnits = "milliseconds";
+        if (isNaN(node.duration) || node.duration < 1) {
+            node.duration = 1000;
+            node.durationUnits = "milliseconds";
             utils.setStatusError(node, "invalid duration");
         }
 
@@ -29,7 +28,7 @@ module.exports = function(RED) {
         let timer = null;
 
         // Set initial status
-        utils.setStatusOK(node, `triggers: ${node.runtime.triggerCount}, ${node.runtime.locked ? "locked" : "unlocked"}`);
+        utils.setStatusOK(node, `triggers: ${node.triggerCount}, ${node.locked ? "locked" : "unlocked"}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -44,7 +43,7 @@ module.exports = function(RED) {
             // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (msg.context === "reset") {
-                    if (node.runtime.resetRequireTrue && msg.payload !== true) {
+                    if (node.resetRequireTrue && msg.payload !== true) {
                         utils.setStatusError(node, "invalid reset payload");
                         if (done) done();
                         return;
@@ -53,9 +52,9 @@ module.exports = function(RED) {
                         clearTimeout(timer);
                         timer = null;
                     }
-                    node.runtime.locked = false;
-                    node.runtime.output = false;
-                    utils.setStatusChanged(node, `triggers: ${node.runtime.triggerCount}, reset`);
+                    node.locked = false;
+                    node.output = false;
+                    utils.setStatusChanged(node, `triggers: ${node.triggerCount}, reset`);
                     send({ payload: false });
                     if (done) done();
                     return;
@@ -75,9 +74,9 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime.duration = newDuration;
-                    node.runtime.durationUnits = newDurationUnits;
-                    utils.setStatusOK(node, `duration: ${node.runtime.duration.toFixed(0)} ms`);
+                    node.duration = newDuration;
+                    node.durationUnits = newDurationUnits;
+                    utils.setStatusOK(node, `duration: ${node.duration.toFixed(0)} ms`);
                     if (done) done();
                     return;
                 }
@@ -89,7 +88,7 @@ module.exports = function(RED) {
             // Get trigger input from configured property
             let triggerValue;
             try {
-                triggerValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                triggerValue = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 triggerValue = undefined;
             }
@@ -107,34 +106,34 @@ module.exports = function(RED) {
             }
 
             // Check if locked
-            if (node.runtime.locked) {
-                utils.setStatusError(node, `triggers: ${node.runtime.triggerCount}, locked`);
-                send({ payload: node.runtime.output });
+            if (node.locked) {
+                utils.setStatusError(node, `triggers: ${node.triggerCount}, locked`);
+                send({ payload: node.output });
                 if (done) done();
                 return;
             }
 
             // Trigger pulse
-            node.runtime.triggerCount++;
-            node.runtime.locked = true;
-            node.runtime.output = true;
+            node.triggerCount++;
+            node.locked = true;
+            node.output = true;
 
             // Send true pulse
-            utils.setStatusOK(node, `triggers: ${node.runtime.triggerCount}, out: true`);
+            utils.setStatusOK(node, `triggers: ${node.triggerCount}, out: true`);
             send({ payload: true });
 
             // Schedule false output
             timer = setTimeout(() => {
-                node.runtime.output = false;
-                if (node.runtime.resetOnComplete) {
-                    node.runtime.locked = false;
-                    utils.setStatusOK(node, `triggers: ${node.runtime.triggerCount}, unlocked`);
+                node.output = false;
+                if (node.resetOnComplete) {
+                    node.locked = false;
+                    utils.setStatusOK(node, `triggers: ${node.triggerCount}, unlocked`);
                 } else {
-                    utils.setStatusError(node, `triggers: ${node.runtime.triggerCount}, locked`);
+                    utils.setStatusError(node, `triggers: ${node.triggerCount}, locked`);
                 }
                 send({ payload: false });
                 timer = null;
-            }, node.runtime.duration);
+            }, node.duration);
 
             if (done) done();
         });

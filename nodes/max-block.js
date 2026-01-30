@@ -7,10 +7,9 @@ module.exports = function(RED) {
         node.isBusy = false;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            max: parseFloat(config.max)
-        };
+        // Initialize state
+        node.name = config.name;
+        node.max = parseFloat(config.max);
 
         // Store last output value for status
         let lastOutput = null;
@@ -46,13 +45,13 @@ module.exports = function(RED) {
                     utils.requiresEvaluation(config.maxType) 
                         ? utils.evaluateNodeProperty(config.max, config.maxType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.max),
+                        : Promise.resolve(node.max),
                 );
 
                 const results = await Promise.all(evaluations);   
 
                 // Update runtime with evaluated values
-                if (!isNaN(results[0])) node.runtime.max = results[0];       
+                if (!isNaN(results[0])) node.max = results[0];       
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
@@ -63,7 +62,7 @@ module.exports = function(RED) {
             }
 
             // Validate values
-            if (isNaN(node.runtime.max)) {
+            if (isNaN(node.max)) {
                 utils.setStatusError(node, "invalid evaluated values");
                 if (done) done();
                 return;
@@ -79,7 +78,7 @@ module.exports = function(RED) {
                 if (msg.context === "max" || msg.context === "setpoint") {
                     const maxValue = parseFloat(msg.payload);
                     if (!isNaN(maxValue) && maxValue >= 0) {
-                        node.runtime.max = maxValue;
+                        node.max = maxValue;
                         utils.setStatusOK(node, `max: ${maxValue}`);
                     } else {
                         utils.setStatusError(node, "invalid max");
@@ -109,7 +108,7 @@ module.exports = function(RED) {
             const inputValue = numVal.value;
 
             // Cap input at max
-            const outputValue = Math.min(inputValue, node.runtime.max);
+            const outputValue = Math.min(inputValue, node.max);
 
             // Update status and send output
             msg.payload = outputValue;

@@ -7,11 +7,10 @@ module.exports = function(RED) {
         node.isBusy = false;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            min: parseFloat(config.min),
-            max: parseFloat(config.max)
-        };
+        // Initialize state
+        node.name = config.name;
+        node.min = parseFloat(config.min);
+        node.max = parseFloat(config.max);
 
         // Store last output value for status
         let lastOutput = null;
@@ -47,21 +46,21 @@ module.exports = function(RED) {
                     utils.requiresEvaluation(config.minType) 
                         ? utils.evaluateNodeProperty(config.min, config.minType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.min),
+                        : Promise.resolve(node.min),
                 );
 
                 evaluations.push(
                     utils.requiresEvaluation(config.maxType) 
                         ? utils.evaluateNodeProperty(config.max, config.maxType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.max),
+                        : Promise.resolve(node.max),
                 );
 
                 const results = await Promise.all(evaluations);   
 
                 // Update runtime with evaluated values
-                if (!isNaN(results[0])) node.runtime.min = results[0];
-                if (!isNaN(results[1])) node.runtime.max = results[1];
+                if (!isNaN(results[0])) node.min = results[0];
+                if (!isNaN(results[1])) node.max = results[1];
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
@@ -72,7 +71,7 @@ module.exports = function(RED) {
             }
 
             // Validate min and max
-            if (isNaN(node.runtime.min) || isNaN(node.runtime.max) || node.runtime.min > node.runtime.max) {
+            if (isNaN(node.min) || isNaN(node.max) || node.min > node.max) {
                 utils.setStatusError(node, `invalid min/max`);
                 if (done) done();
                 return;
@@ -92,16 +91,16 @@ module.exports = function(RED) {
                     return;
                 }
                 if (msg.context === "min") {
-                    if (value < node.runtime.max) {
-                        node.runtime.min = value;
-                        utils.setStatusOK(node, `min: ${node.runtime.min}`);
+                    if (value < node.max) {
+                        node.min = value;
+                        utils.setStatusOK(node, `min: ${node.min}`);
                     } else {
                         utils.setStatusWarn(node, `Context update aborted. Payload more than max`);
                     }
                 } else if (msg.context === "max") {
-                    if (value > node.runtime.min) {
-                        node.runtime.max = value;
-                        utils.setStatusOK(node, `max: ${node.runtime.max}`);
+                    if (value > node.min) {
+                        node.max = value;
+                        utils.setStatusOK(node, `max: ${node.max}`);
                     } else {
                         utils.setStatusWarn(node, `Context update aborted. Payload less than min`);
                     }
@@ -130,7 +129,7 @@ module.exports = function(RED) {
             const inputValue = numVal.value;
 
             // Clamp input to [min, max]
-            const outputValue = Math.min(Math.max(inputValue, node.runtime.min), node.runtime.max);
+            const outputValue = Math.min(Math.max(inputValue, node.min), node.max);
 
             // Update status and send output
             msg.payload = outputValue;

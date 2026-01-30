@@ -4,15 +4,12 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            rules: config.rules
-        };
+        // Initialize state
+        node.rules = config.rules || [];
 
         // Validate configuration
         let valid = true;
-        node.runtime.rules = node.runtime.rules.map(rule => {
+        node.rules = node.rules.map(rule => {
             if (rule.propertyType !== "msg" || !rule.property || typeof rule.property !== "string" || !rule.property.trim()) {
                 valid = false;
                 return { property: "payload", propertyType: "msg" };
@@ -22,7 +19,7 @@ module.exports = function(RED) {
         if (!valid) {
             utils.setStatusError(node, "invalid rules, using defaults");
         } else {
-            utils.setStatusOK(node, `rules: ${node.runtime.rules.map(r => r.property).join(", ")}`);
+            utils.setStatusOK(node, `rules: ${node.rules.map(r => r.property).join(", ")}`);
         }
 
         node.on("input", function(msg, send, done) {
@@ -48,8 +45,8 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime.rules = msg.payload;
-                    utils.setStatusOK(node, `rules: ${node.runtime.rules.map(r => r.property).join(", ")}`);
+                    node.rules = msg.payload;
+                    utils.setStatusOK(node, `rules: ${node.rules.map(r => r.property).join(", ")}`);
                     if (done) done();
                     return;
                 }
@@ -58,7 +55,7 @@ module.exports = function(RED) {
             // Apply nullification rules
             const outputMsg = RED.util.cloneMessage(msg);
             const nullified = [];
-            node.runtime.rules.forEach(rule => {
+            node.rules.forEach(rule => {
                 RED.util.setMessageProperty(outputMsg, rule.property, null);
                 nullified.push(rule.property);
             });

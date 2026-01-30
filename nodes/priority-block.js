@@ -7,9 +7,8 @@ module.exports = function(RED) {
         const context = this.context();
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name
-        };
+        // Initialize state
+        node.name = config.name;
 
         // Initialize state from context or defaults
         let priorities = context.get("priorities") || {

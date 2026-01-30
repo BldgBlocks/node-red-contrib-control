@@ -6,12 +6,11 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",
-            count: 0,
-            prevState: false
-        };
+        // Initialize state
+        node.name = config.name;
+        node.inputProperty = config.inputProperty || "payload";
+        node.count = 0;
+        node.prevState = false;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -38,10 +37,10 @@ module.exports = function(RED) {
                         return;
                     }
                     if (boolVal.value === true) {
-                        node.runtime.count = 0;
-                        node.runtime.prevState = false;
+                        node.count = 0;
+                        node.prevState = false;
                         utils.setStatusOK(node, "state reset");
-                        send({ payload: node.runtime.count });
+                        send({ payload: node.count });
                     }
                     if (done) done();
                     return;
@@ -55,7 +54,7 @@ module.exports = function(RED) {
             // Get input value from configured property
             let inputValue;
             try {
-                inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 inputValue = undefined;
             }
@@ -66,22 +65,22 @@ module.exports = function(RED) {
             }
 
             // Prevent integer overflow
-            if (node.runtime.count > Number.MAX_SAFE_INTEGER - 100000) {
-                node.runtime.count = 0;
+            if (node.count > Number.MAX_SAFE_INTEGER - 100000) {
+                node.count = 0;
                 utils.setStatusWarn(node, "count overflow reset");
             }
 
             // Increment on false → true transition
-            if (!node.runtime.prevState && inputValue === true) {
-                node.runtime.count++;
-                utils.setStatusChanged(node, `count: ${node.runtime.count}`);
-                send({ payload: node.runtime.count });
+            if (!node.prevState && inputValue === true) {
+                node.count++;
+                utils.setStatusChanged(node, `count: ${node.count}`);
+                send({ payload: node.count });
             } else {
-                utils.setStatusUnchanged(node, `count: ${node.runtime.count}`);
+                utils.setStatusUnchanged(node, `count: ${node.count}`);
             }
 
             // Update prevState
-            node.runtime.prevState = inputValue;
+            node.prevState = inputValue;
 
             if (done) done();
         });

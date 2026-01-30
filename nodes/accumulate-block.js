@@ -6,16 +6,15 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",
-            mode: config.mode,
-            count: 0,
-            lastCount: null
-        };
+        // Initialize state
+        node.name = config.name;
+        node.inputProperty = config.inputProperty || "payload";
+        node.mode = config.mode;
+        node.count = 0;
+        node.lastCount = null;
 
         // Set initial status
-        utils.setStatusOK(node, `mode: ${node.runtime.mode}, name: ${node.runtime.name || node.runtime.mode + " accumulate"}`);
+        utils.setStatusOK(node, `mode: ${node.mode}, name: ${node.name || node.mode + " accumulate"}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -30,7 +29,7 @@ module.exports = function(RED) {
 
             if (msg.context === "reset") {
                 if (msg.payload === true) {
-                    node.runtime.count = 0;
+                    node.count = 0;
                     utils.setStatusWarn(node, "reset");
                     if (done) done();
                     return;
@@ -38,11 +37,11 @@ module.exports = function(RED) {
             }
 
             // Process input based on mode
-            if (node.runtime.mode !== "flows") {
+            if (node.mode !== "flows") {
                 // Get input value from configured property
                 let inputValue;
                 try {
-                    inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                    inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
                 } catch (err) {
                     inputValue = undefined;
                 }
@@ -56,36 +55,36 @@ module.exports = function(RED) {
                 inputValue = boolVal.value;
 
                 // Prevent extended time running isues
-                if (node.runtime.count > 9999) {
-                    node.runtime.count = 0;
+                if (node.count > 9999) {
+                    node.count = 0;
                 }
 
                 // Accumulate or reset count
-                if (node.runtime.mode === "true") {
+                if (node.mode === "true") {
                     if (inputValue === true) {
-                        node.runtime.count++;
+                        node.count++;
                     } else {
-                        node.runtime.count = 0;
+                        node.count = 0;
                     }
-                } else if (node.runtime.mode === "false") {
+                } else if (node.mode === "false") {
                     if (inputValue === false) {
-                        node.runtime.count++;
+                        node.count++;
                     } else {
-                        node.runtime.count = 0;
+                        node.count = 0;
                     }
                 }
             } else {
                 // flows mode: count all valid messages
-                node.runtime.count++;
+                node.count++;
             }
 
             // Output only if count changed
-            if (node.runtime.lastCount !== node.runtime.count) {
-                node.runtime.lastCount = node.runtime.count;
-                utils.setStatusChanged(node, `out: ${node.runtime.count}`);
-                send({ payload: node.runtime.count });
+            if (node.lastCount !== node.count) {
+                node.lastCount = node.count;
+                utils.setStatusChanged(node, `out: ${node.count}`);
+                send({ payload: node.count });
             } else {
-                utils.setStatusUnchanged(node, `out: ${node.runtime.count}`);
+                utils.setStatusUnchanged(node, `out: ${node.count}`);
             }
 
             if (done) done();

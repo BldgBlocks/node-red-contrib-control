@@ -6,40 +6,39 @@ module.exports = function(RED) {
         const context = this.context();
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            R_fixed: parseFloat(config.R_fixed),
-            Vsupply: parseFloat(config.Vsupply),
-            Vref: parseFloat(config.Vref),
-            ADC_max: parseFloat(config.ADC_max),
-            lastVoltage: context.get("lastVoltage"),
-            lastResistance: context.get("lastResistance")
-        };
+        // Initialize state
+        node.name = config.name;
+        node.R_fixed = parseFloat(config.R_fixed);
+        node.Vsupply = parseFloat(config.Vsupply);
+        node.Vref = parseFloat(config.Vref);
+        node.ADC_max = parseFloat(config.ADC_max);
+        node.lastVoltage = context.get("lastVoltage");
+        node.lastResistance = context.get("lastResistance");
 
         // Validate configuration
-        if (isNaN(node.runtime.R_fixed) || node.runtime.R_fixed <= 0) {
+        if (isNaN(node.R_fixed) || node.R_fixed <= 0) {
             utils.setStatusError(node, "invalid r_fixed");
-            node.warn(`Invalid configuration: r_fixed=${node.runtime.R_fixed}`);
+            node.warn(`Invalid configuration: r_fixed=${node.R_fixed}`);
             return;
         }
-        if (isNaN(node.runtime.Vsupply) || node.runtime.Vsupply <= 0) {
+        if (isNaN(node.Vsupply) || node.Vsupply <= 0) {
             utils.setStatusError(node, "invalid vsupply");
-            node.warn(`Invalid configuration: vsupply=${node.runtime.Vsupply}`);
+            node.warn(`Invalid configuration: vsupply=${node.Vsupply}`);
             return;
         }
-        if (isNaN(node.runtime.Vref) || node.runtime.Vref <= 0) {
+        if (isNaN(node.Vref) || node.Vref <= 0) {
             utils.setStatusError(node, "invalid vref");
-            node.warn(`Invalid configuration: vref=${node.runtime.Vref}`);
+            node.warn(`Invalid configuration: vref=${node.Vref}`);
             return;
         }
-        if (isNaN(node.runtime.ADC_max) || node.runtime.ADC_max <= 0) {
+        if (isNaN(node.ADC_max) || node.ADC_max <= 0) {
             utils.setStatusError(node, "invalid adc_max");
-            node.warn(`Invalid configuration: adc_max=${node.runtime.ADC_max}`);
+            node.warn(`Invalid configuration: adc_max=${node.ADC_max}`);
             return;
         }
 
         // Set initial status
-        utils.setStatusOK(node, `r_fixed: ${node.runtime.R_fixed}, vsupply: ${node.runtime.Vsupply}`);
+        utils.setStatusOK(node, `r_fixed: ${node.R_fixed}, vsupply: ${node.Vsupply}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -81,24 +80,24 @@ module.exports = function(RED) {
             try {
                 // Calculate raw 16-bit value
                 const raw = (inputArray[0] << 8) | inputArray[1];
-                if (raw < 0 || raw > node.runtime.ADC_max) {
+                if (raw < 0 || raw > node.ADC_max) {
                     utils.setStatusError(node, "raw value out of range");
-                    node.warn(`Raw value ${raw} out of range [0, ${node.runtime.ADC_max}]`);
+                    node.warn(`Raw value ${raw} out of range [0, ${node.ADC_max}]`);
                     if (done) done();
                     return;
                 }
 
                 // Calculate voltage
-                const voltage = (raw * node.runtime.Vref) / node.runtime.ADC_max;
-                if (voltage >= node.runtime.Vsupply || voltage <= 0) {
+                const voltage = (raw * node.Vref) / node.ADC_max;
+                if (voltage >= node.Vsupply || voltage <= 0) {
                     utils.setStatusError(node, "voltage out of range");
-                    node.warn(`Voltage ${voltage} out of range (0, ${node.runtime.Vsupply})`);
+                    node.warn(`Voltage ${voltage} out of range (0, ${node.Vsupply})`);
                     if (done) done();
                     return;
                 }
 
                 // Calculate thermistor resistance
-                const R_thermistor = node.runtime.R_fixed * (voltage / (node.runtime.Vsupply - voltage));
+                const R_thermistor = node.R_fixed * (voltage / (node.Vsupply - voltage));
                 if (isNaN(R_thermistor) || R_thermistor < 0) {
                     utils.setStatusError(node, "invalid resistance");
                     node.warn(`Invalid resistance ${R_thermistor}`);
@@ -107,7 +106,7 @@ module.exports = function(RED) {
                 }
 
                 // Check if outputs have changed
-                const isUnchanged = voltage === node.runtime.lastVoltage && R_thermistor === node.runtime.lastResistance;
+                const isUnchanged = voltage === node.lastVoltage && R_thermistor === node.lastResistance;
                 if (isUnchanged) {
                     utils.setStatusUnchanged(node, `in: ${raw}, out: ${voltage.toFixed(2)}, ${R_thermistor.toFixed(2)}`);
                 } else {
@@ -116,8 +115,8 @@ module.exports = function(RED) {
 
                 if (!isUnchanged) {
                     // Update context and runtime
-                    node.runtime.lastVoltage = voltage;
-                    node.runtime.lastResistance = R_thermistor;
+                    node.lastVoltage = voltage;
+                    node.lastResistance = R_thermistor;
                     context.set("lastVoltage", voltage);
                     context.set("lastResistance", R_thermistor);
 

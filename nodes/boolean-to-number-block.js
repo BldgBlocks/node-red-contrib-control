@@ -6,11 +6,10 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime for editor display
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",
-            nullToZero: Boolean(config.nullToZero)
-        };
+        // Initialize state
+        node.name = config.name;
+        node.inputProperty = config.inputProperty || "payload";
+        node.nullToZero = Boolean(config.nullToZero);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -18,7 +17,7 @@ module.exports = function(RED) {
             // Check for missing input property
             let inputValue;
             try {
-                inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 inputValue = undefined;
             }
@@ -31,7 +30,7 @@ module.exports = function(RED) {
             // Validate and convert input
             const inputDisplay = inputValue === null ? "null" : String(inputValue);
             if (inputValue === null) {
-                msg.payload = node.runtime.nullToZero ? 0 : -1;
+                msg.payload = node.nullToZero ? 0 : -1;
                 utils.setStatusChanged(node, `in: ${inputDisplay}, out: ${msg.payload}`);
                 send(msg);
             } else if (typeof inputValue === "boolean") {

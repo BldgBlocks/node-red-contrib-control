@@ -6,12 +6,9 @@ module.exports = function(RED) {
         
         const node = this;
         
-        // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",
-            lastOutput: null
-        };
+        // Initialize state
+        node.inputProperty = config.inputProperty || "payload";
+        node.lastOutput = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -26,7 +23,7 @@ module.exports = function(RED) {
             // Get input value from the specified property
             let inputValue;
             try {
-                inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 inputValue = undefined;
             }
@@ -58,14 +55,14 @@ module.exports = function(RED) {
             }
 
             // Check for unchanged output
-            const isUnchanged = outputValue === node.runtime.lastOutput;
+            const isUnchanged = outputValue === node.lastOutput;
             if (isUnchanged) {
                 utils.setStatusUnchanged(node, statusText);
             } else {
                 utils.setStatusChanged(node, statusText);
             }
 
-            node.runtime.lastOutput = outputValue;
+            node.lastOutput = outputValue;
             msg.payload = outputValue;
             send(msg);
 

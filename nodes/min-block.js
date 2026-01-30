@@ -7,10 +7,9 @@ module.exports = function(RED) {
         node.isBusy = false;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            min: parseFloat(config.min)
-        };
+        // Initialize state
+        node.name = config.name;
+        node.min = parseFloat(config.min);
 
         // Store last output value for status
         let lastOutput = null;
@@ -46,13 +45,13 @@ module.exports = function(RED) {
                     utils.requiresEvaluation(config.minType) 
                         ? utils.evaluateNodeProperty(config.min, config.minType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.min),
+                        : Promise.resolve(node.min),
                 );
 
                 const results = await Promise.all(evaluations);   
 
                 // Update runtime with evaluated values
-                if (!isNaN(results[0])) node.runtime.min = results[0];       
+                if (!isNaN(results[0])) node.min = results[0];       
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
@@ -63,7 +62,7 @@ module.exports = function(RED) {
             }
 
             // Validate
-            if (isNaN(node.runtime.min)) {
+            if (isNaN(node.min)) {
                 utils.setStatusError(node, "invalid evaluated values");
                 if (done) done();
                 return;
@@ -79,7 +78,7 @@ module.exports = function(RED) {
                 if (msg.context === "min" || msg.context === "setpoint") {
                     const minValue = parseFloat(msg.payload);
                     if (!isNaN(minValue) && minValue >= 0) {
-                        node.runtime.min = minValue;
+                        node.min = minValue;
                         utils.setStatusOK(node, `min: ${minValue}`);
                     } else {
                         utils.setStatusError(node, "invalid min");
@@ -109,7 +108,7 @@ module.exports = function(RED) {
             const inputValue = numVal.value;
 
             // Cap input at min
-            const outputValue = Math.max(inputValue, node.runtime.min);
+            const outputValue = Math.max(inputValue, node.min);
 
             // Update status and send output
             msg.payload = outputValue;

@@ -5,13 +5,12 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        node.runtime = {
-            name: config.name,
-            state: false,
-            desired: false,
-            delayOn: parseFloat(config.delayOn) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1),
-            delayOff: parseFloat(config.delayOff) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1)
-        };
+        // Initialize state
+        node.name = config.name;
+        node.state = false;
+        node.desired = false;
+        node.delayOn = parseFloat(config.delayOn) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
+        node.delayOff = parseFloat(config.delayOff) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
 
         let timeoutId = null;
         node.isBusy = false;
@@ -47,21 +46,21 @@ module.exports = function(RED) {
                     utils.requiresEvaluation(config.delayOnType) 
                         ? utils.evaluateNodeProperty(config.delayOn, config.delayOnType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.delayOn),
+                        : Promise.resolve(node.delayOn),
                 );
                 
                 evaluations.push(
                     utils.requiresEvaluation(config.delayOffType) 
                         ? utils.evaluateNodeProperty(config.delayOff, config.delayOffType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.delayOff),
+                        : Promise.resolve(node.delayOff),
                 );
 
                 const results = await Promise.all(evaluations);   
 
                 // Update runtime with evaluated values
-                if (!isNaN(results[0])) node.runtime.delayOn = results[0] * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
-                if (!isNaN(results[1])) node.runtime.delayOff = results[1] * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);         
+                if (!isNaN(results[0])) node.delayOn = results[0] * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
+                if (!isNaN(results[1])) node.delayOff = results[1] * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);         
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
@@ -72,12 +71,12 @@ module.exports = function(RED) {
             }
 
             // Acceptable fallbacks
-            if (isNaN(node.runtime.delayOn) || node.runtime.delayOn < 0) {
-                node.runtime.delayOn = 1000;
+            if (isNaN(node.delayOn) || node.delayOn < 0) {
+                node.delayOn = 1000;
                 utils.setStatusError(node, "invalid delayOn");
             }
-            if (isNaN(node.runtime.delayOff) || node.runtime.delayOff < 0) {
-                node.runtime.delayOff = 1000;
+            if (isNaN(node.delayOff) || node.delayOff < 0) {
+                node.delayOff = 1000;
                 utils.setStatusError(node, "invalid delayOff");
             }
 
@@ -99,7 +98,7 @@ module.exports = function(RED) {
                             clearTimeout(timeoutId);
                             timeoutId = null;
                         }
-                        node.runtime.state = false;
+                        node.state = false;
                         utils.setStatusOK(node, "reset");
                     }
                     if (done) done();
@@ -118,7 +117,7 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime.delayOn = newDelayOn;
+                    node.delayOn = newDelayOn;
                     utils.setStatusOK(node, `delayOn: ${newDelayOn.toFixed(0)} ms`);
                     if (done) done();
                     return;
@@ -136,7 +135,7 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime.delayOff = newDelayOff;
+                    node.delayOff = newDelayOff;
                     utils.setStatusOK(node, `delayOff: ${newDelayOff.toFixed(0)} ms`);
                     if (done) done();
                     return;
@@ -159,8 +158,8 @@ module.exports = function(RED) {
                 return;
             }
 
-            if (!node.runtime.state && inputValue === true) {
-                if (node.runtime.desired) {
+            if (!node.state && inputValue === true) {
+                if (node.desired) {
                     if (done) done();
                     return;
                 }
@@ -168,17 +167,17 @@ module.exports = function(RED) {
                     clearTimeout(timeoutId);
                 }
                 utils.setStatusUnchanged(node, "awaiting true");
-                node.runtime.desired = true;
+                node.desired = true;
                 timeoutId = setTimeout(() => {
-                    node.runtime.state = true;
+                    node.state = true;
                     msg.payload = true;
                     delete msg.context;
                     utils.setStatusChanged(node, "in: true, out: true");
                     send(msg);
                     timeoutId = null;
-                }, node.runtime.delayOn);
-            } else if (node.runtime.state && inputValue === false) {
-                if (node.runtime.desired === false) {
+                }, node.delayOn);
+            } else if (node.state && inputValue === false) {
+                if (node.desired === false) {
                     if (done) done();
                     return;
                 }
@@ -186,26 +185,26 @@ module.exports = function(RED) {
                     clearTimeout(timeoutId);
                 }
                 utils.setStatusUnchanged(node, "awaiting false");
-                node.runtime.desired = false;
+                node.desired = false;
                 timeoutId = setTimeout(() => {
-                    node.runtime.state = false;
+                    node.state = false;
                     msg.payload = false;
                     delete msg.context;
                     utils.setStatusChanged(node, "in: false, out: false");
                     send(msg);
                     timeoutId = null;
-                }, node.runtime.delayOff);
+                }, node.delayOff);
             } else {
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                     timeoutId = null;
-                    utils.setStatusUnchanged(node, `canceled awaiting ${node.runtime.state}`);
+                    utils.setStatusUnchanged(node, `canceled awaiting ${node.state}`);
                 } else {
                     utils.setStatusUnchanged(node, "no change");
                 }
                 
                 // No state change, pass the message through
-                node.runtime.state = inputValue;
+                node.state = inputValue;
                 desired = inputValue;
                 send(msg);
             }

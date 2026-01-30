@@ -6,16 +6,14 @@ module.exports = function(RED) {
         const node = this;
         node.isBusy = false;
         
-        // Initialize runtime state
-        node.runtime = {
-            maxSamples: parseInt(config.sampleSize),
-            inputProperty: config.inputProperty || "payload",
-            samples: [], // Array of {timestamp: Date, value: number}
-            units: config.units || "minutes", // minutes, seconds, hours
-            lastRate: null,
-            minValid: parseFloat(config.minValid),
-            maxValid: parseFloat(config.maxValid)
-        };
+        // Initialize state
+        node.maxSamples = parseInt(config.sampleSize);
+        node.inputProperty = config.inputProperty || "payload";
+        node.samples = []; // Array of {timestamp: Date, value: number}
+        node.units = config.units || "minutes"; // minutes, seconds, hours
+        node.lastRate = null;
+        node.minValid = parseFloat(config.minValid);
+        node.maxValid = parseFloat(config.maxValid);
 
         node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -48,21 +46,21 @@ module.exports = function(RED) {
                     utils.requiresEvaluation(config.minValidType) 
                         ? utils.evaluateNodeProperty(config.minValid, config.minValidType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.minValid),
+                        : Promise.resolve(node.minValid),
                 );
 
                 evaluations.push(
                     utils.requiresEvaluation(config.maxValidType) 
                         ? utils.evaluateNodeProperty(config.maxValid, config.maxValidType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.maxValid),
+                        : Promise.resolve(node.maxValid),
                 );
 
                 const results = await Promise.all(evaluations);   
 
                 // Update runtime with evaluated values
-                if (!isNaN(results[0])) node.runtime.minValid = results[0];
-                if (!isNaN(results[1])) node.runtime.maxValid = results[1];   
+                if (!isNaN(results[0])) node.minValid = results[0];
+                if (!isNaN(results[1])) node.maxValid = results[1];   
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
@@ -73,14 +71,14 @@ module.exports = function(RED) {
             }
 
             // Acceptable fallbacks
-            if (isNaN(node.runtime.maxSamples) || node.runtime.maxSamples < 2) {
-                node.runtime.maxSamples = 10;
+            if (isNaN(node.maxSamples) || node.maxSamples < 2) {
+                node.maxSamples = 10;
                 utils.setStatusError(node, "invalid sample size, using 10");
             }
 
             // Validate values
-            if (isNaN(node.runtime.maxValid) || isNaN(node.runtime.minValid) || node.runtime.maxValid <= node.runtime.minValid ) {
-                utils.setStatusError(node, `invalid evaluated values ${node.runtime.minValid}, ${node.runtime.maxValid}`);
+            if (isNaN(node.maxValid) || isNaN(node.minValid) || node.maxValid <= node.minValid ) {
+                utils.setStatusError(node, `invalid evaluated values ${node.minValid}, ${node.maxValid}`);
                 if (done) done();
                 return;
             }
@@ -101,8 +99,8 @@ module.exports = function(RED) {
                             return;
                         }
                         if (msg.payload === true) {
-                            node.runtime.samples = [];
-                            node.runtime.lastRate = null;
+                            node.samples = [];
+                            node.lastRate = null;
                             utils.setStatusOK(node, "state reset");
                         }
                         break;
@@ -114,10 +112,10 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        node.runtime.maxSamples = newMaxSamples;
+                        node.maxSamples = newMaxSamples;
                         // Trim samples if new window is smaller
-                        if (node.runtime.samples.length > newMaxSamples) {
-                            node.runtime.samples = node.runtime.samples.slice(-newMaxSamples);
+                        if (node.samples.length > newMaxSamples) {
+                            node.samples = node.samples.slice(-newMaxSamples);
                         }
                         utils.setStatusOK(node, `samples: ${newMaxSamples}`);
                         break;
@@ -125,7 +123,7 @@ module.exports = function(RED) {
                     case "units":
                         const validUnits = ["seconds", "minutes", "hours"];
                         if (typeof msg.payload === "string" && validUnits.includes(msg.payload.toLowerCase())) {
-                            node.runtime.units = msg.payload.toLowerCase();
+                            node.units = msg.payload.toLowerCase();
                             utils.setStatusOK(node, `units: ${msg.payload}`);
                         } else {
                             utils.setStatusError(node, "invalid units");
@@ -150,7 +148,7 @@ module.exports = function(RED) {
             // Get input from configured property
             let input;
             try {
-                input = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                input = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 input = undefined;
             }
@@ -164,35 +162,35 @@ module.exports = function(RED) {
             const inputValue = parseFloat(input);
             const timestamp = msg.timestamp ? new Date(msg.timestamp) : new Date();
             
-            if (isNaN(inputValue) || inputValue < node.runtime.minValid || inputValue > node.runtime.maxValid) {
+            if (isNaN(inputValue) || inputValue < node.minValid || inputValue > node.maxValid) {
                 utils.setStatusWarn(node, "out of range");
                 if (done) done();
                 return;
             }
 
             // Add new sample
-            node.runtime.samples.push({ timestamp: timestamp, value: inputValue });
+            node.samples.push({ timestamp: timestamp, value: inputValue });
             
             // Maintain sample window
-            if (node.runtime.samples.length > node.runtime.maxSamples + 1) {
-                node.runtime.samples = node.runtime.samples.slice(-node.runtime.maxSamples);
-            } else if (node.runtime.samples.length > node.runtime.maxSamples) {
-                node.runtime.samples.shift();
+            if (node.samples.length > node.maxSamples + 1) {
+                node.samples = node.samples.slice(-node.maxSamples);
+            } else if (node.samples.length > node.maxSamples) {
+                node.samples.shift();
             }
 
             // Calculate rate of change (temperature per time unit)
             let rate = null;
             // Require at least 20% of samples for calculation
-            if (node.runtime.samples.length >= node.runtime.maxSamples * 0.20) { 
+            if (node.samples.length >= node.maxSamples * 0.20) { 
                 // Use linear regression for more stable rate calculation
-                const n = node.runtime.samples.length;
+                const n = node.samples.length;
                 let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
                 
                 // Convert timestamps to relative time in the selected units
-                const baseTime = node.runtime.samples[0].timestamp;
+                const baseTime = node.samples[0].timestamp;
                 let timeScale; // Conversion factor from ms to selected units
                 
-                switch (node.runtime.units) {
+                switch (node.units) {
                     case "seconds":
                         timeScale = 1000; // ms to seconds
                         break;
@@ -207,7 +205,7 @@ module.exports = function(RED) {
                 }
                 
                 // Calculate regression sums
-                node.runtime.samples.forEach((sample, i) => {
+                node.samples.forEach((sample, i) => {
                     // Time in selected units
                     const x = (sample.timestamp - baseTime) / timeScale;
                     const y = sample.value;
@@ -226,14 +224,14 @@ module.exports = function(RED) {
                     rate = (n * sumXY - sumX * sumY) / denominator;
                 } else {
                     // Fallback to original endpoint method if regression is unstable
-                    const firstSample = node.runtime.samples[0];
-                    const lastSample = node.runtime.samples[node.runtime.samples.length - 1];
+                    const firstSample = node.samples[0];
+                    const lastSample = node.samples[node.samples.length - 1];
                     const timeDiff = (lastSample.timestamp - firstSample.timestamp) / timeScale;
                     rate = timeDiff > 0 ? (lastSample.value - firstSample.value) / timeDiff : 0;
                 }
             }
 
-            const isUnchanged = rate === node.runtime.lastRate;
+            const isUnchanged = rate === node.lastRate;
 
             // Send new message
             const unitsDisplay = {
@@ -243,24 +241,24 @@ module.exports = function(RED) {
             };
 
             if (isUnchanged) {
-                utils.setStatusUnchanged(node, `rate: ${rate !== null ? rate.toFixed(2) : "not ready"} ${unitsDisplay[node.runtime.units] || "/min"}`);
+                utils.setStatusUnchanged(node, `rate: ${rate !== null ? rate.toFixed(2) : "not ready"} ${unitsDisplay[node.units] || "/min"}`);
             } else {
-                utils.setStatusChanged(node, `rate: ${rate !== null ? rate.toFixed(2) : "not ready"} ${unitsDisplay[node.runtime.units] || "/min"}`);
+                utils.setStatusChanged(node, `rate: ${rate !== null ? rate.toFixed(2) : "not ready"} ${unitsDisplay[node.units] || "/min"}`);
             }
             
-            node.runtime.lastRate = rate;
+            node.lastRate = rate;
             
             // Enhanced output with metadata
             const outputMsg = {
                 payload: rate,
-                samples: node.runtime.samples.length,
-                units: `${unitsDisplay[node.runtime.units] || "/min"}`,
+                samples: node.samples.length,
+                units: `${unitsDisplay[node.units] || "/min"}`,
                 currentValue: inputValue,
-                timeSpan: node.runtime.samples.length >= 2 ? 
-                    (node.runtime.samples[node.runtime.samples.length - 1].timestamp - node.runtime.samples[0].timestamp) / 1000 : 0
+                timeSpan: node.samples.length >= 2 ? 
+                    (node.samples[node.samples.length - 1].timestamp - node.samples[0].timestamp) / 1000 : 0
             };
             
-            if (node.runtime.samples.length >= node.runtime.maxSamples) {
+            if (node.samples.length >= node.maxSamples) {
                 send(outputMsg);
             }
 

@@ -6,14 +6,13 @@ module.exports = function(RED) {
         const node = this;
 
         // Simplified runtime state
-        node.runtime = {
-            call: false,
-            status: false,
-            alarm: false,
-            alarmMessage: "",
-            statusTimer: null,
-            neverReceivedStatus: true // Track if we've ever gotten status during this call
-        };
+        // Initialize state
+        node.call = false;
+        node.status = false;
+        node.alarm = false;
+        node.alarmMessage = "";
+        node.statusTimer = null;
+        node.neverReceivedStatus = true // Track if we've ever gotten status during this call;
 
         // Configuration with validation
         node.config = {
@@ -35,18 +34,18 @@ module.exports = function(RED) {
                     return;
                 }
 
-                if (msg.context === node.runtime.status) {
+                if (msg.context === node.status) {
                     if (done) done();
                     return;
                 }
                 
-                node.runtime.status = msg.payload;
-                node.runtime.neverReceivedStatus = false;
+                node.status = msg.payload;
+                node.neverReceivedStatus = false;
                 
                 // Clear any pending status timeout
-                if (node.runtime.statusTimer) {
-                    clearTimeout(node.runtime.statusTimer);
-                    node.runtime.statusTimer = null;
+                if (node.statusTimer) {
+                    clearTimeout(node.statusTimer);
+                    node.statusTimer = null;
                 }
                 
                 // Check alarm conditions
@@ -66,37 +65,37 @@ module.exports = function(RED) {
             }
 
             // Process call state change
-            if (msg.payload !== node.runtime.call) {
-                node.runtime.call = msg.payload;
+            if (msg.payload !== node.call) {
+                node.call = msg.payload;
 
                 // Clear existing timer
-                if (node.runtime.statusTimer) {
-                    clearTimeout(node.runtime.statusTimer);
-                    node.runtime.statusTimer = null;
+                if (node.statusTimer) {
+                    clearTimeout(node.statusTimer);
+                    node.statusTimer = null;
                 }
 
-                if (node.runtime.call) {
+                if (node.call) {
                     // Call activated - reset tracking, set timeout if needed
-                    node.runtime.neverReceivedStatus = true;
-                    node.runtime.alarm = false;
-                    node.runtime.alarmMessage = "";
+                    node.neverReceivedStatus = true;
+                    node.alarm = false;
+                    node.alarmMessage = "";
                     
                     if (node.config.noStatusOnRun) {
                         // Set timer for "never got status" condition
-                        node.runtime.statusTimer = setTimeout(() => {
-                            if (node.runtime.neverReceivedStatus) {
-                                node.runtime.alarm = true;
-                                node.runtime.alarmMessage = node.config.noStatusOnRunMessage;
+                        node.statusTimer = setTimeout(() => {
+                            if (node.neverReceivedStatus) {
+                                node.alarm = true;
+                                node.alarmMessage = node.config.noStatusOnRunMessage;
                             }
                             send(sendOutputs());
                             updateStatus();
-                            node.runtime.statusTimer = null;
+                            node.statusTimer = null;
                         }, node.config.statusTimeout * 1000);
                     }
                 } else {
-                    node.runtime.status = false;
-                    node.runtime.alarm = false;
-                    node.runtime.alarmMessage = "";
+                    node.status = false;
+                    node.alarm = false;
+                    node.alarmMessage = "";
                 }
                 
                 // Check alarm conditions
@@ -108,42 +107,42 @@ module.exports = function(RED) {
             if (done) done();
 
             function checkAlarmConditions() {
-                if (node.runtime.status && !node.runtime.call) {
-                    node.runtime.alarm = true;
-                    node.runtime.alarmMessage = "Status active without call";
+                if (node.status && !node.call) {
+                    node.alarm = true;
+                    node.alarmMessage = "Status active without call";
                     return;
                 }
                 
-                if (node.runtime.call && !node.runtime.status && !node.runtime.neverReceivedStatus && node.config.runLostStatus) {
-                    node.runtime.alarm = true;
-                    node.runtime.alarmMessage = node.config.runLostStatusMessage;
+                if (node.call && !node.status && !node.neverReceivedStatus && node.config.runLostStatus) {
+                    node.alarm = true;
+                    node.alarmMessage = node.config.runLostStatusMessage;
                     return;
                 }
                 
                 // No alarm conditions met. Don't clear alarm if timer is still running
-                if (!node.runtime.statusTimer) { 
-                    node.runtime.alarm = false;
-                    node.runtime.alarmMessage = "";
+                if (!node.statusTimer) { 
+                    node.alarm = false;
+                    node.alarmMessage = "";
                 }
             }
 
             function sendOutputs() {
                 return { 
-                    payload: node.runtime.call,
+                    payload: node.call,
                     status: {
-                        call: node.runtime.call,
-                        status: node.runtime.status,
-                        alarm: node.runtime.alarm,
-                        alarmMessage: node.runtime.alarmMessage,
-                        timeout: !!node.runtime.statusTimer,
-                        neverReceivedStatus: node.runtime.neverReceivedStatus
+                        call: node.call,
+                        status: node.status,
+                        alarm: node.alarm,
+                        alarmMessage: node.alarmMessage,
+                        timeout: !!node.statusTimer,
+                        neverReceivedStatus: node.neverReceivedStatus
                     }
                 };
             }
 
             function updateStatus() {
-                const text = `call: ${node.runtime.call}, status: ${node.runtime.status}, alarm: ${node.runtime.alarm}`;
-                if (node.runtime.alarm) {
+                const text = `call: ${node.call}, status: ${node.status}, alarm: ${node.alarm}`;
+                if (node.alarm) {
                     utils.setStatusError(node, text);
                 } else {
                     utils.setStatusChanged(node, text);
@@ -152,8 +151,8 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            if (node.runtime.statusTimer) {
-                clearTimeout(node.runtime.statusTimer);
+            if (node.statusTimer) {
+                clearTimeout(node.statusTimer);
             }
             done();
         });

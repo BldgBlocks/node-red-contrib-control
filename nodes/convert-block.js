@@ -43,10 +43,9 @@ module.exports = function(RED) {
         ];
 
         // Initialize runtime state
-        node.runtime = {
-            inputProperty: config.inputProperty || "payload",
-            conversion: validConversions.includes(config.conversion) ? config.conversion : "C to F"
-        };
+        // Initialize state
+        node.inputProperty = config.inputProperty || "payload";
+        node.conversion = validConversions.includes(config.conversion) ? config.conversion : "C to F";
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -71,8 +70,8 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime.conversion = msg.payload;
-                    utils.setStatusOK(node, `conversion: ${node.runtime.conversion}`);
+                    node.conversion = msg.payload;
+                    utils.setStatusOK(node, `conversion: ${node.conversion}`);
                     if (done) done();
                     return;
                 }
@@ -84,7 +83,7 @@ module.exports = function(RED) {
             // Get input from configured property
             let input;
             try {
-                input = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                input = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 input = undefined;
             }
@@ -103,7 +102,7 @@ module.exports = function(RED) {
 
             // Perform conversion
             let output, inUnit, outUnit;
-            switch (node.runtime.conversion) {
+            switch (node.conversion) {
                 case "F to C":
                     output = (inputValue - 32) * 5 / 9;
                     inUnit = "°F";

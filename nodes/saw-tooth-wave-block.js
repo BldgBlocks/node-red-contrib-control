@@ -6,28 +6,27 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            lowerLimit: parseFloat(config.lowerLimit),
-            upperLimit: parseFloat(config.upperLimit),
-            period: (parseFloat(config.period) || 10) * (config.periodUnits === "minutes" ? 60000 : config.periodUnits === "seconds" ? 1000 : 1),
-            periodUnits: config.periodUnits || "seconds",
-            lastExecution: Date.now(),
-            phase: 0
-        };
+        // Initialize state
+        node.name = config.name;
+        node.lowerLimit = parseFloat(config.lowerLimit);
+        node.upperLimit = parseFloat(config.upperLimit);
+        node.period = (parseFloat(config.period) || 10) * (config.periodUnits === "minutes" ? 60000 : config.periodUnits === "seconds" ? 1000 : 1);
+        node.periodUnits = config.periodUnits || "seconds";
+        node.lastExecution = Date.now();
+        node.phase = 0;
 
         // Validate initial config
-        if (isNaN(node.runtime.lowerLimit) || isNaN(node.runtime.upperLimit) || !isFinite(node.runtime.lowerLimit) || !isFinite(node.runtime.upperLimit)) {
-            node.runtime.lowerLimit = 0;
-            node.runtime.upperLimit = 100;
+        if (isNaN(node.lowerLimit) || isNaN(node.upperLimit) || !isFinite(node.lowerLimit) || !isFinite(node.upperLimit)) {
+            node.lowerLimit = 0;
+            node.upperLimit = 100;
             utils.setStatusError(node, "invalid limits");
-        } else if (node.runtime.lowerLimit > node.runtime.upperLimit) {
-            node.runtime.upperLimit = node.runtime.lowerLimit;
+        } else if (node.lowerLimit > node.upperLimit) {
+            node.upperLimit = node.lowerLimit;
             utils.setStatusError(node, "invalid limits");
         }
-        if (isNaN(node.runtime.period) || node.runtime.period <= 0 || !isFinite(node.runtime.period)) {
-            node.runtime.period = 10000;
-            node.runtime.periodUnits = "milliseconds";
+        if (isNaN(node.period) || node.period <= 0 || !isFinite(node.period)) {
+            node.period = 10000;
+            node.periodUnits = "milliseconds";
             utils.setStatusError(node, "invalid period");
         }
 
@@ -61,21 +60,21 @@ module.exports = function(RED) {
                 }
                 switch (msg.context) {
                     case "lowerLimit":
-                        node.runtime.lowerLimit = value;
-                        if (node.runtime.lowerLimit > node.runtime.upperLimit) {
-                            node.runtime.upperLimit = node.runtime.lowerLimit;
-                            utils.setStatusOK(node, `lower: ${node.runtime.lowerLimit.toFixed(2)}, upper adjusted to ${node.runtime.upperLimit.toFixed(2)}`);
+                        node.lowerLimit = value;
+                        if (node.lowerLimit > node.upperLimit) {
+                            node.upperLimit = node.lowerLimit;
+                            utils.setStatusOK(node, `lower: ${node.lowerLimit.toFixed(2)}, upper adjusted to ${node.upperLimit.toFixed(2)}`);
                         } else {
-                            utils.setStatusOK(node, `lower: ${node.runtime.lowerLimit.toFixed(2)}`);
+                            utils.setStatusOK(node, `lower: ${node.lowerLimit.toFixed(2)}`);
                         }
                         break;
                     case "upperLimit":
-                        node.runtime.upperLimit = value;
-                        if (node.runtime.upperLimit < node.runtime.lowerLimit) {
-                            node.runtime.lowerLimit = node.runtime.upperLimit;
-                            utils.setStatusOK(node, `upper: ${node.runtime.upperLimit.toFixed(2)}, lower adjusted to ${node.runtime.lowerLimit.toFixed(2)}`);
+                        node.upperLimit = value;
+                        if (node.upperLimit < node.lowerLimit) {
+                            node.lowerLimit = node.upperLimit;
+                            utils.setStatusOK(node, `upper: ${node.upperLimit.toFixed(2)}, lower adjusted to ${node.lowerLimit.toFixed(2)}`);
                         } else {
-                            utils.setStatusOK(node, `upper: ${node.runtime.upperLimit.toFixed(2)}`);
+                            utils.setStatusOK(node, `upper: ${node.upperLimit.toFixed(2)}`);
                         }
                         break;
                     case "period":
@@ -86,9 +85,9 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        node.runtime.period = value;
-                        node.runtime.periodUnits = msg.units || "milliseconds";
-                        utils.setStatusOK(node, `period: ${node.runtime.period.toFixed(2)} ms`);
+                        node.period = value;
+                        node.periodUnits = msg.units || "milliseconds";
+                        utils.setStatusOK(node, `period: ${node.period.toFixed(2)} ms`);
                         break;
                     default:
                         utils.setStatusWarn(node, "unknown context");
@@ -101,26 +100,26 @@ module.exports = function(RED) {
 
             // Calculate time difference
             const now = Date.now();
-            const deltaTime = (now - node.runtime.lastExecution) / 1000; // Seconds
-            node.runtime.lastExecution = now;
+            const deltaTime = (now - node.lastExecution) / 1000; // Seconds
+            node.lastExecution = now;
 
             // Return lowerLimit if period is invalid
-            if (node.runtime.period <= 0) {
-                utils.setStatusOK(node, `out: ${node.runtime.lowerLimit.toFixed(2)}, phase: ${node.runtime.phase.toFixed(2)}`);
-                send({ payload: node.runtime.lowerLimit });
+            if (node.period <= 0) {
+                utils.setStatusOK(node, `out: ${node.lowerLimit.toFixed(2)}, phase: ${node.phase.toFixed(2)}`);
+                send({ payload: node.lowerLimit });
                 if (done) done();
                 return;
             }
 
             // Update phase
-            node.runtime.phase = (node.runtime.phase + deltaTime / (node.runtime.period / 1000)) % 1;
+            node.phase = (node.phase + deltaTime / (node.period / 1000)) % 1;
 
             // Sawtooth wave calculation
-            const amplitude = node.runtime.upperLimit - node.runtime.lowerLimit;
-            const value = node.runtime.lowerLimit + amplitude * node.runtime.phase;
+            const amplitude = node.upperLimit - node.lowerLimit;
+            const value = node.lowerLimit + amplitude * node.phase;
 
             // Output new message
-            utils.setStatusOK(node, `out: ${value.toFixed(2)}, phase: ${node.runtime.phase.toFixed(2)}`);
+            utils.setStatusOK(node, `out: ${value.toFixed(2)}, phase: ${node.phase.toFixed(2)}`);
             send({ payload: value });
 
             if (done) done();

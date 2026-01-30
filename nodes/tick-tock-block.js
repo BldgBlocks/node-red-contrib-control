@@ -5,15 +5,14 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            period: parseFloat(config.period),
-            state: true
-        };
+        // Initialize state
+        node.name = config.name;
+        node.period = parseFloat(config.period);
+        node.state = true;
 
         // Validate initial config
-        if (isNaN(node.runtime.period) || node.runtime.period <= 0 || !isFinite(node.runtime.period)) {
-            node.runtime.period = 10;
+        if (isNaN(node.period) || node.period <= 0 || !isFinite(node.period)) {
+            node.period = 10;
             utils.setStatusError(node, "invalid period");
         }
 
@@ -49,18 +48,18 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        node.runtime.period = value;
-                        utils.setStatusOK(node, `period: ${node.runtime.period.toFixed(2)}`);
+                        node.period = value;
+                        utils.setStatusOK(node, `period: ${node.period.toFixed(2)}`);
                         if (intervalId) {
                             clearInterval(intervalId);
-                            node.runtime.state = true;
-                            const halfPeriodMs = (node.runtime.period * 1000) / 2;
-                            send({ payload: node.runtime.state });
-                            utils.setStatusChanged(node, `out: ${node.runtime.state}`);
+                            node.state = true;
+                            const halfPeriodMs = (node.period * 1000) / 2;
+                            send({ payload: node.state });
+                            utils.setStatusChanged(node, `out: ${node.state}`);
                             intervalId = setInterval(() => {
-                                node.runtime.state = !node.runtime.state;
-                                send({ payload: node.runtime.state });
-                                utils.setStatusChanged(node, `out: ${node.runtime.state}`);
+                                node.state = !node.state;
+                                send({ payload: node.state });
+                                utils.setStatusChanged(node, `out: ${node.state}`);
                             }, halfPeriodMs);
                         }
                         break;
@@ -71,16 +70,16 @@ module.exports = function(RED) {
                             return;
                         }
                         if (msg.payload === "start" && !intervalId) {
-                            node.runtime.state = true;
-                            const halfPeriodMs = (node.runtime.period * 1000) / 2;
-                            send({ payload: node.runtime.state });
-                            utils.setStatusChanged(node, `out: ${node.runtime.state}`);
+                            node.state = true;
+                            const halfPeriodMs = (node.period * 1000) / 2;
+                            send({ payload: node.state });
+                            utils.setStatusChanged(node, `out: ${node.state}`);
                             intervalId = setInterval(() => {
-                                node.runtime.state = !node.runtime.state;
-                                send({ payload: node.runtime.state });
-                                utils.setStatusChanged(node, `out: ${node.runtime.state}`);
+                                node.state = !node.state;
+                                send({ payload: node.state });
+                                utils.setStatusChanged(node, `out: ${node.state}`);
                             }, halfPeriodMs);
-                            utils.setStatusOK(node, `started, period: ${node.runtime.period.toFixed(2)}`);
+                            utils.setStatusOK(node, `started, period: ${node.period.toFixed(2)}`);
                         } else if (msg.payload === "stop" && intervalId) {
                             clearInterval(intervalId);
                             intervalId = null;

@@ -50,32 +50,30 @@ module.exports = function(RED) {
         node.isBusy = false;  // Lock to prevent concurrent message processing
 
         // ====================================================================
-        // Initialize runtime state - values that change during operation
+        // Initialize state - values that change during operation
         // ====================================================================
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",  // Where to read input value from msg
-            dbBehavior: config.dbBehavior,  // "ReturnToZero" or "HoldLastResult" - what to do in deadband
-            errorSum: 0,                     // Accumulated error for integral term (I in PID)
-            lastError: 0,                    // Previous error value for derivative calculation
-            lastDError: 0,                   // Filtered derivative of error (prevents noise spikes)
-            result: 0,                       // Current output value
-            lastTime: Date.now(),            // Timestamp of last calculation for interval calculation
-            setpoint: parseFloat(config.setpoint),     // Current setpoint value (may be rate-limited)
-            setpointRaw: parseFloat(config.setpoint),  // Raw setpoint value (before rate limiting)
-            tuneMode: false,                 // Auto-tuning mode active?
-            tuneData: { relayOutput: 1, peaks: [], lastPeak: null, lastTrough: null, oscillationCount: 0, startTime: null, Ku: 0, Tu: 0 },
-            kp: parseFloat(config.kp),       // Proportional gain
-            ki: parseFloat(config.ki),       // Integral gain
-            kd: parseFloat(config.kd),       // Derivative gain
-            setpointRateLimit: config.setpointRateLimit ? parseFloat(config.setpointRateLimit) : 0,  // Max setpoint change per second
-            deadband: parseFloat(config.deadband),     // Zone around setpoint where no output
-            outMin: config.outMin ? parseFloat(config.outMin) : null,  // Minimum output limit
-            outMax: config.outMax ? parseFloat(config.outMax) : null,  // Maximum output limit
-            maxChange: parseFloat(config.maxChange),   // Maximum change per second (rate limiting)
-            run: !!config.run,               // Controller enabled/disabled
-            directAction: !!config.directAction,  // true=cooling (temp↑→out↑), false=heating (temp↑→out↓)
-        };
+        node.name = config.name;
+        node.inputProperty = config.inputProperty || "payload";  // Where to read input value from msg
+        node.dbBehavior = config.dbBehavior;  // "ReturnToZero" or "HoldLastResult" - what to do in deadband
+        node.errorSum = 0;                     // Accumulated error for integral term (I in PID)
+        node.lastError = 0;                    // Previous error value for derivative calculation
+        node.lastDError = 0;                   // Filtered derivative of error (prevents noise spikes)
+        node.result = 0;                       // Current output value
+        node.lastTime = Date.now();            // Timestamp of last calculation for interval calculation
+        node.setpoint = parseFloat(config.setpoint);     // Current setpoint value (may be rate-limited)
+        node.setpointRaw = parseFloat(config.setpoint);  // Raw setpoint value (before rate limiting)
+        node.tuneMode = false;                 // Auto-tuning mode active?
+        node.tuneData = { relayOutput: 1, peaks: [], lastPeak: null, lastTrough: null, oscillationCount: 0, startTime: null, Ku: 0, Tu: 0 };
+        node.kp = parseFloat(config.kp);       // Proportional gain
+        node.ki = parseFloat(config.ki);       // Integral gain
+        node.kd = parseFloat(config.kd);       // Derivative gain
+        node.setpointRateLimit = config.setpointRateLimit ? parseFloat(config.setpointRateLimit) : 0;  // Max setpoint change per second
+        node.deadband = parseFloat(config.deadband);     // Zone around setpoint where no output
+        node.outMin = config.outMin ? parseFloat(config.outMin) : null;  // Minimum output limit
+        node.outMax = config.outMax ? parseFloat(config.outMax) : null;  // Maximum output limit
+        node.maxChange = parseFloat(config.maxChange);   // Maximum change per second (rate limiting)
+        node.run = !!config.run;               // Controller enabled/disabled
+        node.directAction = !!config.directAction;  // true=cooling (temp↑→out↑), false=heating (temp↑→out↓)
 
         // ====================================================================
         // Initialize internal variables - for tracking changes and constraints
@@ -97,7 +95,7 @@ module.exports = function(RED) {
         let maxInt = kpkiConst === 0 ? 0 : (storeOutMax || Infinity) * kpkiConst;
         let lastOutput = null;  // Track last output to avoid duplicate sends
 
-        // ====================================================================
+        // =====================================================================
         // Main message handler - processes incoming input and context updates
         // ====================================================================
         node.on("input", async function(msg, send, done) {
@@ -135,82 +133,82 @@ module.exports = function(RED) {
                     utils.requiresEvaluation(config.kpType) 
                         ? utils.evaluateNodeProperty(config.kp, config.kpType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.kp),
+                        : Promise.resolve(node.kp),
                 );
 
                 evaluations.push(
                     utils.requiresEvaluation(config.kiType)
                         ? utils.evaluateNodeProperty(config.ki, config.kiType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.ki),
+                        : Promise.resolve(node.ki),
                 );
 
                 evaluations.push(
                     utils.requiresEvaluation(config.kdType)
                         ? utils.evaluateNodeProperty(config.kd, config.kdType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.kd),
+                        : Promise.resolve(node.kd),
                 );
 
                 evaluations.push(
                     utils.requiresEvaluation(config.setpointType)
                         ? utils.evaluateNodeProperty(config.setpoint, config.setpointType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.setpoint),
+                        : Promise.resolve(node.setpoint),
                 );
 
                 evaluations.push(
                     utils.requiresEvaluation(config.deadbandType)
                         ? utils.evaluateNodeProperty(config.deadband, config.deadbandType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.deadband),
+                        : Promise.resolve(node.deadband),
                 );
 
                 evaluations.push(
                     utils.requiresEvaluation(config.outMinType)
                         ? utils.evaluateNodeProperty(config.outMin, config.outMinType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.outMin),
+                        : Promise.resolve(node.outMin),
                 );
 
                 evaluations.push(
                     utils.requiresEvaluation(config.outMaxType)
                         ? utils.evaluateNodeProperty(config.outMax, config.outMaxType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.outMax),
+                        : Promise.resolve(node.outMax),
                 );
 
                 evaluations.push(
                     utils.requiresEvaluation(config.maxChangeType)
                         ? utils.evaluateNodeProperty(config.maxChange, config.maxChangeType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.maxChange),
+                        : Promise.resolve(node.maxChange),
                 );
 
                 evaluations.push(
                     utils.requiresEvaluation(config.runType)
                         ? utils.evaluateNodeProperty(config.run, config.runType, node, msg)
                             .then(val => val === true)
-                        : Promise.resolve(node.runtime.run),
+                        : Promise.resolve(node.run),
                 );
 
                 const results = await Promise.all(evaluations);  
 
                 // Update runtime with evaluated values
-                if (!isNaN(results[0])) node.runtime.kp = results[0];
-                if (!isNaN(results[1])) node.runtime.ki = results[1];
-                if (!isNaN(results[2])) node.runtime.kd = results[2];
+                if (!isNaN(results[0])) node.kp = results[0];
+                if (!isNaN(results[1])) node.ki = results[1];
+                if (!isNaN(results[2])) node.kd = results[2];
 
-                if (!isNaN(results[4])) node.runtime.deadband = results[4];
-                if (!isNaN(results[5])) node.runtime.outMin = results[5];
-                if (!isNaN(results[6])) node.runtime.outMax = results[6];
-                if (!isNaN(results[7])) node.runtime.maxChange = results[7];
-                if (results[8] != null) node.runtime.run = results[8];  
+                if (!isNaN(results[4])) node.deadband = results[4];
+                if (!isNaN(results[5])) node.outMin = results[5];
+                if (!isNaN(results[6])) node.outMax = results[6];
+                if (!isNaN(results[7])) node.maxChange = results[7];
+                if (results[8] != null) node.run = results[8];  
                 
                 if (!isNaN(results[3])) {
-                    node.runtime.setpoint = results[3];
+                    node.setpoint = results[3];
                     // Sync raw value immediately so rate limiter has the correct target
-                    node.runtime.setpointRaw = results[3]; 
+                    node.setpointRaw = results[3]; 
                 }
     
             } catch (err) {
@@ -226,29 +224,29 @@ module.exports = function(RED) {
             // Configuration validation - ensure all values are valid numbers
             // ================================================================
             // Validate and sanitize all configuration values
-            if (isNaN(node.runtime.kp) || !isFinite(node.runtime.kp)) node.runtime.kp = 0;
-            if (isNaN(node.runtime.ki) || !isFinite(node.runtime.ki)) node.runtime.ki = 0;
-            if (isNaN(node.runtime.kd) || !isFinite(node.runtime.kd)) node.runtime.kd = 0;
-            if (isNaN(node.runtime.setpoint) || !isFinite(node.runtime.setpoint)) node.runtime.setpoint = 0;
-            if (isNaN(node.runtime.setpointRaw) || !isFinite(node.runtime.setpointRaw)) node.runtime.setpointRaw = 0;
-            if (isNaN(node.runtime.deadband) || !isFinite(node.runtime.deadband)) node.runtime.deadband = 0;
-            if (isNaN(node.runtime.maxChange) || !isFinite(node.runtime.maxChange)) node.runtime.maxChange = 0;
-            if (isNaN(node.runtime.setpointRateLimit) || !isFinite(node.runtime.setpointRateLimit)) node.runtime.setpointRateLimit = 0;
-            if (node.runtime.outMin !== null && (isNaN(node.runtime.outMin) || !isFinite(node.runtime.outMin))) node.runtime.outMin = null;
-            if (node.runtime.outMax !== null && (isNaN(node.runtime.outMax) || !isFinite(node.runtime.outMax))) node.runtime.outMax = null;
+            if (isNaN(node.kp) || !isFinite(node.kp)) node.kp = 0;
+            if (isNaN(node.ki) || !isFinite(node.ki)) node.ki = 0;
+            if (isNaN(node.kd) || !isFinite(node.kd)) node.kd = 0;
+            if (isNaN(node.setpoint) || !isFinite(node.setpoint)) node.setpoint = 0;
+            if (isNaN(node.setpointRaw) || !isFinite(node.setpointRaw)) node.setpointRaw = 0;
+            if (isNaN(node.deadband) || !isFinite(node.deadband)) node.deadband = 0;
+            if (isNaN(node.maxChange) || !isFinite(node.maxChange)) node.maxChange = 0;
+            if (isNaN(node.setpointRateLimit) || !isFinite(node.setpointRateLimit)) node.setpointRateLimit = 0;
+            if (node.outMin !== null && (isNaN(node.outMin) || !isFinite(node.outMin))) node.outMin = null;
+            if (node.outMax !== null && (isNaN(node.outMax) || !isFinite(node.outMax))) node.outMax = null;
             
             // Validate config
-            if (node.runtime.deadband < 0 || node.runtime.maxChange < 0) {
+            if (node.deadband < 0 || node.maxChange < 0) {
                 utils.setStatusError(node, "invalid deadband or maxChange");
-                node.runtime.deadband = node.runtime.maxChange = 0;
+                node.deadband = node.maxChange = 0;
             }
-            if (node.runtime.outMin != null && node.runtime.outMax != null && node.runtime.outMax <= node.runtime.outMin) {
+            if (node.outMin != null && node.outMax != null && node.outMax <= node.outMin) {
                 utils.setStatusError(node, "invalid output range");
-                node.runtime.outMin = node.runtime.outMax = null;
+                node.outMin = node.outMax = null;
             }
-            if (!["ReturnToZero", "HoldLastResult"].includes(node.runtime.dbBehavior)) {
+            if (!["ReturnToZero", "HoldLastResult"].includes(node.dbBehavior)) {
                 utils.setStatusError(node, "invalid dbBehavior");
-                node.runtime.dbBehavior = "ReturnToZero";
+                node.dbBehavior = "ReturnToZero";
             }
 
             // ================================================================
@@ -281,12 +279,12 @@ module.exports = function(RED) {
                     }
                     if (msg.context === "setpoint") {
                         // Store raw setpoint value for rate limiting
-                        node.runtime.setpointRaw = value;
+                        node.setpointRaw = value;
                     } else {
-                        node.runtime[msg.context] = value;
+                        node[msg.context] = value;
                     }
                     if (msg.context === "outMin" || msg.context === "outMax") {
-                        if (node.runtime.outMin != null && node.runtime.outMax != null && node.runtime.outMax <= node.runtime.outMin) {
+                        if (node.outMin != null && node.outMax != null && node.outMax <= node.outMin) {
                             utils.setStatusError(node, "invalid output range");
                             if (done) done();
                             return;
@@ -301,7 +299,7 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime[msg.context] = msg.payload;
+                    node[msg.context] = msg.payload;
                     utils.setStatusOK(node, `${msg.context}: ${msg.payload}`);
                     if (done) done();
                     return;
@@ -311,7 +309,7 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime.dbBehavior = msg.payload;
+                    node.dbBehavior = msg.payload;
                     utils.setStatusOK(node, `dbBehavior: ${msg.payload}`);
                     if (done) done();
                     return;
@@ -321,12 +319,12 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime.errorSum = 0;
-                    node.runtime.lastError = 0;
-                    node.runtime.lastDError = 0;
-                    node.runtime.result = 0;
-                    node.runtime.tuneMode = false;
-                    node.runtime.tuneData = { relayOutput: 1, peaks: [], lastPeak: null, lastTrough: null, oscillationCount: 0, startTime: null, Ku: 0, Tu: 0 };
+                    node.errorSum = 0;
+                    node.lastError = 0;
+                    node.lastDError = 0;
+                    node.result = 0;
+                    node.tuneMode = false;
+                    node.tuneData = { relayOutput: 1, peaks: [], lastPeak: null, lastTrough: null, oscillationCount: 0, startTime: null, Ku: 0, Tu: 0 };
                     utils.setStatusOK(node, "reset");
                     if (done) done();
                     return;
@@ -338,10 +336,10 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime.tuneMode = true;
-                    node.runtime.tuneData = { relayOutput: 1, peaks: [], lastPeak: null, lastTrough: null, oscillationCount: 0, startTime: null, Ku: 0, Tu: 0 };
-                    node.runtime.errorSum = 0;
-                    node.runtime.lastError = 0;
+                    node.tuneMode = true;
+                    node.tuneData = { relayOutput: 1, peaks: [], lastPeak: null, lastTrough: null, oscillationCount: 0, startTime: null, Ku: 0, Tu: 0 };
+                    node.errorSum = 0;
+                    node.lastError = 0;
                     utils.setStatusBusy(node, "tune: starting relay auto-tuning...");
                     if (done) done();
                     return;
@@ -363,7 +361,7 @@ module.exports = function(RED) {
             // ================================================================
             let inputValue;
             try {
-                inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 inputValue = undefined;
             }
@@ -385,19 +383,19 @@ module.exports = function(RED) {
             // This is critical: PID gains are time-dependent
             // ================================================================
             let currentTime = Date.now();
-            let interval = (currentTime - node.runtime.lastTime) / 1000; // Convert to seconds
-            node.runtime.lastTime = currentTime;
+            let interval = (currentTime - node.lastTime) / 1000; // Convert to seconds
+            node.lastTime = currentTime;
 
             let outputMsg = { payload: 0 };
             outputMsg.diagnostics = { 
-                setpoint: node.runtime.setpoint,
+                setpoint: node.setpoint,
                 interval,
                 lastOutput,
-                run: node.runtime.run, 
-                directAction: node.runtime.directAction,
-                kp: node.runtime.kp, 
-                ki: node.runtime.ki, 
-                kd: node.runtime.kd 
+                run: node.run, 
+                directAction: node.directAction,
+                kp: node.kp, 
+                ki: node.ki, 
+                kd: node.kd 
             };
 
             // ================================================================
@@ -407,12 +405,12 @@ module.exports = function(RED) {
             // - interval > 60: Time jump detected (clock adjustment, suspend/resume)
             // - Kp = 0: No proportional gain, no control possible
             // ================================================================
-            if (!node.runtime.run || interval <= 0 || interval > 60 || node.runtime.kp === 0) {
+            if (!node.run || interval <= 0 || interval > 60 || node.kp === 0) {
                 if (lastOutput !== 0) {
                     lastOutput = 0;
-                    utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.runtime.setpoint.toFixed(2)}`);
+                    utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.setpoint.toFixed(2)}`);
                 } else {
-                    utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.runtime.setpoint.toFixed(2)}`);
+                    utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: 0.00, setpoint: ${node.setpoint.toFixed(2)}`);
                 }
                 send(outputMsg);
                 if (done) done();
@@ -423,18 +421,18 @@ module.exports = function(RED) {
             // Deadband check - zone around setpoint where no output is generated
             // This prevents oscillation when input is very close to target
             // ================================================================
-            if (node.runtime.deadband !== 0 && input <= node.runtime.setpoint + node.runtime.deadband && input >= node.runtime.setpoint - node.runtime.deadband) {
+            if (node.deadband !== 0 && input <= node.setpoint + node.deadband && input >= node.setpoint - node.deadband) {
                 // Reset derivative term to prevent kick when exiting deadband
                 // Without this, large derivative spike occurs on deadband exit
-                node.runtime.lastDError = 0;
-                outputMsg.payload = node.runtime.dbBehavior === "ReturnToZero" ? 0 : node.runtime.result;
+                node.lastDError = 0;
+                outputMsg.payload = node.dbBehavior === "ReturnToZero" ? 0 : node.result;
                 const outputChanged = !lastOutput || lastOutput !== outputMsg.payload;
                 if (outputChanged) {
                     lastOutput = outputMsg.payload;
-                    utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`);
+                    utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`);
                     send(outputMsg);
                 } else {
-                    utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`);
+                    utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`);
                 }
                 if (done) done();
                 return;
@@ -444,40 +442,40 @@ module.exports = function(RED) {
             // Update integral constraint limits when gains or output limits change
             // This rescales the accumulated error (errorSum) proportionally
             // ================================================================
-            if (node.runtime.kp !== storekp || node.runtime.ki !== storeki || node.runtime.outMin !== storeOutMin || node.runtime.outMax !== storeOutMax) {
-                if (node.runtime.kp !== storekp && node.runtime.kp !== 0 && storekp !== 0) {
-                    node.runtime.errorSum = node.runtime.errorSum * storekp / node.runtime.kp;
+            if (node.kp !== storekp || node.ki !== storeki || node.outMin !== storeOutMin || node.outMax !== storeOutMax) {
+                if (node.kp !== storekp && node.kp !== 0 && storekp !== 0) {
+                    node.errorSum = node.errorSum * storekp / node.kp;
                 }
-                if (node.runtime.ki !== storeki && node.runtime.ki !== 0 && storeki !== 0) {
-                    node.runtime.errorSum = node.runtime.errorSum * storeki / node.runtime.ki;
+                if (node.ki !== storeki && node.ki !== 0 && storeki !== 0) {
+                    node.errorSum = node.errorSum * storeki / node.ki;
                 }
-                kpkiConst = node.runtime.kp * node.runtime.ki;
-                minInt = kpkiConst === 0 ? 0 : (node.runtime.outMin || -Infinity) * kpkiConst;
-                maxInt = kpkiConst === 0 ? 0 : (node.runtime.outMax || Infinity) * kpkiConst;
-                storekp = node.runtime.kp;
-                storeki = node.runtime.ki;
-                storeOutMin = node.runtime.outMin;
-                storeOutMax = node.runtime.outMax;
+                kpkiConst = node.kp * node.ki;
+                minInt = kpkiConst === 0 ? 0 : (node.outMin || -Infinity) * kpkiConst;
+                maxInt = kpkiConst === 0 ? 0 : (node.outMax || Infinity) * kpkiConst;
+                storekp = node.kp;
+                storeki = node.ki;
+                storeOutMin = node.outMin;
+                storeOutMax = node.outMax;
             }
 
             // ================================================================
             // Apply setpoint rate limiting to prevent integrator wind-up and thermal shock
             // Smoothly ramps setpoint changes at configured rate (units per second)
             // ================================================================
-            if (node.runtime.setpointRateLimit > 0) {
-                let setpointChange = node.runtime.setpointRaw - node.runtime.setpoint;
-                let maxAllowedChange = node.runtime.setpointRateLimit * interval;
+            if (node.setpointRateLimit > 0) {
+                let setpointChange = node.setpointRaw - node.setpoint;
+                let maxAllowedChange = node.setpointRateLimit * interval;
                 
                 if (Math.abs(setpointChange) > maxAllowedChange) {
                     // Ramp setpoint towards target at limited rate
-                    node.runtime.setpoint += Math.sign(setpointChange) * maxAllowedChange;
+                    node.setpoint += Math.sign(setpointChange) * maxAllowedChange;
                 } else {
                     // Close enough to target, snap to it
-                    node.runtime.setpoint = node.runtime.setpointRaw;
+                    node.setpoint = node.setpointRaw;
                 }
             } else {
                 // No rate limiting, use raw setpoint directly
-                node.runtime.setpoint = node.runtime.setpointRaw;
+                node.setpoint = node.setpointRaw;
             }
 
             // ================================================================
@@ -490,87 +488,87 @@ module.exports = function(RED) {
             //   - Temp below setpoint → negative error → negative output (reduce cooling)
             // In both cases, output magnitude represents demand magnitude
             // ================================================================
-            let error = node.runtime.directAction ? (input - node.runtime.setpoint) : (node.runtime.setpoint - input);
+            let error = node.directAction ? (input - node.setpoint) : (node.setpoint - input);
 
             // ================================================================
             // Relay Auto-Tuning (Improved Ziegler-Nichols)
             // Uses bang-bang relay control to find the critical oscillation point
             // More robust than manual Kp adjustment
             // ================================================================
-            if (node.runtime.tuneMode) {
+            if (node.tuneMode) {
                 // Initialize relay tuning on first call
-                if (node.runtime.tuneData.startTime === null) {
-                    node.runtime.tuneData.startTime = currentTime;
-                    node.runtime.tuneData.relayOutput = 1;  // Start with output high
-                    node.runtime.errorSum = 0;  // Reset integral during tuning
-                    node.runtime.lastError = error;
+                if (node.tuneData.startTime === null) {
+                    node.tuneData.startTime = currentTime;
+                    node.tuneData.relayOutput = 1;  // Start with output high
+                    node.errorSum = 0;  // Reset integral during tuning
+                    node.lastError = error;
                 }
 
                 // Apply relay control: output swings between min and max based on error sign
-                if (error > node.runtime.deadband) {
-                    node.runtime.tuneData.relayOutput = -1;  // Error positive: apply cooling
-                } else if (error < -node.runtime.deadband) {
-                    node.runtime.tuneData.relayOutput = 1;  // Error negative: apply heating
+                if (error > node.deadband) {
+                    node.tuneData.relayOutput = -1;  // Error positive: apply cooling
+                } else if (error < -node.deadband) {
+                    node.tuneData.relayOutput = 1;  // Error negative: apply heating
                 }
 
                 // Detect peaks and troughs in the error signal
-                if (node.runtime.lastError > 0 && error <= 0) {  // Peak
-                    if (node.runtime.tuneData.lastPeak !== null) {
-                        node.runtime.tuneData.peaks.push({ type: 'peak', value: node.runtime.tuneData.lastPeak, time: currentTime });
+                if (node.lastError > 0 && error <= 0) {  // Peak
+                    if (node.tuneData.lastPeak !== null) {
+                        node.tuneData.peaks.push({ type: 'peak', value: node.tuneData.lastPeak, time: currentTime });
                     }
-                    node.runtime.tuneData.lastPeak = node.runtime.lastError;
-                    node.runtime.tuneData.oscillationCount++;
-                } else if (node.runtime.lastError < 0 && error >= 0) {  // Trough
-                    if (node.runtime.tuneData.lastTrough !== null) {
-                        node.runtime.tuneData.peaks.push({ type: 'trough', value: node.runtime.tuneData.lastTrough, time: currentTime });
+                    node.tuneData.lastPeak = node.lastError;
+                    node.tuneData.oscillationCount++;
+                } else if (node.lastError < 0 && error >= 0) {  // Trough
+                    if (node.tuneData.lastTrough !== null) {
+                        node.tuneData.peaks.push({ type: 'trough', value: node.tuneData.lastTrough, time: currentTime });
                     }
-                    node.runtime.tuneData.lastTrough = node.runtime.lastError;
-                    node.runtime.tuneData.oscillationCount++;
+                    node.tuneData.lastTrough = node.lastError;
+                    node.tuneData.oscillationCount++;
                 }
 
                 // Use relay output as PID result during tuning
-                let relayAmplitude = Math.abs((node.runtime.outMax || 100) - (node.runtime.outMin || 0)) / 2;
-                node.runtime.result = node.runtime.tuneData.relayOutput > 0 ? relayAmplitude : -relayAmplitude;
+                let relayAmplitude = Math.abs((node.outMax || 100) - (node.outMin || 0)) / 2;
+                node.result = node.tuneData.relayOutput > 0 ? relayAmplitude : -relayAmplitude;
 
                 // Check if we have enough oscillations to calculate Tu and Ku
-                if (node.runtime.tuneData.peaks.length >= 4) {
+                if (node.tuneData.peaks.length >= 4) {
                     // Calculate ultimate period (Tu) from peak-to-peak distances
                     let periodSum = 0;
-                    for (let i = 2; i < node.runtime.tuneData.peaks.length; i++) {
-                        periodSum += (node.runtime.tuneData.peaks[i].time - node.runtime.tuneData.peaks[i-2].time) / 1000;
+                    for (let i = 2; i < node.tuneData.peaks.length; i++) {
+                        periodSum += (node.tuneData.peaks[i].time - node.tuneData.peaks[i-2].time) / 1000;
                     }
-                    node.runtime.tuneData.Tu = (2 * periodSum) / (node.runtime.tuneData.peaks.length - 2);  // Average full period
+                    node.tuneData.Tu = (2 * periodSum) / (node.tuneData.peaks.length - 2);  // Average full period
 
                     // Calculate ultimate gain (Ku) from relay amplitude and peak error amplitude
-                    let peakErrors = node.runtime.tuneData.peaks.map(p => Math.abs(p.value));
+                    let peakErrors = node.tuneData.peaks.map(p => Math.abs(p.value));
                     let avgPeakError = peakErrors.reduce((a, b) => a + b, 0) / peakErrors.length;
-                    node.runtime.tuneData.Ku = relayAmplitude / (avgPeakError || 0.1);
+                    node.tuneData.Ku = relayAmplitude / (avgPeakError || 0.1);
 
                     // Apply Ziegler-Nichols for conservative "no overshoot" response
-                    node.runtime.kp = 0.2 * node.runtime.tuneData.Ku;
-                    node.runtime.ki = 0.4 * node.runtime.kp / node.runtime.tuneData.Tu;
-                    node.runtime.kd = 0.066 * node.runtime.kp * node.runtime.tuneData.Tu;
+                    node.kp = 0.2 * node.tuneData.Ku;
+                    node.ki = 0.4 * node.kp / node.tuneData.Tu;
+                    node.kd = 0.066 * node.kp * node.tuneData.Tu;
 
-                    node.runtime.tuneMode = false;
+                    node.tuneMode = false;
                     outputMsg.payload = 0;
                     outputMsg.tuneResult = {
                         method: 'relay-auto-tune',
-                        Kp: node.runtime.kp,
-                        Ki: node.runtime.ki,
-                        Kd: node.runtime.kd,
-                        Ku: node.runtime.tuneData.Ku,
-                        Tu: node.runtime.tuneData.Tu,
-                        oscillations: node.runtime.tuneData.oscillationCount
+                        Kp: node.kp,
+                        Ki: node.ki,
+                        Kd: node.kd,
+                        Ku: node.tuneData.Ku,
+                        Tu: node.tuneData.Tu,
+                        oscillations: node.tuneData.oscillationCount
                     };
                     lastOutput = 0;
-                    utils.setStatusOK(node, `tune: completed, Kp=${node.runtime.kp.toFixed(2)}, Ki=${node.runtime.ki.toFixed(2)}, Kd=${node.runtime.kd.toFixed(2)}`);
+                    utils.setStatusOK(node, `tune: completed, Kp=${node.kp.toFixed(2)}, Ki=${node.ki.toFixed(2)}, Kd=${node.kd.toFixed(2)}`);
 
                     send(outputMsg);
                     if (done) done();
                     return;
                 } else {
                     // Still tuning - show progress
-                    utils.setStatusBusy(node, `tune: measuring oscillations (${node.runtime.tuneData.oscillationCount} half-cycles)...`);
+                    utils.setStatusBusy(node, `tune: measuring oscillations (${node.tuneData.oscillationCount} half-cycles)...`);
                 }
             }
 
@@ -579,12 +577,12 @@ module.exports = function(RED) {
             // Accumulates error over time to eliminate steady-state error
             // ================================================================
             // Integral term with anti-windup to prevent excessive accumulation
-            if (node.runtime.ki !== 0) {
+            if (node.ki !== 0) {
                 // Add this interval's error contribution to accumulated error
-                node.runtime.errorSum += interval * error;
+                node.errorSum += interval * error;
                 // Clamp integral to prevent wind-up (integrator saturation)
                 // Keeps errorSum within limits based on output range and gains
-                node.runtime.errorSum = Math.min(Math.max(node.runtime.errorSum, minInt / (node.runtime.kp * node.runtime.ki || 1)), maxInt / (node.runtime.kp * node.runtime.ki || 1));
+                node.errorSum = Math.min(Math.max(node.errorSum, minInt / (node.kp * node.ki || 1)), maxInt / (node.kp * node.ki || 1));
             }
 
             // ================================================================
@@ -594,21 +592,21 @@ module.exports = function(RED) {
             // D term: proportional to rate of change of error (filtered to prevent noise)
             // ================================================================
             // P term (proportional) - immediate response to error
-            let pGain = node.runtime.kp * error;
+            let pGain = node.kp * error;
             
             // I term (integral) - eliminates steady-state error
             // Note: Kp is NOT applied here (already in errorSum constraint calculation)
-            let intGain = node.runtime.ki !== 0 ? node.runtime.kp * node.runtime.ki * node.runtime.errorSum : 0;
+            let intGain = node.ki !== 0 ? node.kp * node.ki * node.errorSum : 0;
             
             // D term (derivative) - dampening, anticipates error changes
             // Raw derivative can be noisy, so we filter it (0.1 new + 0.9 old = low-pass filter)
-            let dRaw = (error - node.runtime.lastError) / interval;  // Rate of change of error
-            let dFiltered = node.runtime.kd !== 0 ? 0.1 * dRaw + 0.9 * node.runtime.lastDError : 0;  // Low-pass filtered
-            let dGain = node.runtime.kd !== 0 ? node.runtime.kp * node.runtime.kd * dFiltered : 0;
+            let dRaw = (error - node.lastError) / interval;  // Rate of change of error
+            let dFiltered = node.kd !== 0 ? 0.1 * dRaw + 0.9 * node.lastDError : 0;  // Low-pass filtered
+            let dGain = node.kd !== 0 ? node.kp * node.kd * dFiltered : 0;
 
             // Store current values for next iteration's derivative calculation
-            node.runtime.lastError = error;
-            node.runtime.lastDError = dFiltered;
+            node.lastError = error;
+            node.lastDError = dFiltered;
 
             // ================================================================
             // Combine PID terms and apply output limits
@@ -619,33 +617,33 @@ module.exports = function(RED) {
             //   - false (reverse action): error = setpoint - input (for heating applications)
             //   - true (direct action): error = input - setpoint (for cooling applications)
             // Clamp output to min/max bounds (hard limits)
-            pv = Math.min(Math.max(pv, node.runtime.outMin), node.runtime.outMax);
+            pv = Math.min(Math.max(pv, node.outMin), node.outMax);
 
             // ================================================================
             // Rate-of-change limiting (maxChange) - prevents sudden jumps
             // Useful for preventing shock to equipment or actuators
             // maxChange = units per second (e.g., 10 = max 10 units/sec ramp)
             // ================================================================
-            if (node.runtime.maxChange !== 0) {
+            if (node.maxChange !== 0) {
                 // Check how much output would change this interval
-                if (node.runtime.result > pv) {
+                if (node.result > pv) {
                     // Output would decrease - limit ramp down
-                    node.runtime.result = (node.runtime.result - pv > node.runtime.maxChange) ? node.runtime.result - node.runtime.maxChange : pv;
+                    node.result = (node.result - pv > node.maxChange) ? node.result - node.maxChange : pv;
                 } else {
                     // Output would increase - limit ramp up
-                    node.runtime.result = (pv - node.runtime.result > node.runtime.maxChange) ? node.runtime.result + node.runtime.maxChange : pv;
+                    node.result = (pv - node.result > node.maxChange) ? node.result + node.maxChange : pv;
                 }
             } else {
                 // No rate limiting - use PID output directly
-                node.runtime.result = pv;
+                node.result = pv;
             }
             
             // Re-apply hard output limits after rate-of-change limiting
             // Ensures final result never exceeds configured bounds regardless of maxChange ramp
-            node.runtime.result = Math.min(Math.max(node.runtime.result, node.runtime.outMin), node.runtime.outMax);
+            node.result = Math.min(Math.max(node.result, node.outMin), node.outMax);
 
             // Set output payload
-            outputMsg.payload = node.runtime.result;
+            outputMsg.payload = node.result;
             
             // Safety check: ensure payload is never NaN
             if (isNaN(outputMsg.payload) || !isFinite(outputMsg.payload)) {
@@ -662,19 +660,19 @@ module.exports = function(RED) {
                 intGain,                 // Integral term contribution
                 dGain,                   // Derivative term contribution
                 error,                   // Current error value
-                errorSum: node.runtime.errorSum,  // Accumulated integral error
-                run: node.runtime.run,   // Controller enabled?
-                directAction: node.runtime.directAction,  // Direct/Reverse action mode
-                kp: node.runtime.kp,     // Proportional gain
-                ki: node.runtime.ki,     // Integral gain
-                kd: node.runtime.kd      // Derivative gain
+                errorSum: node.errorSum,  // Accumulated integral error
+                run: node.run,   // Controller enabled?
+                directAction: node.directAction,  // Direct/Reverse action mode
+                kp: node.kp,     // Proportional gain
+                ki: node.ki,     // Integral gain
+                kd: node.kd      // Derivative gain
             };
 
             // ================================================================
             // Update node status - show current state to user
             // ================================================================
             // Update status to show current input, output, and setpoint values
-            utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${node.runtime.result.toFixed(2)}, setpoint: ${node.runtime.setpoint.toFixed(2)}`);
+            utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${node.result.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`);
             
             // Track last output for comparison (optional, for flow logic)
             lastOutput = outputMsg.payload;

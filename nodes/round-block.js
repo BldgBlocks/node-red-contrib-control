@@ -5,20 +5,17 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",
-            precision: config.precision
-        };
+        // Initialize state
+        node.inputProperty = config.inputProperty || "payload";
+        node.precision = config.precision;
 
         // Validate initial config
         const validPrecisions = ["0.01", "0.1", "0.5", "1.0"];
-        if (!validPrecisions.includes(node.runtime.precision)) {
-            node.runtime.precision = "1.0";
+        if (!validPrecisions.includes(node.precision)) {
+            node.precision = "1.0";
             utils.setStatusError(node, "invalid precision, using 1.0");
         } else {
-            utils.setStatusOK(node, `name: ${node.runtime.name || "round"}, precision: ${node.runtime.precision}`);
+            utils.setStatusOK(node, `name: ${config.name || "round"}, precision: ${node.precision}`);
         }
 
         node.on("input", function(msg, send, done) {
@@ -44,7 +41,7 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                node.runtime.precision = newPrecision;
+                node.precision = newPrecision;
                 utils.setStatusOK(node, `precision: ${newPrecision}`);
                 if (done) done();
                 return;
@@ -53,7 +50,7 @@ module.exports = function(RED) {
             // Passthrough: Process payload if numeric, else pass unchanged
             let input;
             try {
-                input = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                input = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 input = undefined;
             }
@@ -75,7 +72,7 @@ module.exports = function(RED) {
 
             // Round based on precision
             let result;
-            const precision = parseFloat(node.runtime.precision);
+            const precision = parseFloat(node.precision);
             if (precision === 0.01) {
                 result = Math.round(inputValue * 100) / 100;
             } else if (precision === 0.1) {

@@ -6,11 +6,10 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            operationMode: config.operationMode,
-            cachedMessage: null
-        };
+        // Initialize state
+        node.name = config.name;
+        node.operationMode = config.operationMode;
+        node.cachedMessage = null;
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -38,21 +37,21 @@ module.exports = function(RED) {
                         return;
                     }
 
-                    node.runtime.cachedMessage = RED.util.cloneMessage(msg);
+                    node.cachedMessage = RED.util.cloneMessage(msg);
                     const updateText = `update: ${typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload).slice(0, 20)}`;
                     utils.setStatusOK(node, updateText);
                     if (done) done();
                     return;
                 case "execute":
-                    if (node.runtime.cachedMessage === null) {
+                    if (node.cachedMessage === null) {
                         utils.setStatusChanged(node, "execute: null");
                         send({ payload: null });
                     } else {
                         let outputMsg;
-                        if (node.runtime.operationMode === "clone") {
-                            outputMsg = RED.util.cloneMessage(node.runtime.cachedMessage);
+                        if (node.operationMode === "clone") {
+                            outputMsg = RED.util.cloneMessage(node.cachedMessage);
                         } else {
-                            outputMsg = { payload: node.runtime.cachedMessage.payload };
+                            outputMsg = { payload: node.cachedMessage.payload };
                         }
                         const executeText = `execute: ${typeof outputMsg.payload === "number" ? outputMsg.payload.toFixed(2) : JSON.stringify(outputMsg.payload).slice(0, 20)}`;
                         utils.setStatusChanged(node, executeText);
@@ -74,7 +73,7 @@ module.exports = function(RED) {
                         return;
                     }
                     
-                    node.runtime.cachedMessage = null;
+                    node.cachedMessage = null;
                     utils.setStatusOK(node, "reset");
                     if (done) done();
                     return;

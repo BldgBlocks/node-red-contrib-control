@@ -6,13 +6,12 @@ module.exports = function(RED) {
         const node = this;
         
         // Initialize runtime state
-        node.runtime = {
-            maxValues: parseInt(config.sampleSize),
-            values: [], // Queue for rolling window
-            lastAvg: null,
-            minValid: parseFloat(config.minValid),
-            maxValid: parseFloat(config.maxValid)
-        };
+        // Initialize state
+        node.maxValues = parseInt(config.sampleSize);
+        node.values = [], // Queue for rolling window;
+        node.lastAvg = null;
+        node.minValid = parseFloat(config.minValid);
+        node.maxValid = parseFloat(config.maxValid);
 
         node.isBusy = false;
 
@@ -47,21 +46,21 @@ module.exports = function(RED) {
                     utils.requiresEvaluation(config.minValidType) 
                         ? utils.evaluateNodeProperty(config.minValid, config.minValidType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.minValid),
+                        : Promise.resolve(node.minValid),
                 );
                 
                 evaluations.push(
                     utils.requiresEvaluation(config.maxValidType) 
                         ? utils.evaluateNodeProperty(config.maxValid, config.maxValidType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.maxValid),
+                        : Promise.resolve(node.maxValid),
                 );
 
                 const results = await Promise.all(evaluations);   
 
                 // Update runtime with evaluated values
-                if (!isNaN(results[0])) node.runtime.minValid = results[0];
-                if (!isNaN(results[1])) node.runtime.maxValid = results[1];         
+                if (!isNaN(results[0])) node.minValid = results[0];
+                if (!isNaN(results[1])) node.maxValid = results[1];         
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
@@ -72,8 +71,8 @@ module.exports = function(RED) {
             }
 
             // Validate values
-            if (isNaN(node.runtime.maxValid) || isNaN(node.runtime.minValid) || node.runtime.maxValid <= node.runtime.minValid ) {
-                utils.setStatusError(node, `invalid evaluated values ${node.runtime.minValid}, ${node.runtime.maxValid}`);
+            if (isNaN(node.maxValid) || isNaN(node.minValid) || node.maxValid <= node.minValid ) {
+                utils.setStatusError(node, `invalid evaluated values ${node.minValid}, ${node.maxValid}`);
                 if (done) done();
                 return;
             }
@@ -95,8 +94,8 @@ module.exports = function(RED) {
                             return;
                         }
                         if (boolVal.value === true) {
-                            node.runtime.values = [];
-                            node.runtime.lastAvg = null;
+                            node.values = [];
+                            node.lastAvg = null;
                             utils.setStatusOK(node, "state reset");
                         }
                         break;
@@ -108,12 +107,12 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        node.runtime.maxValues = sizeVal.value;
+                        node.maxValues = sizeVal.value;
                         // Trim values if new window is smaller
-                        if (node.runtime.values.length > newMaxValues) {
-                            node.runtime.values = node.runtime.values.slice(-newMaxValues);
+                        if (node.values.length > sizeVal.value) {
+                            node.values = node.values.slice(-sizeVal.value);
                         }
-                        utils.setStatusOK(node, `window: ${newMaxValues}`);
+                        utils.setStatusOK(node, `window: ${sizeVal.value}`);
                         break;
                         
                     default:
@@ -132,7 +131,7 @@ module.exports = function(RED) {
             }
 
             // Process input
-            const numVal = utils.validateNumericPayload(msg.payload, { min: node.runtime.minValid, max: node.runtime.maxValid });
+            const numVal = utils.validateNumericPayload(msg.payload, { min: node.minValid, max: node.maxValid });
             if (!numVal.valid) {
                 utils.setStatusWarn(node, "out of range");
                 if (done) done();
@@ -141,14 +140,14 @@ module.exports = function(RED) {
             const inputValue = numVal.value;
 
             // Update rolling window
-            node.runtime.values.push(inputValue);
-            if (node.runtime.values.length > node.runtime.maxValues) {
-                node.runtime.values.shift();
+            node.values.push(inputValue);
+            if (node.values.length > node.maxValues) {
+                node.values.shift();
             }
 
             // Calculate average
-            const avg = node.runtime.values.length ? node.runtime.values.reduce((a, b) => a + b, 0) / node.runtime.values.length : null;
-            const isUnchanged = avg === node.runtime.lastAvg;
+            const avg = node.values.length ? node.values.reduce((a, b) => a + b, 0) / node.values.length : null;
+            const isUnchanged = avg === node.lastAvg;
 
             // Send new message
             if (isUnchanged) {
@@ -156,7 +155,7 @@ module.exports = function(RED) {
             } else {
                 utils.setStatusChanged(node, `out: ${avg !== null ? avg.toFixed(3) : "null"}`);
             }
-            node.runtime.lastAvg = avg;
+            node.lastAvg = avg;
             send({ payload: avg });
 
             if (done) done();

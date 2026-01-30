@@ -7,13 +7,12 @@ module.exports = function(RED) {
         node.isBusy = false;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",
-            lastValue: null,
-            blockTimer: null,
-            period: parseFloat(config.period),
-        };
+        // Initialize state
+        node.name = config.name;
+        node.inputProperty = config.inputProperty || "payload";
+        node.lastValue = null;
+        node.blockTimer = null;
+        node.period = parseFloat(config.period);
 
         node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -46,13 +45,13 @@ module.exports = function(RED) {
                     utils.requiresEvaluation(config.periodType) 
                         ? utils.evaluateNodeProperty(config.period, config.periodType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.runtime.period),
+                        : Promise.resolve(node.period),
                 );
 
                 const results = await Promise.all(evaluations);   
 
                 // Update runtime with evaluated values
-                if (!isNaN(results[0])) node.runtime.period = results[0];       
+                if (!isNaN(results[0])) node.period = results[0];       
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
@@ -63,8 +62,8 @@ module.exports = function(RED) {
             }
 
             // Acceptable fallbacks
-            if (isNaN(node.runtime.period) || node.runtime.period < 0) {
-                node.runtime.period = config.period;
+            if (isNaN(node.period) || node.period < 0) {
+                node.period = config.period;
                 utils.setStatusError(node, "invalid period, using 0");
             }
 
@@ -82,9 +81,9 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime.period = newPeriod;
-                    node.runtime.periodType = "num";
-                    utils.setStatusOK(node, `period: ${node.runtime.period.toFixed(0)} ms`);
+                    node.period = newPeriod;
+                    node.periodType = "num";
+                    utils.setStatusOK(node, `period: ${node.period.toFixed(0)} ms`);
                     if (done) done();
                     return;
                 }
@@ -101,7 +100,7 @@ module.exports = function(RED) {
 
             let inputValue;
             try {
-                inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 inputValue = undefined;
             }
@@ -132,7 +131,7 @@ module.exports = function(RED) {
             }
 
             // Block if in filter period
-            if (node.runtime.blockTimer) {
+            if (node.blockTimer) {
                 const filteredText = `filtered: ${JSON.stringify(currentValue).slice(0, 20)} |`;
                 utils.setStatusUnchanged(node, filteredText);
                 if (done) done();
@@ -140,32 +139,32 @@ module.exports = function(RED) {
             }
 
             // period === 0 means only ever on change, not equal outside of filter period sends an update message
-            if (isEqual(currentValue, node.runtime.lastValue)) {
-                if (node.runtime.period === 0) {
+            if (isEqual(currentValue, node.lastValue)) {
+                if (node.period === 0) {
                     if (done) done();
                     return;
                 }
             }
 
-            node.runtime.lastValue = currentValue;
+            node.lastValue = currentValue;
             send(msg);
 
             // Start filter period if applicable
-            if (node.runtime.period > 0) {
-                node.runtime.blockTimer = setTimeout(() => {
-                    node.runtime.blockTimer = null;
+            if (node.period > 0) {
+                node.blockTimer = setTimeout(() => {
+                    node.blockTimer = null;
                     const endFilterText = `filtered: ${JSON.stringify(currentValue).slice(0, 20)}`;
                     utils.setStatusUnchanged(node, endFilterText);
-                }, node.runtime.period);
+                }, node.period);
             }
 
             if (done) done();
         });
 
         node.on("close", function(done) {
-            if (node.runtime.blockTimer) {
-                clearTimeout(node.runtime.blockTimer);
-                node.runtime.blockTimer = null;
+            if (node.blockTimer) {
+                clearTimeout(node.blockTimer);
+                node.blockTimer = null;
             }
             done();
         });

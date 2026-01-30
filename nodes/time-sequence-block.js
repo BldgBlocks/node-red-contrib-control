@@ -5,15 +5,14 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            delay: parseFloat(config.delay),
-            stage: 0
-        };
+        // Initialize state
+        node.name = config.name;
+        node.delay = parseFloat(config.delay);
+        node.stage = 0;
 
         // Validate initial config
-        if (isNaN(node.runtime.delay) || node.runtime.delay < 0 || !isFinite(node.runtime.delay)) {
-            node.runtime.delay = 5000;
+        if (isNaN(node.delay) || node.delay < 0 || !isFinite(node.delay)) {
+            node.delay = 5000;
             utils.setStatusError(node, "invalid delay");
         }
 
@@ -49,8 +48,8 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        node.runtime.delay = delayValue;
-                        utils.setStatusOK(node, `delay: ${node.runtime.delay.toFixed(2)} ms`);
+                        node.delay = delayValue;
+                        utils.setStatusOK(node, `delay: ${node.delay.toFixed(2)} ms`);
                         if (done) done();
                         return;
                     case "reset":
@@ -68,7 +67,7 @@ module.exports = function(RED) {
                             clearTimeout(timer);
                             timer = null;
                         }
-                        node.runtime.stage = 0;
+                        node.stage = 0;
                         const resetMsg = { payload: false };
                         utils.setStatusOK(node, "state reset");
                         send([resetMsg, resetMsg, resetMsg, resetMsg]);
@@ -87,31 +86,31 @@ module.exports = function(RED) {
             }
 
             // Process input
-            if (node.runtime.stage !== 0) {
+            if (node.stage !== 0) {
                 utils.setStatusWarn(node, "sequence already running");
                 if (done) done();
                 return;
             }
 
             // Start new sequence
-            node.runtime.stage = 1;
+            node.stage = 1;
             const cloneMsg = RED.util.cloneMessage(msg);
 
             // Output sequence
             const sendNextOutput = () => {
-                if (node.runtime.stage === 0) return;
+                if (node.stage === 0) return;
                 const stageLabels = ["stage 1", "stage 2", "stage 3", "stage 4"];
                 const outputs = [null, null, null, null];
-                cloneMsg.stage = node.runtime.stage;
-                outputs[node.runtime.stage - 1] = cloneMsg;
-                utils.setStatusOK(node, `stage: ${stageLabels[node.runtime.stage - 1]}, in: ${JSON.stringify(cloneMsg.payload).slice(0, 20)}`);
+                cloneMsg.stage = node.stage;
+                outputs[node.stage - 1] = cloneMsg;
+                utils.setStatusOK(node, `stage: ${stageLabels[node.stage - 1]}, in: ${JSON.stringify(cloneMsg.payload).slice(0, 20)}`);
                 send(outputs);
 
-                node.runtime.stage++;
-                if (node.runtime.stage <= 4) {
-                    timer = setTimeout(sendNextOutput, node.runtime.delay);
+                node.stage++;
+                if (node.stage <= 4) {
+                    timer = setTimeout(sendNextOutput, node.delay);
                 } else {
-                    node.runtime.stage = 0;
+                    node.stage = 0;
                     timer = null;
                 }
             };

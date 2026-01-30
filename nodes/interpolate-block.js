@@ -6,26 +6,25 @@ module.exports = function(RED) {
         const node = this;
         
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",
-            points: null,
-            lastOutput: null
-        };
+        // Initialize state
+        node.name = config.name;
+        node.inputProperty = config.inputProperty || "payload";
+        node.points = null;
+        node.lastOutput = null;
 
         // Initialize points
         try {
-            node.runtime.points = config.points ? JSON.parse(config.points) : [{ x: 0, y: 0 }, { x: 100, y: 100 }];
-            if (!Array.isArray(node.runtime.points) || node.runtime.points.length < 2 ||
-                !node.runtime.points.every(p => typeof p.x === "number" && !isNaN(p.x) &&
+            node.points = config.points ? JSON.parse(config.points) : [{ x: 0, y: 0 }, { x: 100, y: 100 }];
+            if (!Array.isArray(node.points) || node.points.length < 2 ||
+                !node.points.every(p => typeof p.x === "number" && !isNaN(p.x) &&
                                                 typeof p.y === "number" && !isNaN(p.y))) {
-                node.runtime.points = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
+                node.points = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
                 utils.setStatusError(node, "invalid points, using default");
             } else {
-                utils.setStatusOK(node, `name: ${node.runtime.name}, points: ${node.runtime.points.length}`);
+                utils.setStatusOK(node, `name: ${node.name}, points: ${node.points.length}`);
             }
         } catch (e) {
-            node.runtime.points = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
+            node.points = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
             utils.setStatusError(node, "invalid points, using default");
         }
 
@@ -57,7 +56,7 @@ module.exports = function(RED) {
                         if (Array.isArray(newPoints) && newPoints.length >= 2 &&
                             newPoints.every(p => typeof p.x === "number" && !isNaN(p.x) &&
                                                 typeof p.y === "number" && !isNaN(p.y))) {
-                            node.runtime.points = newPoints;
+                            node.points = newPoints;
                             utils.setStatusOK(node, `points: ${newPoints.length}`);
                         } else {
                             utils.setStatusError(node, "invalid points");
@@ -77,7 +76,7 @@ module.exports = function(RED) {
             // Check for missing input property
             let inputValue;
             try {
-                inputValue = parseFloat(RED.util.getMessageProperty(msg, node.runtime.inputProperty));
+                inputValue = parseFloat(RED.util.getMessageProperty(msg, node.inputProperty));
             } catch (err) {
                 inputValue = NaN;
             }
@@ -89,11 +88,11 @@ module.exports = function(RED) {
 
             // Linear interpolation
             let outputValue = NaN;
-            const isPositiveSlope = node.runtime.points.length >= 2 && node.runtime.points[1].x > node.runtime.points[0].x;
+            const isPositiveSlope = node.points.length >= 2 && node.points[1].x > node.points[0].x;
 
-            for (let i = 0; i < node.runtime.points.length - 1; i++) {
-                let x1 = node.runtime.points[i].x, y1 = node.runtime.points[i].y;
-                let x2 = node.runtime.points[i + 1].x, y2 = node.runtime.points[i + 1].y;
+            for (let i = 0; i < node.points.length - 1; i++) {
+                let x1 = node.points[i].x, y1 = node.points[i].y;
+                let x2 = node.points[i + 1].x, y2 = node.points[i + 1].y;
                 if (isPositiveSlope ? (inputValue >= x1 && inputValue <= x2) : (inputValue <= x1 && inputValue >= x2)) {
                     let m = (y2 - y1) / (x2 - x1);
                     let b = y1 - (m * x1);
@@ -109,13 +108,13 @@ module.exports = function(RED) {
             }
 
             // Check if output value has changed
-            const isUnchanged = outputValue === node.runtime.lastOutput;
+            const isUnchanged = outputValue === node.lastOutput;
             const statusShape = isUnchanged ? "ring" : "dot";
             utils.setStatusOK(node, `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`);
             if (statusShape === "ring") utils.setStatusUnchanged(node, `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`);
 
             if (!isUnchanged) {
-                node.runtime.lastOutput = outputValue;
+                node.lastOutput = outputValue;
                 send({ payload: outputValue });
             }
 

@@ -6,14 +6,13 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            inputProperty: config.inputProperty || "payload",
-            algorithm: config.algorithm,
-            lastValue: null
-        };
+        // Initialize state
+        node.name = config.name;
+        node.inputProperty = config.inputProperty || "payload";
+        node.algorithm = config.algorithm;
+        node.lastValue = null;
 
-        utils.setStatusOK(node, `name: ${node.runtime.name || "edge"}, algorithm: ${node.runtime.algorithm}`);
+        utils.setStatusOK(node, `name: ${node.name || "edge"}, algorithm: ${node.algorithm}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -41,7 +40,7 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
-                    node.runtime.algorithm = newAlgorithm;
+                    node.algorithm = newAlgorithm;
                     utils.setStatusOK(node, `algorithm: ${newAlgorithm}`);
                     if (done) done();
                     return;
@@ -60,7 +59,7 @@ module.exports = function(RED) {
                         return;
                     }
                     if (boolVal.value === true) {
-                        node.runtime.lastValue = null;
+                        node.lastValue = null;
                         utils.setStatusOK(node, "state reset");
                         if (done) done();
                         return;
@@ -74,7 +73,7 @@ module.exports = function(RED) {
             // Get input from configured property
             let inputValue;
             try {
-                inputValue = RED.util.getMessageProperty(msg, node.runtime.inputProperty);
+                inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
             } catch (err) {
                 inputValue = undefined;
             }
@@ -91,14 +90,14 @@ module.exports = function(RED) {
             }
 
             const currentValue = inputValue;
-            const lastValue = node.runtime.lastValue;
+            const lastValue = node.lastValue;
 
             // Check for transition
             let isTransition = false;
             if (lastValue !== null && lastValue !== undefined) {
-                if (node.runtime.algorithm === "true-to-false" && lastValue === true && currentValue === false) {
+                if (node.algorithm === "true-to-false" && lastValue === true && currentValue === false) {
                     isTransition = true;
-                } else if (node.runtime.algorithm === "false-to-true" && lastValue === false && currentValue === true) {
+                } else if (node.algorithm === "false-to-true" && lastValue === false && currentValue === true) {
                     isTransition = true;
                 }
             }
@@ -110,7 +109,7 @@ module.exports = function(RED) {
                 utils.setStatusUnchanged(node, `in: ${currentValue}, out: none`);
             }
 
-            node.runtime.lastValue = currentValue;
+            node.lastValue = currentValue;
             if (done) done();
         });
 

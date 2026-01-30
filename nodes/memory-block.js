@@ -10,16 +10,15 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize runtime state
-        node.runtime = {
-            name: config.name,
-            writePeriod: config.writePeriod,
-            transferProperty: config.transferProperty,
-            writeOnUpdate: config.writeOnUpdate === true,
-            storedMsg: null
-        };
+        // Initialize state
+        node.name = config.name;
+        node.writePeriod = config.writePeriod;
+        node.transferProperty = config.transferProperty;
+        node.writeOnUpdate = config.writeOnUpdate === true;
+        node.storedMsg = null;
 
         // Resolve typed inputs
-        node.runtime.writePeriod = parseFloat(RED.util.evaluateNodeProperty( config.writePeriod, config.writePeriodType, node ));
+        node.writePeriod = parseFloat(RED.util.evaluateNodeProperty( config.writePeriod, config.writePeriodType, node ));
 
         // File path for persistent storage
         const filePath = path.join(RED.settings.userDir, `memory-${node.id}.json`);
@@ -31,8 +30,8 @@ module.exports = function(RED) {
         async function loadStoredMessage() {
             try {
                 const data = await fs.readFile(filePath, "utf8");
-                node.runtime.storedMsg = JSON.parse(data);
-                const payloadStr = node.runtime.storedMsg[node.runtime.transferProperty] != null ? String(node.runtime.storedMsg[node.runtime.transferProperty]).substring(0, 20) : "null";
+                node.storedMsg = JSON.parse(data);
+                const payloadStr = node.storedMsg[node.transferProperty] != null ? String(node.storedMsg[node.transferProperty]).substring(0, 20) : "null";
                 utils.setStatusOK(node, `loaded: ${payloadStr}`);
             } catch (err) {
                 if (err.code !== "ENOENT") {
@@ -69,7 +68,7 @@ module.exports = function(RED) {
         }
 
         // Initialize (load only if writeOnUpdate is false)
-        if (!node.runtime.writeOnUpdate) {
+        if (!node.writeOnUpdate) {
             loadStoredMessage().catch(err => {
                 node.error("Failed to load stored message: " + err.message);
             });
@@ -87,7 +86,7 @@ module.exports = function(RED) {
 
             // Evaluate typed-inputs if needed
             if (utils.requiresEvaluation(config.writePeriodType)) {
-                node.runtime.writePeriod = parseFloat(RED.util.evaluateNodeProperty( config.writePeriod, config.writePeriodType, node, msg ));
+                node.writePeriod = parseFloat(RED.util.evaluateNodeProperty( config.writePeriod, config.writePeriodType, node, msg ));
             }
 
             // Initialize output array: [Output 1, Output 2]
@@ -96,7 +95,7 @@ module.exports = function(RED) {
             // Handle context
             if (!msg.hasOwnProperty("context") || !msg.context || typeof msg.context !== "string") {
                 // Pass-through message to Output 2
-                const payloadStr = msg[node.runtime.transferProperty] != null ? String(msg[node.runtime.transferProperty]).substring(0, 20) : "null";
+                const payloadStr = msg[node.transferProperty] != null ? String(msg[node.transferProperty]).substring(0, 20) : "null";
                 utils.setStatusChanged(node, `in: ${payloadStr}, out2: ${payloadStr}`);
                 output[1] = msg;
                 send(output);
@@ -105,13 +104,13 @@ module.exports = function(RED) {
             }
 
             if (msg.context === "update") {
-                if (!msg.hasOwnProperty(node.runtime.transferProperty)) {
-                    utils.setStatusError(node, `missing ${node.runtime.transferProperty}`);
+                if (!msg.hasOwnProperty(node.transferProperty)) {
+                    utils.setStatusError(node, `missing ${node.transferProperty}`);
                     if (done) done();
                     return;
                 }
-                const payloadStr = msg[node.runtime.transferProperty] != null ? String(msg[node.runtime.transferProperty]).substring(0, 20) : "null";
-                if (node.runtime.writeOnUpdate) {
+                const payloadStr = msg[node.transferProperty] != null ? String(msg[node.transferProperty]).substring(0, 20) : "null";
+                if (node.writeOnUpdate) {
                     // Write directly to file, do not store in memory
                     try {
                         fs.writeFile(filePath, JSON.stringify(msg)).catch(err => {
@@ -125,9 +124,9 @@ module.exports = function(RED) {
                     }
                 } else {
                     // Original behavior: store in memory and context, delay write
-                    node.runtime.storedMsg = RED.util.cloneMessage(msg);
-                    node.context().set("storedMsg", node.runtime.storedMsg);
-                    lastUpdateMsg = node.runtime.storedMsg;
+                    node.storedMsg = RED.util.cloneMessage(msg);
+                    node.context().set("storedMsg", node.storedMsg);
+                    lastUpdateMsg = node.storedMsg;
                     utils.setStatusOK(node, `updated: ${payloadStr}`);
                     if (writeTimeout) clearTimeout(writeTimeout);
                     writeTimeout = setTimeout(() => {
@@ -139,11 +138,11 @@ module.exports = function(RED) {
             }
 
             if (msg.context === "execute") {
-                let storedMsg = node.runtime.writeOnUpdate ? readStoredMessageSync() : node.runtime.storedMsg;
+                let storedMsg = node.writeOnUpdate ? readStoredMessageSync() : node.storedMsg;
                 if (storedMsg !== null) {
                     const outMsg = RED.util.cloneMessage(msg);
-                    outMsg[node.runtime.transferProperty] = storedMsg[node.runtime.transferProperty];
-                    const payloadStr = outMsg[node.runtime.transferProperty] != null ? String(outMsg[node.runtime.transferProperty]).substring(0, 20) : "null";
+                    outMsg[node.transferProperty] = storedMsg[node.transferProperty];
+                    const payloadStr = outMsg[node.transferProperty] != null ? String(outMsg[node.transferProperty]).substring(0, 20) : "null";
                     utils.setStatusChanged(node, `in: execute, out2: ${payloadStr}`);
                     output[1] = outMsg;
                 } else {
@@ -156,30 +155,30 @@ module.exports = function(RED) {
             }
 
             if (msg.context === "executeWithFallback") {
-                let storedMsg = node.runtime.writeOnUpdate ? readStoredMessageSync() : node.runtime.storedMsg;
+                let storedMsg = node.writeOnUpdate ? readStoredMessageSync() : node.storedMsg;
                 if (storedMsg !== null) {
                     const outMsg = RED.util.cloneMessage(msg);
-                    outMsg[node.runtime.transferProperty] = storedMsg[node.runtime.transferProperty];
-                    const payloadStr = outMsg[node.runtime.transferProperty] != null ? String(outMsg[node.runtime.transferProperty]).substring(0, 20) : "null";
+                    outMsg[node.transferProperty] = storedMsg[node.transferProperty];
+                    const payloadStr = outMsg[node.transferProperty] != null ? String(outMsg[node.transferProperty]).substring(0, 20) : "null";
                     utils.setStatusChanged(node, `in: executeWithFallback, out2: ${payloadStr}`);
                     output[1] = outMsg;
                 } else {
                     let value;
-                    if (msg.hasOwnProperty(node.runtime.transferProperty)) {
-                        value = msg[node.runtime.transferProperty];
+                    if (msg.hasOwnProperty(node.transferProperty)) {
+                        value = msg[node.transferProperty];
                     }
                     else if (msg.hasOwnProperty("fallback")) {
                         value = msg.fallback;
                     } else {
-                        utils.setStatusError(node, `missing ${node.runtime.transferProperty}`);
+                        utils.setStatusError(node, `missing ${node.transferProperty}`);
                         if (done) done();
                         return;
                     }
                     
-                    if (node.runtime.writeOnUpdate) {
+                    if (node.writeOnUpdate) {
                         // Write directly to file
                         try {
-                            fs.writeFile(filePath, JSON.stringify({ [node.runtime.transferProperty]: value })).catch(err => {
+                            fs.writeFile(filePath, JSON.stringify({ [node.transferProperty]: value })).catch(err => {
                                 utils.setStatusError(node, "file error");
                                 node.error("Failed to save message: " + err.message);
                             });
@@ -189,17 +188,17 @@ module.exports = function(RED) {
                         }
                     } else {
                         // Store in memory and context
-                        node.runtime.storedMsg = { [node.runtime.transferProperty]: value };
-                        node.context().set("storedMsg", node.runtime.storedMsg);
-                        lastUpdateMsg = node.runtime.storedMsg;
+                        node.storedMsg = { [node.transferProperty]: value };
+                        node.context().set("storedMsg", node.storedMsg);
+                        lastUpdateMsg = node.storedMsg;
                         if (writeTimeout) clearTimeout(writeTimeout);
                         writeTimeout = setTimeout(() => {
                             saveMessage();
                         }, writePeriod);
                     }
                     const outMsg = RED.util.cloneMessage(msg);
-                    outMsg[node.runtime.transferProperty] = value;
-                    const payloadStr = msg[node.runtime.transferProperty] != null ? String(msg[node.runtime.transferProperty]).substring(0, 20) : "null";
+                    outMsg[node.transferProperty] = value;
+                    const payloadStr = msg[node.transferProperty] != null ? String(msg[node.transferProperty]).substring(0, 20) : "null";
                     utils.setStatusChanged(node, `in: executeWithFallback, out2: ${payloadStr}`);
                     output[1] = outMsg;
                 }
@@ -209,7 +208,7 @@ module.exports = function(RED) {
             }
 
             if (msg.context === "query") {
-                const hasValue = node.runtime.writeOnUpdate ? fsSync.existsSync(filePath) : node.runtime.storedMsg !== null;
+                const hasValue = node.writeOnUpdate ? fsSync.existsSync(filePath) : node.storedMsg !== null;
                 utils.setStatusChanged(node, `in: query, out1: ${hasValue}`);
                 output[0] = { payload: hasValue };
                 send(output);
@@ -223,7 +222,7 @@ module.exports = function(RED) {
 
         node.on("close", function(done) {
             if (writeTimeout) clearTimeout(writeTimeout);
-            if (!node.runtime.writeOnUpdate && lastUpdateMsg) {
+            if (!node.writeOnUpdate && lastUpdateMsg) {
                 saveMessage()
                     .then(() => {
                         utils.setStatusOK(node, "");
