@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function ModuloBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -15,9 +17,9 @@ module.exports = function(RED) {
         if (isNaN(node.runtime.slots) || node.runtime.slots < 1) {
             node.runtime.slots = 2;
             node.runtime.inputs = Array(2).fill(1);
-            node.status({ fill: "red", shape: "ring", text: "invalid slots, using 2" });
+            utils.setStatusError(node, "invalid slots, using 2");
         } else {
-            node.status({ fill: "green", shape: "dot", text: `name: ${node.runtime.name || "modulo"}, slots: ${node.runtime.slots}` });
+            utils.setStatusOK(node, `name: ${node.runtime.name || "modulo"}, slots: ${node.runtime.slots}`);
         }
 
         node.on("input", function(msg, send, done) {
@@ -25,20 +27,20 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
 
             // Check for missing context or payload
             if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
-                node.status({ fill: "red", shape: "ring", text: "missing context" });
+                utils.setStatusError(node, "missing context");
                 if (done) done();
                 return;
             }
 
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                utils.setStatusError(node, "missing payload");
                 if (done) done();
                 return;
             }
@@ -46,14 +48,14 @@ module.exports = function(RED) {
             // Handle configuration messages
             if (msg.context === "reset") {
                 if (typeof msg.payload !== "boolean") {
-                    node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                    utils.setStatusError(node, "invalid reset");
                     if (done) done();
                     return;
                 }
                 if (msg.payload === true) {
                     node.runtime.inputs = Array(node.runtime.slots).fill(1);
                     node.runtime.lastResult = null;
-                    node.status({ fill: "green", shape: "dot", text: "state reset" });
+                    utils.setStatusOK(node, "state reset");
                     if (done) done();
                     return;
                 }
@@ -64,14 +66,14 @@ module.exports = function(RED) {
             if (msg.context === "slots") {
                 const newSlots = parseInt(msg.payload);
                 if (isNaN(newSlots) || newSlots < 1) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid slots" });
+                    utils.setStatusError(node, "invalid slots");
                     if (done) done();
                     return;
                 }
                 node.runtime.slots = newSlots;
                 node.runtime.inputs = Array(newSlots).fill(1);
                 node.runtime.lastResult = null;
-                node.status({ fill: "green", shape: "dot", text: `slots: ${newSlots}` });
+                utils.setStatusOK(node, `slots: ${newSlots}`);
                 if (done) done();
                 return;
             }
@@ -79,18 +81,18 @@ module.exports = function(RED) {
             if (msg.context.startsWith("in")) {
                 const slotIndex = parseInt(msg.context.slice(2)) - 1;
                 if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= node.runtime.slots) {
-                    node.status({ fill: "red", shape: "ring", text: `invalid input slot ${msg.context}` });
+                    utils.setStatusError(node, `invalid input slot ${msg.context}`);
                     if (done) done();
                     return;
                 }
                 const newValue = parseFloat(msg.payload);
                 if (isNaN(newValue) || !isFinite(newValue)) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                    utils.setStatusError(node, "invalid input");
                     if (done) done();
                     return;
                 }
                 if (slotIndex > 0 && newValue === 0) {
-                    node.status({ fill: "red", shape: "ring", text: "modulo by zero" });
+                    utils.setStatusError(node, "modulo by zero");
                     if (done) done();
                     return;
                 }
@@ -99,21 +101,20 @@ module.exports = function(RED) {
                 // Calculate modulo
                 const result = node.runtime.inputs.reduce((acc, val, idx) => idx === 0 ? val : acc % val, node.runtime.inputs[0]);
                 const isUnchanged = result === node.runtime.lastResult;
-                node.status({
-                    fill: "blue",
-                    shape: isUnchanged ? "ring" : "dot",
-                    text: `in: ${msg.context}=${newValue.toFixed(2)}, out: ${result.toFixed(2)}`
-                });
-
-                if (!isUnchanged) {
-                    node.runtime.lastResult = result;
-                    send({ payload: result });
+                const statusText = `in: ${msg.context}=${newValue.toFixed(2)}, out: ${result.toFixed(2)}`;
+                if (isUnchanged) {
+                    utils.setStatusUnchanged(node, statusText);
+                } else {
+                    utils.setStatusChanged(node, statusText);
                 }
+
+                node.runtime.lastResult = result;
+                send({ payload: result });
                 if (done) done();
                 return;
             }
 
-            node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+            utils.setStatusWarn(node, "unknown context");
             if (done) done("Unknown context");
         });
 

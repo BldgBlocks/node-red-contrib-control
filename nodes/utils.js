@@ -78,6 +78,36 @@ module.exports = function(RED) {
         }
         return { value, priority };
     }
+
+    // ============================================================================
+    // Status Helper Functions
+    // ============================================================================
+    // Simplified status reporting with consistent fill/shape/text protocol
+    // Usage: utils.setStatusOK(node, "sum: 42.5");
+
+    function setStatusOK(node, text) {
+        node.status({ fill: "green", shape: "dot", text });
+    }
+
+    function setStatusChanged(node, text) {
+        node.status({ fill: "blue", shape: "dot", text });
+    }
+
+    function setStatusUnchanged(node, text) {
+        node.status({ fill: "blue", shape: "ring", text });
+    }
+
+    function setStatusError(node, text) {
+        node.status({ fill: "red", shape: "ring", text });
+    }
+
+    function setStatusWarn(node, text) {
+        node.status({ fill: "yellow", shape: "ring", text });
+    }
+
+    function setStatusBusy(node, text = "busy - dropped msg") {
+        node.status({ fill: "yellow", shape: "ring", text });
+    }
     
     // Usage:
     // const utils = require('./utils')(RED);
@@ -89,6 +119,12 @@ module.exports = function(RED) {
         sendSuccess,
         getGlobalState,
         setGlobalState,
-        getHighestPriority
+        getHighestPriority,
+        setStatusOK,
+        setStatusChanged,
+        setStatusUnchanged,
+        setStatusError,
+        setStatusWarn,
+        setStatusBusy
     };
 }

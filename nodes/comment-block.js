@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function CommentBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -13,27 +15,30 @@ module.exports = function(RED) {
             node.comment = node.comment.substring(0, 100);
         }
         
-        // Status helper function
+        // Update status based on configuration
         const updateStatus = function() {
             switch (node.statusDisplay) {
                 case "default":
-                    return { fill: "green", shape: "dot", text: node.comment || "No comment set" };
+                    utils.setStatusOK(node, node.comment || "No comment set");
+                    break;
                 case "name":
-                    return { fill: "green", shape: "dot", text: node.name || "comment" };
+                    utils.setStatusOK(node, node.name || "comment");
+                    break;
                 case "none":
                 default:
-                    return {};
+                    // No status for "none"
+                    break;
             }
         };
 
-        node.status(updateStatus());
+        updateStatus();
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Guard against invalid msg
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }

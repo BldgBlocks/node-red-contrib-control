@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function AndBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -7,7 +9,7 @@ module.exports = function(RED) {
         node.inputs = Array(parseInt(config.slots) || 2).fill(false);
         node.slots = parseInt(config.slots);
 
-        node.status({ fill: "green", shape: "dot", text: `slots: ${node.slots}` });
+        utils.setStatusOK(node, `slots: ${node.slots}`);
 
         // Initialize fields
         let lastResult = null;
@@ -18,20 +20,20 @@ module.exports = function(RED) {
 
             // Guard against invalid msg
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
 
             // Check required properties
             if (!msg.hasOwnProperty("context")) {
-                node.status({ fill: "red", shape: "ring", text: "missing context" });
+                utils.setStatusError(node, "missing context");
                 if (done) done();
                 return;
             }
 
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                utils.setStatusError(node, "missing payload");
                 if (done) done();
                 return;
             }
@@ -43,24 +45,25 @@ module.exports = function(RED) {
                     node.inputs[index - 1] = Boolean(msg.payload);
                     const result = node.inputs.every(v => v === true);
                     const isUnchanged = result === lastResult && node.inputs.every((v, i) => v === lastInputs[i]);
-                    node.status({
-                        fill: "blue",
-                        shape: isUnchanged ? "ring" : "dot",
-                        text: `in: [${node.inputs.join(", ")}], out: ${result}`
-                    });
+                    const statusText = `in: [${node.inputs.join(", ")}], out: ${result}`;
+                    if (isUnchanged) {
+                        utils.setStatusUnchanged(node, statusText);
+                    } else {
+                        utils.setStatusChanged(node, statusText);
+                    }
                     lastResult = result;
                     lastInputs = node.inputs.slice();
                     send({ payload: result });
                     if (done) done();
                     return;
                 } else {
-                    node.status({ fill: "red", shape: "ring", text: `invalid input index ${index || "NaN"}` });
+                    utils.setStatusError(node, `invalid input index ${index || "NaN"}`);
                     if (done) done();
                     return;
                 }
             }
 
-            node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+            utils.setStatusWarn(node, "unknown context");
             if (done) done();
         });
 

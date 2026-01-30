@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function PriorityBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -37,14 +39,14 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
 
             // Validate payload
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                utils.setStatusError(node, "missing payload");
                 if (done) done();
                 return;
             }
@@ -72,7 +74,7 @@ module.exports = function(RED) {
                     context.set("defaultValue", defaultValue);
                     context.set("fallbackValue", fallbackValue);
                     context.set("messages", messages);
-                    node.status({ fill: "green", shape: "dot", text: "all slots cleared" });
+                    utils.setStatusOK(node, "all slots cleared");
                 } else if (typeof clear === "string" && isValidSlot(clear)) {
                     if (clear.startsWith("priority")) priorities[clear] = null;
                     else if (clear === "default") defaultValue = null;
@@ -82,7 +84,7 @@ module.exports = function(RED) {
                     context.set("defaultValue", defaultValue);
                     context.set("fallbackValue", fallbackValue);
                     context.set("messages", messages);
-                    node.status({ fill: "green", shape: "dot", text: `${clear} cleared` });
+                    utils.setStatusOK(node, `${clear} cleared`);
                 } else if (Array.isArray(clear) && clear.every(isValidSlot)) {
                     clear.forEach(slot => {
                         if (slot.startsWith("priority")) priorities[slot] = null;
@@ -94,16 +96,16 @@ module.exports = function(RED) {
                     context.set("defaultValue", defaultValue);
                     context.set("fallbackValue", fallbackValue);
                     context.set("messages", messages);
-                    node.status({ fill: "green", shape: "dot", text: `${clear.join(", ")} cleared` });
+                    utils.setStatusOK(node, `${clear.join(", ")} cleared`);
                 } else {
-                    node.status({ fill: "red", shape: "ring", text: "invalid clear" });
+                    utils.setStatusError(node, "invalid clear");
                     if (done) done();
                     return;
                 }
             } else if (msg.payload === "clear") {
                 // Handle string "clear" with msg.context
                 if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
-                    node.status({ fill: "red", shape: "ring", text: "missing or invalid context for clear" });
+                    utils.setStatusError(node, "missing or invalid context for clear");
                     if (done) done();
                     return;
                 }
@@ -117,16 +119,16 @@ module.exports = function(RED) {
                     context.set("defaultValue", defaultValue);
                     context.set("fallbackValue", fallbackValue);
                     context.set("messages", messages);
-                    node.status({ fill: "green", shape: "dot", text: `${contextMsg} cleared` });
+                    utils.setStatusOK(node, `${contextMsg} cleared`);
                 } else {
-                    node.status({ fill: "red", shape: "ring", text: "invalid clear context" });
+                    utils.setStatusError(node, "invalid clear context");
                     if (done) done();
                     return;
                 }
             } else {
                 // Handle non-object, non-"clear" payloads
                 if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
-                    node.status({ fill: "red", shape: "ring", text: "missing or invalid context" });
+                    utils.setStatusError(node, "missing or invalid context");
                     if (done) done();
                     return;
                 }
@@ -135,7 +137,7 @@ module.exports = function(RED) {
                 const value = msg.payload === null ? null : typeof msg.payload === "number" ? parseFloat(msg.payload) : typeof msg.payload === "boolean" ? msg.payload : null;
 
                 if (value === null && msg.payload !== null) {
-                    node.status({ fill: "red", shape: "ring", text: `invalid ${contextMsg}` });
+                    utils.setStatusError(node, `invalid ${contextMsg}`);
                     if (done) done();
                     return;
                 }
@@ -145,33 +147,24 @@ module.exports = function(RED) {
                     messages[contextMsg] = RED.util.cloneMessage(msg);
                     context.set("priorities", priorities);
                     context.set("messages", messages);
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: value === null ? `${contextMsg} relinquished` : `${contextMsg}: ${typeof value === "number" ? value.toFixed(2) : value}`
-                    });
+                    const priorityText = value === null ? `${contextMsg} relinquished` : `${contextMsg}: ${typeof value === "number" ? value.toFixed(2) : value}`;
+                    utils.setStatusOK(node, priorityText);
                 } else if (contextMsg === "default") {
                     defaultValue = value;
                     messages[contextMsg] = RED.util.cloneMessage(msg);
                     context.set("defaultValue", defaultValue);
                     context.set("messages", messages);
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: value === null ? "default relinquished" : `default: ${typeof value === "number" ? value.toFixed(2) : value}`
-                    });
+                    const defaultText = value === null ? "default relinquished" : `default: ${typeof value === "number" ? value.toFixed(2) : value}`;
+                    utils.setStatusOK(node, defaultText);
                 } else if (contextMsg === "fallback") {
                     fallbackValue = value;
                     messages[contextMsg] = RED.util.cloneMessage(msg);
                     context.set("fallbackValue", fallbackValue);
                     context.set("messages", messages);
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: value === null ? "fallback relinquished" : `fallback: ${typeof value === "number" ? value.toFixed(2) : value}`
-                    });
+                    const fallbackText = value === null ? "fallback relinquished" : `fallback: ${typeof value === "number" ? value.toFixed(2) : value}`;
+                    utils.setStatusOK(node, fallbackText);
                 } else {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done("Unknown context");
                     return;
                 }
@@ -182,11 +175,8 @@ module.exports = function(RED) {
             send(currentOutput);
             const inDisplay = typeof msg.payload === "number" ? msg.payload.toFixed(2) : typeof msg.payload === "object" ? JSON.stringify(msg.payload).slice(0, 20) : msg.payload;
             const outDisplay = currentOutput.payload === null ? "null" : typeof currentOutput.payload === "number" ? currentOutput.payload.toFixed(2) : currentOutput.payload;
-            node.status({
-                fill: "blue",
-                shape: "dot",
-                text: `in: ${inDisplay}, out: ${outDisplay}, slot: ${currentOutput.diagnostics.activePriority || "none"}`
-            });
+            const statusText = `in: ${inDisplay}, out: ${outDisplay}, slot: ${currentOutput.diagnostics.activePriority || "none"}`;
+            utils.setStatusChanged(node, statusText);
 
             if (done) done();
 

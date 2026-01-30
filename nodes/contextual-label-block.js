@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function ContextualLabelBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -6,17 +8,13 @@ module.exports = function(RED) {
         node.contextPropertyName = config.contextPropertyName || "in1";
         node.removeLabel = config.removeLabel || false;
 
-        node.status({
-            fill: "green", 
-            shape: "dot",
-            text: `mode: ${node.removeLabel ? "remove" : "set"}, property: ${node.contextPropertyName}`
-        });
+        utils.setStatusOK(node, `mode: ${node.removeLabel ? "remove" : "set"}, property: ${node.contextPropertyName}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "missing message" });
+                utils.setStatusError(node, "missing message");
                 node.warn("Missing message");
                 if (done) done();
                 return;
@@ -25,18 +23,10 @@ module.exports = function(RED) {
             // Set or remove context property
             if (node.removeLabel) {
                 delete msg.context;
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `in: ${msg.payload}, out: removed context`
-                });
+                utils.setStatusChanged(node, `in: ${msg.payload}, out: removed context`);
             } else {
                 msg.context = node.contextPropertyName;
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `in: ${msg.payload}, out: ${node.contextPropertyName}`
-                });
+                utils.setStatusChanged(node, `in: ${msg.payload}, out: ${node.contextPropertyName}`);
             }
 
             send(msg);

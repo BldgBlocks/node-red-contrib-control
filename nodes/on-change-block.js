@@ -1,5 +1,5 @@
 module.exports = function(RED) {
-    const utils = require('./utils')(RED);
+    const utils = require("./utils")(RED);
 
     function OnChangeBlockNode(config) {
         RED.nodes.createNode(this, config);
@@ -20,7 +20,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -31,7 +31,7 @@ module.exports = function(RED) {
                 // Check busy lock
                 if (node.isBusy) {
                     // Update status to let user know they are pushing too fast
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -65,30 +65,26 @@ module.exports = function(RED) {
             // Acceptable fallbacks
             if (isNaN(node.runtime.period) || node.runtime.period < 0) {
                 node.runtime.period = config.period;
-                node.status({ fill: "red", shape: "ring", text: "invalid period, using 0" });
+                utils.setStatusError(node, "invalid period, using 0");
             }
 
             // Handle context updates
             if (msg.hasOwnProperty("context") && typeof msg.context === "string") {
                 if (msg.context === "period") {
                     if (!msg.hasOwnProperty("payload")) {
-                        node.status({ fill: "red", shape: "ring", text: "missing payload for period" });
+                        utils.setStatusError(node, "missing payload for period");
                         if (done) done();
                         return;
                     }
                     const newPeriod = parseFloat(msg.payload);
                     if (isNaN(newPeriod) || newPeriod < 0) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid period" });
+                        utils.setStatusError(node, "invalid period");
                         if (done) done();
                         return;
                     }
                     node.runtime.period = newPeriod;
                     node.runtime.periodType = "num";
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `period: ${node.runtime.period.toFixed(0)} ms`
-                    });
+                    utils.setStatusOK(node, `period: ${node.runtime.period.toFixed(0)} ms`);
                     if (done) done();
                     return;
                 }
@@ -97,7 +93,7 @@ module.exports = function(RED) {
 
             // Validate input payload
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                utils.setStatusError(node, "missing payload");
                 send(msg);
                 if (done) done();
                 return;
@@ -110,7 +106,7 @@ module.exports = function(RED) {
                 inputValue = undefined;
             }
             if (inputValue === undefined) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 send(msg);
                 if (done) done();
                 return;
@@ -137,11 +133,8 @@ module.exports = function(RED) {
 
             // Block if in filter period
             if (node.runtime.blockTimer) {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `filtered: ${JSON.stringify(currentValue).slice(0, 20)} |`
-                });
+                const filteredText = `filtered: ${JSON.stringify(currentValue).slice(0, 20)} |`;
+                utils.setStatusUnchanged(node, filteredText);
                 if (done) done();
                 return;
             }
@@ -161,11 +154,8 @@ module.exports = function(RED) {
             if (node.runtime.period > 0) {
                 node.runtime.blockTimer = setTimeout(() => {
                     node.runtime.blockTimer = null;
-                    node.status({
-                        fill: "blue",
-                        shape: "ring",
-                        text: `filtered: ${JSON.stringify(currentValue).slice(0, 20)}` // remove ' |' to indicate end of filter period
-                    });
+                    const endFilterText = `filtered: ${JSON.stringify(currentValue).slice(0, 20)}`;
+                    utils.setStatusUnchanged(node, endFilterText);
                 }, node.runtime.period);
             }
 

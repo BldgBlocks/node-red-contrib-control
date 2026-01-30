@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function NegateBlockNode(config) {
         RED.nodes.createNode(this, config);
         
@@ -16,7 +18,7 @@ module.exports = function(RED) {
 
             // Guard against invalid msg
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "missing message" });
+                utils.setStatusError(node, "missing message");
                 if (done) done();
                 return;
             }
@@ -30,7 +32,7 @@ module.exports = function(RED) {
             }
             
             if (inputValue === undefined) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 if (done) done();
                 return;
             }
@@ -40,7 +42,7 @@ module.exports = function(RED) {
 
             if (typeof inputValue === "number") {
                 if (isNaN(inputValue)) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input: NaN" });
+                    utils.setStatusError(node, "invalid input: NaN");
                     if (done) done();
                     return;
                 }
@@ -50,18 +52,18 @@ module.exports = function(RED) {
                 outputValue = !inputValue;
                 statusText = `in: ${inputValue}, out: ${outputValue}`;
             } else {
-                node.status({ fill: "red", shape: "ring", text: "Unsupported type" });
+                utils.setStatusError(node, "Unsupported type");
                 if (done) done();
                 return;
             }
 
             // Check for unchanged output
             const isUnchanged = outputValue === node.runtime.lastOutput;
-            node.status({
-                fill: "blue",
-                shape: isUnchanged ? "ring" : "dot",
-                text: statusText
-            });
+            if (isUnchanged) {
+                utils.setStatusUnchanged(node, statusText);
+            } else {
+                utils.setStatusChanged(node, statusText);
+            }
 
             node.runtime.lastOutput = outputValue;
             msg.payload = outputValue;

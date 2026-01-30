@@ -20,7 +20,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -31,7 +31,7 @@ module.exports = function(RED) {
                 // Check busy lock
                 if (node.isBusy) {
                     // Update status to let user know they are pushing too fast
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -64,7 +64,7 @@ module.exports = function(RED) {
 
             // Validate values
             if (isNaN(node.runtime.max)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid evaluated values" });
+                utils.setStatusError(node, "invalid evaluated values");
                 if (done) done();
                 return;
             }
@@ -72,7 +72,7 @@ module.exports = function(RED) {
             // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload for max" });
+                    utils.setStatusError(node, "missing payload for max");
                     if (done) done();
                     return;
                 }
@@ -80,15 +80,14 @@ module.exports = function(RED) {
                     const maxValue = parseFloat(msg.payload);
                     if (!isNaN(maxValue) && maxValue >= 0) {
                         node.runtime.max = maxValue;
-                        node.status({ fill: "green", shape: "dot", text: `max: ${maxValue}`
-                        });
+                        utils.setStatusOK(node, `max: ${maxValue}`);
                     } else {
-                        node.status({ fill: "red", shape: "ring", text: "invalid max" });
+                        utils.setStatusError(node, "invalid max");
                     }
                     if (done) done();
                     return;
                 } else {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done();
                     return;
                 }
@@ -96,14 +95,14 @@ module.exports = function(RED) {
 
             // Validate input payload
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                utils.setStatusError(node, "missing payload");
                 if (done) done();
                 return;
             }
 
             const inputValue = parseFloat(msg.payload);
             if (isNaN(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+                utils.setStatusError(node, "invalid payload");
                 if (done) done();
                 return;
             }
@@ -113,11 +112,12 @@ module.exports = function(RED) {
 
             // Update status and send output
             msg.payload = outputValue;
-            node.status({
-                fill: "blue",
-                shape: lastOutput === outputValue ? "ring" : "dot",
-                text: `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`
-            });
+            const statusText = `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`;
+            if (lastOutput === outputValue) {
+                utils.setStatusUnchanged(node, statusText);
+            } else {
+                utils.setStatusChanged(node, statusText);
+            }
             lastOutput = outputValue;
             send(msg);
 

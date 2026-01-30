@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function CountBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -16,7 +18,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -24,26 +26,26 @@ module.exports = function(RED) {
             // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload for reset" });
+                    utils.setStatusError(node, "missing payload for reset");
                     if (done) done();
                     return;
                 }
                 if (msg.context === "reset") {
                     if (typeof msg.payload !== "boolean") {
-                        node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                        utils.setStatusError(node, "invalid reset");
                         if (done) done();
                         return;
                     }
                     if (msg.payload === true) {
                         node.runtime.count = 0;
                         node.runtime.prevState = false;
-                        node.status({ fill: "green", shape: "dot", text: "state reset" });
+                        utils.setStatusOK(node, "state reset");
                         send({ payload: node.runtime.count });
                     }
                     if (done) done();
                     return;
                 } else {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done("Unknown context");
                     return;
                 }
@@ -57,7 +59,7 @@ module.exports = function(RED) {
                 inputValue = undefined;
             }
             if (typeof inputValue !== "boolean") {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 if (done) done();
                 return;
             }
@@ -65,16 +67,16 @@ module.exports = function(RED) {
             // Prevent integer overflow
             if (node.runtime.count > Number.MAX_SAFE_INTEGER - 100000) {
                 node.runtime.count = 0;
-                node.status({ fill: "yellow", shape: "ring", text: "count overflow reset" });
+                utils.setStatusWarn(node, "count overflow reset");
             }
 
             // Increment on false → true transition
             if (!node.runtime.prevState && inputValue === true) {
                 node.runtime.count++;
-                node.status({ fill: "blue", shape: "dot", text: `count: ${node.runtime.count}` });
+                utils.setStatusChanged(node, `count: ${node.runtime.count}`);
                 send({ payload: node.runtime.count });
             } else {
-                node.status({ fill: "blue", shape: "ring", text: `count: ${node.runtime.count}` });
+                utils.setStatusUnchanged(node, `count: ${node.runtime.count}`);
             }
 
             // Update prevState

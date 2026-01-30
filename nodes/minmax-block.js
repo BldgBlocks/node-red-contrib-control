@@ -21,7 +21,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -32,7 +32,7 @@ module.exports = function(RED) {
                 // Check busy lock
                 if (node.isBusy) {
                     // Update status to let user know they are pushing too fast
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -73,7 +73,7 @@ module.exports = function(RED) {
 
             // Validate min and max
             if (isNaN(node.runtime.min) || isNaN(node.runtime.max) || node.runtime.min > node.runtime.max) {
-                node.status({ fill: "red", shape: "dot", text: `invalid min/max` });
+                utils.setStatusError(node, `invalid min/max`);
                 if (done) done();
                 return;
             }
@@ -81,32 +81,32 @@ module.exports = function(RED) {
             // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: `missing payload for ${msg.context}` });
+                    utils.setStatusError(node, `missing payload for ${msg.context}`);
                     if (done) done();
                     return;
                 }
                 const value = parseFloat(msg.payload);
                 if (isNaN(value) || value < 0) {
-                    node.status({ fill: "red", shape: "ring", text: `invalid ${msg.context}` });
+                    utils.setStatusError(node, `invalid ${msg.context}`);
                     if (done) done();
                     return;
                 }
                 if (msg.context === "min") {
                     if (value < node.runtime.max) {
                         node.runtime.min = value;
-                        node.status({ fill: "green", shape: "dot", text: `min: ${node.runtime.min}` });
+                        utils.setStatusOK(node, `min: ${node.runtime.min}`);
                     } else {
-                        node.status({ fill: "yellow", shape: "dot", text: `Context update aborted. Payload more than max` });
+                        utils.setStatusWarn(node, `Context update aborted. Payload more than max`);
                     }
                 } else if (msg.context === "max") {
                     if (value > node.runtime.min) {
                         node.runtime.max = value;
-                        node.status({ fill: "green", shape: "dot", text: `max: ${node.runtime.max}` });
+                        utils.setStatusOK(node, `max: ${node.runtime.max}`);
                     } else {
-                        node.status({ fill: "yellow", shape: "dot", text: `Context update aborted. Payload less than min` });
+                        utils.setStatusWarn(node, `Context update aborted. Payload less than min`);
                     }
                 } else {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done();
                     return;
                 }
@@ -116,14 +116,14 @@ module.exports = function(RED) {
 
             // Validate input payload
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                utils.setStatusError(node, "missing payload");
                 if (done) done();
                 return;
             }
 
             const inputValue = parseFloat(msg.payload);
             if (isNaN(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+                utils.setStatusError(node, "invalid payload");
                 if (done) done();
                 return;
             }
@@ -133,11 +133,12 @@ module.exports = function(RED) {
 
             // Update status and send output
             msg.payload = outputValue;
-            node.status({
-                fill: "blue",
-                shape: lastOutput === outputValue ? "ring" : "dot",
-                text: `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`
-            });
+            const statusText = `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`;
+            if (lastOutput === outputValue) {
+                utils.setStatusUnchanged(node, statusText);
+            } else {
+                utils.setStatusChanged(node, statusText);
+            }
             lastOutput = outputValue;
             send(msg);
 

@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function CacheBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -15,14 +17,14 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
 
             // Validate context
             if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
-                node.status({ fill: "red", shape: "ring", text: "missing context" });
+                utils.setStatusError(node, "missing context");
                 if (done) done();
                 return;
             }
@@ -37,20 +39,13 @@ module.exports = function(RED) {
                     }
 
                     node.runtime.cachedMessage = RED.util.cloneMessage(msg);
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `update: ${typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload).slice(0, 20)}`
-                    });
+                    const updateText = `update: ${typeof msg.payload === "number" ? msg.payload.toFixed(2) : JSON.stringify(msg.payload).slice(0, 20)}`;
+                    utils.setStatusOK(node, updateText);
                     if (done) done();
                     return;
                 case "execute":
                     if (node.runtime.cachedMessage === null) {
-                        node.status({
-                            fill: "blue",
-                            shape: "dot",
-                            text: "execute: null"
-                        });
+                        utils.setStatusChanged(node, "execute: null");
                         send({ payload: null });
                     } else {
                         let outputMsg;
@@ -59,11 +54,8 @@ module.exports = function(RED) {
                         } else {
                             outputMsg = { payload: node.runtime.cachedMessage.payload };
                         }
-                        node.status({
-                            fill: "blue",
-                            shape: "dot",
-                            text: `execute: ${typeof outputMsg.payload === "number" ? outputMsg.payload.toFixed(2) : JSON.stringify(outputMsg.payload).slice(0, 20)}`
-                        });
+                        const executeText = `execute: ${typeof outputMsg.payload === "number" ? outputMsg.payload.toFixed(2) : JSON.stringify(outputMsg.payload).slice(0, 20)}`;
+                        utils.setStatusChanged(node, executeText);
                         send(outputMsg);
                     }
                     if (done) done();
@@ -71,27 +63,23 @@ module.exports = function(RED) {
                 case "reset":
                     // Validate payload
                     if (!msg.hasOwnProperty("payload")) {
-                        node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                        utils.setStatusError(node, "missing payload");
                         if (done) done();
                         return;
                     }
 
                     if (typeof msg.payload !== "boolean" || !msg.payload) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                        utils.setStatusError(node, "invalid reset");
                         if (done) done();
                         return;
                     }
                     
                     node.runtime.cachedMessage = null;
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: "reset"
-                    });
+                    utils.setStatusOK(node, "reset");
                     if (done) done();
                     return;
                 default:
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done("Unknown context");
                     return;
             }

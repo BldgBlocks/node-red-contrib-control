@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function ConvertBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -51,7 +53,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "missing message" });
+                utils.setStatusError(node, "missing message");
                 if (done) done();
                 return;
             }
@@ -59,18 +61,18 @@ module.exports = function(RED) {
             // Handle configuration messages
             if (msg.hasOwnProperty("context")) {
                 if (typeof msg.context !== "string") {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done();
                     return;
                 }
                 if (msg.context === "conversion") {
                     if (!msg.hasOwnProperty("payload") || !validConversions.includes(msg.payload)) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid conversion" });
+                        utils.setStatusError(node, "invalid conversion");
                         if (done) done();
                         return;
                     }
                     node.runtime.conversion = msg.payload;
-                    node.status({ fill: "green", shape: "dot", text: `conversion: ${node.runtime.conversion}` });
+                    utils.setStatusOK(node, `conversion: ${node.runtime.conversion}`);
                     if (done) done();
                     return;
                 }
@@ -87,7 +89,7 @@ module.exports = function(RED) {
                 input = undefined;
             }
             if (input === undefined) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 if (done) done();
                 return;
             }

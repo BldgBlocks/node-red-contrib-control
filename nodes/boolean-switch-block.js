@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function BooleanSwitchBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;

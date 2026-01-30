@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function FrequencyBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -17,11 +19,7 @@ module.exports = function(RED) {
             currentPulseStart: 0
         };
 
-        node.status({ 
-            fill: "green", 
-            shape: "dot", 
-            text: "awaiting first pulse" 
-        });
+        utils.setStatusOK(node, "awaiting first pulse");
 
         function calculateDutyCycle(now, currentInputValue) {
             const oneHourAgo = now - 3600000;
@@ -60,7 +58,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -68,13 +66,13 @@ module.exports = function(RED) {
             // Handle context updates
             if (msg.hasOwnProperty("context")) {
                 if (!msg.hasOwnProperty("payload")) {
-                    node.status({ fill: "red", shape: "ring", text: "missing payload for reset" });
+                    utils.setStatusError(node, "missing payload for reset");
                     if (done) done();
                     return;
                 }
                 if (msg.context === "reset") {
                     if (typeof msg.payload !== "boolean") {
-                        node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                        utils.setStatusError(node, "invalid reset");
                         if (done) done();
                         return;
                     }
@@ -87,12 +85,12 @@ module.exports = function(RED) {
                         node.runtime.ppd = 0;
                         node.runtime.pulseHistory = [];
                         node.runtime.currentPulseStart = 0;
-                        node.status({ fill: "green", shape: "dot", text: "reset" });
+                        utils.setStatusOK(node, "reset");
                     }
                     if (done) done();
                     return;
                 } else {
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done("Unknown context");
                     return;
                 }
@@ -106,7 +104,7 @@ module.exports = function(RED) {
                 inputValue = undefined;
             }
             if (typeof inputValue !== "boolean") {
-                node.status({ fill: "red", shape: "ring", text: "invalid or missing input property" });
+                utils.setStatusError(node, "invalid or missing input property");
                 if (done) done();
                 return;
             }
@@ -168,18 +166,12 @@ module.exports = function(RED) {
                 node.runtime.lastEdge = now;
                 node.runtime.completeCycle = true;
 
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `input: ${inputValue}, ppm: ${output.ppm.toFixed(2)}, pph: ${output.pph.toFixed(2)}, ppd: ${output.ppd.toFixed(2)}, duty: ${output.dutyCycle}%`
-                });
+                const edgeText = `input: ${inputValue}, ppm: ${output.ppm.toFixed(2)}, pph: ${output.pph.toFixed(2)}, ppd: ${output.ppd.toFixed(2)}, duty: ${output.dutyCycle}%`;
+                utils.setStatusChanged(node, edgeText);
                 send({ payload: output });
             } else {
-                node.status({
-                    fill: "blue",
-                    shape: "ring",
-                    text: `input: ${inputValue}, ppm: ${node.runtime.ppm.toFixed(2)}, pph: ${node.runtime.pph.toFixed(2)}, ppd: ${node.runtime.ppd.toFixed(2)}, duty: ${output.dutyCycle}%`
-                });
+                const noEdgeText = `input: ${inputValue}, ppm: ${node.runtime.ppm.toFixed(2)}, pph: ${node.runtime.pph.toFixed(2)}, ppd: ${node.runtime.ppd.toFixed(2)}, duty: ${output.dutyCycle}%`;
+                utils.setStatusUnchanged(node, noEdgeText);
             }
 
             // Update lastIn

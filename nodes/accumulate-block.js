@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require("./utils")(RED);
+
     function AccumulateBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -13,18 +15,14 @@ module.exports = function(RED) {
         };
 
         // Set initial status
-        node.status({
-            fill: "green",
-            shape: "dot",
-            text: `mode: ${node.runtime.mode}, name: ${node.runtime.name || node.runtime.mode + " accumulate"}`
-        });
+        utils.setStatusOK(node, `mode: ${node.runtime.mode}, name: ${node.runtime.name || node.runtime.mode + " accumulate"}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Guard against invalid msg
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "missing message" });
+                utils.setStatusError(node, "missing message");
                 node.warn("Missing message");
                 if (done) done();
                 return;
@@ -33,7 +31,7 @@ module.exports = function(RED) {
             if (msg.context === "reset") {
                 if (msg.payload === true) {
                     node.runtime.count = 0;
-                    node.status({fill:"yellow",shape:"ring",text:"resest"})
+                    utils.setStatusWarn(node, "reset");
                     if (done) done();
                     return;
                 }
@@ -49,7 +47,7 @@ module.exports = function(RED) {
                     inputValue = undefined;
                 }
                 if (typeof inputValue !== "boolean") {
-                    node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                    utils.setStatusError(node, "missing or invalid input property");
                     node.warn("Invalid input: non-boolean value");
                     if (done) done();
                     return;
@@ -82,10 +80,10 @@ module.exports = function(RED) {
             // Output only if count changed
             if (node.runtime.lastCount !== node.runtime.count) {
                 node.runtime.lastCount = node.runtime.count;
-                node.status({ fill: "blue", shape: "dot", text: `out: ${node.runtime.count}` });
+                utils.setStatusChanged(node, `out: ${node.runtime.count}`);
                 send({ payload: node.runtime.count });
             } else {
-                node.status({ fill: "blue", shape: "ring", text: `out: ${node.runtime.count}` });
+                utils.setStatusUnchanged(node, `out: ${node.runtime.count}`);
             }
 
             if (done) done();

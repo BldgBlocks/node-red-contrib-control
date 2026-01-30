@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function LatchBlockNode(config) {
         RED.nodes.createNode(this, config);
 
@@ -8,25 +10,21 @@ module.exports = function(RED) {
         node.state = config.state;
 
         // Set initial status
-        node.status({
-            fill: "green",
-            shape: "dot",
-            text: `state: ${node.state}`
-        });
+        utils.setStatusOK(node, `state: ${node.state}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
 
             // Validate context
             if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid context" });
+                utils.setStatusError(node, "missing or invalid context");
                 if (done) done();
                 return;
             }
@@ -35,13 +33,13 @@ module.exports = function(RED) {
             switch (msg.context) {
                 case "set":
                     if (node.state) {
-                        node.status({ fill: "blue", shape: "ring", text: `state: ${node.state}` });
+                        utils.setStatusUnchanged(node, `state: ${node.state}`);
                     } else {
                         if (msg.payload) {
                             node.state = true;
-                            node.status({ fill: "blue", shape: "dot", text: `state: ${node.state}` });
+                            utils.setStatusChanged(node, `state: ${node.state}`);
                         } else {
-                            node.status({ fill: "blue", shape: "ring", text: `state: ${node.state}` });
+                            utils.setStatusUnchanged(node, `state: ${node.state}`);
                         }
                     }
                     // Output latch value regardless
@@ -49,11 +47,11 @@ module.exports = function(RED) {
                     break;
                 case "reset":
                     if (node.state === false) {
-                        node.status({ fill: "blue", shape: "ring", text: `state: ${node.state}` });
+                        utils.setStatusUnchanged(node, `state: ${node.state}`);
                     } else {
                         if (msg.payload) {
                             node.state = false;
-                            node.status({ fill: "blue", shape: "dot", text: `state: ${node.state}` });
+                            utils.setStatusChanged(node, `state: ${node.state}`);
                         } else {
                             node.status({ fill: "blue", shape: "ring", text: `state: ${node.state}` });
                         }
@@ -61,7 +59,7 @@ module.exports = function(RED) {
                     send({ payload: node.state });
                     break;
                 default:
-                    node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                    utils.setStatusWarn(node, "unknown context");
                     if (done) done("Unknown context");
                     return;
             }

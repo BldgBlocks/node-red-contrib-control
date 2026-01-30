@@ -17,7 +17,7 @@ module.exports = function(RED) {
             send = send || function() { node.send.apply(node, arguments); };
 
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -28,7 +28,7 @@ module.exports = function(RED) {
                 // Check busy lock
                 if (node.isBusy) {
                     // Update status to let user know they are pushing too fast
-                    node.status({ fill: "yellow", shape: "ring", text: "busy - dropped msg" });
+                    utils.setStatusBusy(node, "busy - dropped msg");
                     if (done) done(); 
                     return;
                 }
@@ -108,13 +108,13 @@ module.exports = function(RED) {
                     const value = parseFloat(msg.payload);
                     if (!isNaN(value) && value >= 0) {
                         node.upperLimitThreshold = value;
-                        node.status({ fill: "green", shape: "dot", text: `upperLimitThreshold: ${value}` });
+                        utils.setStatusOK(node, `upperLimitThreshold: ${value}`);
                     }
                 } else if (msg.context === "lowerLimitThreshold") {
                     const value = parseFloat(msg.payload);
                     if (!isNaN(value) && value >= 0) {
                         node.lowerLimitThreshold = value;
-                        node.status({ fill: "green", shape: "dot", text: `lowerLimitThreshold: ${value}` });
+                        utils.setStatusOK(node, `lowerLimitThreshold: ${value}`);
                     }
                 }
                 if (done) done();
@@ -128,7 +128,7 @@ module.exports = function(RED) {
                 inputValue = NaN;
             }
             if (isNaN(inputValue)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                utils.setStatusError(node, "invalid input");
                 if (done) done();
                 return;
             }
@@ -141,7 +141,7 @@ module.exports = function(RED) {
 
             // Add validation to ensure numbers
             if (isNaN(upperTurnOn) || isNaN(upperTurnOff) || isNaN(lowerTurnOn) || isNaN(lowerTurnOff)) {
-                node.status({ fill: "red", shape: "ring", text: "invalid limits calculation" });
+                utils.setStatusError(node, "invalid limits calculation");
                 if (done) done();
                 return;
             }
@@ -180,11 +180,7 @@ module.exports = function(RED) {
                 { payload: newState === "below" }
             ];
 
-            node.status({
-                fill: "blue",
-                shape: "dot",
-                text: `in: ${inputValue.toFixed(2)}, state: ${newState}`
-            });
+            utils.setStatusChanged(node, `in: ${inputValue.toFixed(2)}, state: ${newState}`);
 
             node.state = newState;
             send(output);

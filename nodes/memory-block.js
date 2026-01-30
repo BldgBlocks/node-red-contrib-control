@@ -33,10 +33,10 @@ module.exports = function(RED) {
                 const data = await fs.readFile(filePath, "utf8");
                 node.runtime.storedMsg = JSON.parse(data);
                 const payloadStr = node.runtime.storedMsg[node.runtime.transferProperty] != null ? String(node.runtime.storedMsg[node.runtime.transferProperty]).substring(0, 20) : "null";
-                node.status({ fill: "green", shape: "dot", text: `loaded: ${payloadStr}` });
+                utils.setStatusOK(node, `loaded: ${payloadStr}`);
             } catch (err) {
                 if (err.code !== "ENOENT") {
-                    node.status({ fill: "red", shape: "ring", text: "file error" });
+                    utils.setStatusError(node, "file error");
                 }
             }
         }
@@ -50,7 +50,7 @@ module.exports = function(RED) {
                 }
                 return null;
             } catch (err) {
-                node.status({ fill: "red", shape: "ring", text: "file read error" });
+                utils.setStatusError(node, "file read error");
                 node.error("Failed to read stored message: " + err.message);
                 return null;
             }
@@ -63,7 +63,7 @@ module.exports = function(RED) {
                 await fs.writeFile(filePath, JSON.stringify(lastUpdateMsg));
                 lastUpdateMsg = null;
             } catch (err) {
-                node.status({ fill: "red", shape: "ring", text: "file error" });
+                utils.setStatusError(node, "file error");
                 node.error("Failed to save message: " + err.message);
             }
         }
@@ -80,7 +80,7 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
@@ -97,7 +97,7 @@ module.exports = function(RED) {
             if (!msg.hasOwnProperty("context") || !msg.context || typeof msg.context !== "string") {
                 // Pass-through message to Output 2
                 const payloadStr = msg[node.runtime.transferProperty] != null ? String(msg[node.runtime.transferProperty]).substring(0, 20) : "null";
-                node.status({ fill: "blue", shape: "dot", text: `in: ${payloadStr}, out2: ${payloadStr}` });
+                utils.setStatusChanged(node, `in: ${payloadStr}, out2: ${payloadStr}`);
                 output[1] = msg;
                 send(output);
                 if (done) done();
@@ -106,7 +106,7 @@ module.exports = function(RED) {
 
             if (msg.context === "update") {
                 if (!msg.hasOwnProperty(node.runtime.transferProperty)) {
-                    node.status({ fill: "red", shape: "ring", text: `missing ${node.runtime.transferProperty}` });
+                    utils.setStatusError(node, `missing ${node.runtime.transferProperty}`);
                     if (done) done();
                     return;
                 }
@@ -115,12 +115,12 @@ module.exports = function(RED) {
                     // Write directly to file, do not store in memory
                     try {
                         fs.writeFile(filePath, JSON.stringify(msg)).catch(err => {
-                            node.status({ fill: "red", shape: "ring", text: "file error" });
+                            utils.setStatusError(node, "file error");
                             node.error("Failed to save message: " + err.message);
                         });
-                        node.status({ fill: "green", shape: "dot", text: `updated: ${payloadStr}` });
+                        utils.setStatusOK(node, `updated: ${payloadStr}`);
                     } catch (err) {
-                        node.status({ fill: "red", shape: "ring", text: "file error" });
+                        utils.setStatusError(node, "file error");
                         node.error("Failed to save message: " + err.message);
                     }
                 } else {
@@ -128,7 +128,7 @@ module.exports = function(RED) {
                     node.runtime.storedMsg = RED.util.cloneMessage(msg);
                     node.context().set("storedMsg", node.runtime.storedMsg);
                     lastUpdateMsg = node.runtime.storedMsg;
-                    node.status({ fill: "green", shape: "dot", text: `updated: ${payloadStr}` });
+                    utils.setStatusOK(node, `updated: ${payloadStr}`);
                     if (writeTimeout) clearTimeout(writeTimeout);
                     writeTimeout = setTimeout(() => {
                         saveMessage();
@@ -144,10 +144,10 @@ module.exports = function(RED) {
                     const outMsg = RED.util.cloneMessage(msg);
                     outMsg[node.runtime.transferProperty] = storedMsg[node.runtime.transferProperty];
                     const payloadStr = outMsg[node.runtime.transferProperty] != null ? String(outMsg[node.runtime.transferProperty]).substring(0, 20) : "null";
-                    node.status({ fill: "blue", shape: "dot", text: `in: execute, out2: ${payloadStr}` });
+                    utils.setStatusChanged(node, `in: execute, out2: ${payloadStr}`);
                     output[1] = outMsg;
                 } else {
-                    node.status({ fill: "blue", shape: "ring", text: `in: execute, out2: null` });
+                    utils.setStatusUnchanged(node, `in: execute, out2: null`);
                     output[1] = { payload: null };
                 }
                 send(output);
@@ -161,7 +161,7 @@ module.exports = function(RED) {
                     const outMsg = RED.util.cloneMessage(msg);
                     outMsg[node.runtime.transferProperty] = storedMsg[node.runtime.transferProperty];
                     const payloadStr = outMsg[node.runtime.transferProperty] != null ? String(outMsg[node.runtime.transferProperty]).substring(0, 20) : "null";
-                    node.status({ fill: "blue", shape: "dot", text: `in: executeWithFallback, out2: ${payloadStr}` });
+                    utils.setStatusChanged(node, `in: executeWithFallback, out2: ${payloadStr}`);
                     output[1] = outMsg;
                 } else {
                     let value;
@@ -171,7 +171,7 @@ module.exports = function(RED) {
                     else if (msg.hasOwnProperty("fallback")) {
                         value = msg.fallback;
                     } else {
-                        node.status({ fill: "red", shape: "ring", text: `missing ${node.runtime.transferProperty}` });
+                        utils.setStatusError(node, `missing ${node.runtime.transferProperty}`);
                         if (done) done();
                         return;
                     }
@@ -180,11 +180,11 @@ module.exports = function(RED) {
                         // Write directly to file
                         try {
                             fs.writeFile(filePath, JSON.stringify({ [node.runtime.transferProperty]: value })).catch(err => {
-                                node.status({ fill: "red", shape: "ring", text: "file error" });
+                                utils.setStatusError(node, "file error");
                                 node.error("Failed to save message: " + err.message);
                             });
                         } catch (err) {
-                            node.status({ fill: "red", shape: "ring", text: "file error" });
+                            utils.setStatusError(node, "file error");
                             node.error("Failed to save message: " + err.message);
                         }
                     } else {
@@ -200,7 +200,7 @@ module.exports = function(RED) {
                     const outMsg = RED.util.cloneMessage(msg);
                     outMsg[node.runtime.transferProperty] = value;
                     const payloadStr = msg[node.runtime.transferProperty] != null ? String(msg[node.runtime.transferProperty]).substring(0, 20) : "null";
-                    node.status({ fill: "blue", shape: "dot", text: `in: executeWithFallback, out2: ${payloadStr}` });
+                    utils.setStatusChanged(node, `in: executeWithFallback, out2: ${payloadStr}`);
                     output[1] = outMsg;
                 }
                 send(output);
@@ -210,14 +210,14 @@ module.exports = function(RED) {
 
             if (msg.context === "query") {
                 const hasValue = node.runtime.writeOnUpdate ? fsSync.existsSync(filePath) : node.runtime.storedMsg !== null;
-                node.status({ fill: "blue", shape: "dot", text: `in: query, out1: ${hasValue}` });
+                utils.setStatusChanged(node, `in: query, out1: ${hasValue}`);
                 output[0] = { payload: hasValue };
                 send(output);
                 if (done) done();
                 return;
             }
 
-            node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+            utils.setStatusWarn(node, "unknown context");
             if (done) done("Unknown context");
         });
 
@@ -226,7 +226,7 @@ module.exports = function(RED) {
             if (!node.runtime.writeOnUpdate && lastUpdateMsg) {
                 saveMessage()
                     .then(() => {
-                        node.status({});
+                        utils.setStatusOK(node, "");
                         done();
                     })
                     .catch(err => {

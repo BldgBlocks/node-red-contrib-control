@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function AnalogSwitchBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -16,21 +18,21 @@ module.exports = function(RED) {
 
             // Guard against invalid message
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
 
             // Validate context
             if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
-                node.status({ fill: "red", shape: "ring", text: "missing context" });
+                utils.setStatusError(node, "missing context");
                 if (done) done();
                 return;
             }
 
             // Validate payload
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                utils.setStatusError(node, "missing payload");
                 if (done) done();
                 return;
             }
@@ -42,41 +44,33 @@ module.exports = function(RED) {
                 case "switch":
                     const switchValue = parseInt(msg.payload, 10);
                     if (isNaN(switchValue) || switchValue < 1 || switchValue > node.runtime.slots) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid switch" });
+                        utils.setStatusError(node, "invalid switch");
                         if (done) done();
                         return;
                     }
                     node.runtime.switch = switchValue;
                     shouldOutput = prevSwitch !== node.runtime.switch;
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `switch: ${node.runtime.switch}`
-                    });
+                    utils.setStatusOK(node, `switch: ${node.runtime.switch}`);
                     break;
                 default:
                     if (msg.context.startsWith("in")) {
                         const index = parseInt(msg.context.slice(2), 10);
                         if (isNaN(index) || index < 1 || index > node.runtime.slots) {
-                            node.status({ fill: "red", shape: "ring", text: `invalid input index ${index}` });
+                            utils.setStatusError(node, `invalid input index ${index}`);
                             if (done) done();
                             return;
                         }
                         const value = parseFloat(msg.payload);
                         if (isNaN(value)) {
-                            node.status({ fill: "red", shape: "ring", text: `invalid in${index}` });
+                            utils.setStatusError(node, `invalid in${index}`);
                             if (done) done();
                             return;
                         }
                         node.runtime.inputs[index - 1] = value;
                         shouldOutput = index === node.runtime.switch;
-                        node.status({
-                            fill: "green",
-                            shape: "dot",
-                            text: `in${index}: ${value.toFixed(2)}`
-                        });
+                        utils.setStatusOK(node, `in${index}: ${value.toFixed(2)}`);
                     } else {
-                        node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                        utils.setStatusWarn(node, "unknown context");
                         if (done) done("Unknown context");
                         return;
                     }
@@ -86,11 +80,7 @@ module.exports = function(RED) {
             // Output new message if the active slot is updated or switch/slots change affects output
             if (shouldOutput) {
                 const out = node.runtime.inputs[node.runtime.switch - 1] ?? node.runtime.inputs[0];
-                node.status({
-                    fill: "blue",
-                    shape: "dot",
-                    text: `slots: ${node.runtime.slots}, switch: ${node.runtime.switch}, out: ${out.toFixed(2)}`
-                });
+                utils.setStatusChanged(node, `slots: ${node.runtime.slots}, switch: ${node.runtime.switch}, out: ${out.toFixed(2)}`);
                 send({ payload: out });
             }
 

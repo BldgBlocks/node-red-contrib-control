@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require("./utils")(RED);
+
     function HistoryCollectorNode(config) {
         RED.nodes.createNode(this, config);
         this.historyConfig = RED.nodes.getNode(config.historyConfig);

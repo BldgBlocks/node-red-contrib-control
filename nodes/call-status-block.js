@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function CallStatusBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -28,7 +30,7 @@ module.exports = function(RED) {
             // Handle status input
             if (msg.hasOwnProperty("context") && msg.context === "status") {
                 if (typeof msg.payload !== "boolean") {
-                    node.status({ fill: "red", shape: "ring", text: "invalid status" });
+                    utils.setStatusError(node, "invalid status");
                     if (done) done();
                     return;
                 }
@@ -58,7 +60,7 @@ module.exports = function(RED) {
 
             // Handle call input (must be boolean)
             if (typeof msg.payload !== "boolean") {
-                node.status({ fill: "red", shape: "ring", text: "invalid call payload" });
+                utils.setStatusError(node, "invalid call payload");
                 if (done) done();
                 return;
             }
@@ -140,11 +142,12 @@ module.exports = function(RED) {
             }
 
             function updateStatus() {
-                node.status({
-                    fill: node.runtime.alarm ? "red" : "blue",
-                    shape: "dot",
-                    text: `call: ${node.runtime.call}, status: ${node.runtime.status}, alarm: ${node.runtime.alarm}`
-                });
+                const text = `call: ${node.runtime.call}, status: ${node.runtime.status}, alarm: ${node.runtime.alarm}`;
+                if (node.runtime.alarm) {
+                    utils.setStatusError(node, text);
+                } else {
+                    utils.setStatusChanged(node, text);
+                }
             }
         });
 

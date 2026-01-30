@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function BooleanToNumberBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -21,7 +23,7 @@ module.exports = function(RED) {
                 inputValue = undefined;
             }
             if (inputValue === undefined) {
-                node.status({ fill: "red", shape: "ring", text: "missing or invalid input property" });
+                utils.setStatusError(node, "missing or invalid input property");
                 if (done) done();
                 return;
             }
@@ -30,14 +32,14 @@ module.exports = function(RED) {
             const inputDisplay = inputValue === null ? "null" : String(inputValue);
             if (inputValue === null) {
                 msg.payload = node.runtime.nullToZero ? 0 : -1;
-                node.status({ fill: "blue", shape: "dot", text: `in: ${inputDisplay}, out: ${msg.payload}` });
+                utils.setStatusChanged(node, `in: ${inputDisplay}, out: ${msg.payload}`);
                 send(msg);
             } else if (typeof inputValue === "boolean") {
                 msg.payload = inputValue ? 1 : 0;
-                node.status({ fill: "blue", shape: "dot", text: `in: ${inputDisplay}, out: ${msg.payload}` });
+                utils.setStatusChanged(node, `in: ${inputDisplay}, out: ${msg.payload}`);
                 send(msg);
             } else {
-                node.status({ fill: "red", shape: "ring", text: "invalid input type" });
+                utils.setStatusError(node, "invalid input type");
             }
 
             if (done) done();

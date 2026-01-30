@@ -1,4 +1,6 @@
 module.exports = function(RED) {
+    const utils = require('./utils')(RED);
+
     function AddBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -14,20 +16,20 @@ module.exports = function(RED) {
 
             // Guard against invalid msg
             if (!msg) {
-                node.status({ fill: "red", shape: "ring", text: "invalid message" });
+                utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
 
             // Check for required properties
             if (!msg.hasOwnProperty("context")) {
-                node.status({ fill: "red", shape: "ring", text: "missing context" });
+                utils.setStatusError(node, "missing context");
                 if (done) done();
                 return;
             }
 
             if (!msg.hasOwnProperty("payload")) {
-                node.status({ fill: "red", shape: "ring", text: "missing payload" });
+                utils.setStatusError(node, "missing payload");
                 if (done) done();
                 return;
             }
@@ -35,40 +37,40 @@ module.exports = function(RED) {
             // Handle configuration messages
             if (msg.context === "reset") {
                 if (typeof msg.payload !== "boolean") {
-                    node.status({ fill: "red", shape: "ring", text: "invalid reset" });
+                    utils.setStatusError(node, "invalid reset");
                     if (done) done();
                     return;
                 }
                 if (msg.payload === true) {
                     node.inputs = Array(node.slots).fill(0);
                     lastSum = null;
-                    node.status({ fill: "green", shape: "dot", text: "state reset" });
+                    utils.setStatusOK(node, "state reset");
                     if (done) done();
                     return;
                 }
             } else if (msg.context === "slots") {
                 let newSlots = parseInt(msg.payload);
                 if (isNaN(newSlots) || newSlots < 1) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid slots" });
+                    utils.setStatusError(node, "invalid slots");
                     if (done) done();
                     return;
                 }
                 node.slots = newSlots;
                 node.inputs = Array(newSlots).fill(0);
                 lastSum = null;
-                node.status({ fill: "green", shape: "dot", text: `slots: ${node.slots}` });
+                utils.setStatusOK(node, `slots: ${node.slots}`);
                 if (done) done();
                 return;
             } else if (msg.context.startsWith("in")) {
                 let slotIndex = parseInt(msg.context.slice(2)) - 1;
                 if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= node.slots) {
-                    node.status({ fill: "red", shape: "ring", text: `invalid input slot ${msg.context}` });
+                    utils.setStatusError(node, `invalid input slot ${msg.context}`);
                     if (done) done();
                     return;
                 }
                 let newValue = parseFloat(msg.payload);
                 if (isNaN(newValue)) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid input" });
+                    utils.setStatusError(node, "invalid input");
                     if (done) done();
                     return;
                 }
@@ -76,13 +78,18 @@ module.exports = function(RED) {
                 // Calculate sum
                 const sum = node.inputs.reduce((acc, val) => acc + val, 0);
                 const isUnchanged = sum === lastSum;
-                node.status({ fill: "blue", shape: isUnchanged ? "ring" : "dot", text: `${msg.context}: ${newValue.toFixed(2)}, sum: ${sum.toFixed(2)}` });
+                const statusText = `${msg.context}: ${newValue.toFixed(2)}, sum: ${sum.toFixed(2)}`;
+                if (isUnchanged) {
+                    utils.setStatusUnchanged(node, statusText);
+                } else {
+                    utils.setStatusChanged(node, statusText);
+                }
                 lastSum = sum;
                 send({ payload: sum });
                 if (done) done();
                 return;
             } else {
-                node.status({ fill: "yellow", shape: "ring", text: "unknown context" });
+                utils.setStatusWarn(node, "unknown context");
                 if (done) done();
                 return;
             }
