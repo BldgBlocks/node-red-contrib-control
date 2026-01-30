@@ -108,3 +108,43 @@
         }
     });
 </script>
+
+<!-- Help Section -->
+<script type="text/markdown" data-help-name="network-register">
+Register a data point in a network registry for shared access across devices, similar to BACnet usage.
+
+### Inputs
+: payload (object) : Expected flow from global-setter containing full network object properties.
+
+### Outputs
+: payload (any) : Current value of the registered network point.
+
+### Details
+Network Register nodes make data points discoverable from anywhere by assigning them a stable numeric ID within a registry.
+
+Each point requires a unique Point ID within its registry. The Point ID is used by other nodes (network-read, network-write) to reference this point without needing node links.
+
+Registry must be configured via a network-point-registry config node. Each registry is a separate namespace for point IDs.
+
+The Writable checkbox controls whether network-write nodes can update this point's value. Disabled by default.
+
+Usage: Set up your networking implementation, maybe websockets communication, discover available points using `action: "discover"` from that device for a list you can build from and set up network read flows to retrieve the data.
+
+Point ID Status:
+- Green check: Available or assigned to this node
+- Orange question: Registry not deployed  
+- Red exclamation: Point ID is taken by another node in the same registry
+
+The editor will auto-suggest the next available Point ID when creating a new node.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

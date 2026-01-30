@@ -135,33 +135,33 @@
 </script>
 
 <!-- Help Section -->
-<script type="text/markdown" data-help-name="global-setter">
-Manage a global variable in a repeatable way.
+<script type="text/markdown" data-help-name="global-getter">
+Retrieve a global variable from a single source location.
 
 ### Inputs 
-Retreived object will overwrite msg.
+: any : Triggers retrieval of the global variable. Input message is passed through unchanged unless Manual trigger is disabled.
 
 ### Outputs
-: payload (object) : The stored object with values and metadata.
+: payload (object) : The retrieved global variable object with values and metadata.
 
 ### Details
-Global variables are meant to be retrieved in other places, this necessarily means managing the same string in multiple places. 
+Global variables are meant to be retrieved in multiple places, which necessitates managing the same path in multiple locations. 
 
-This node allows you to get a global variable anywhere from one source, while supporting rename and deletion.
+This node allows you to get a global variable anywhere by referencing one source node, while automatically supporting renames and deletions without breaking downstream nodes.
 
-The source can be found using the search button. The payload property can be specified and can be set to only the value for chaining.
+The Source reference will automatically resolve even if the source global-setter is renamed or moved to a different flow tab.
 
-Reactive updates means every time the source is updated those nodes will receive the new value via event.
+Trigger mode: Manual (On Input Only) reads from the in-memory 'default' store first, falling back to 'persistent' store. Reactive (On Input & Update) also triggers whenever the source variable is updated, without disk reads.
 
 ### Status
 - Green (dot): Configuration update
-- Blue (dot): State changed
+- Blue (dot): State changed  
 - Blue (ring): State unchanged
 - Red (ring): Error
 - Yellow (ring): Warning
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/)  
+- [Node-RED Documentation](https://nodered.org/docs/)
 - [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
 </script>
 
