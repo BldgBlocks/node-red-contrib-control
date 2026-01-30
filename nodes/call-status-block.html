@@ -5,12 +5,28 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property for call (request) signal"><i class="fa fa-sign-in"></i> Call Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
+        <label for="node-input-statusInputProperty" title="Message property for status (response) signal"><i class="fa fa-sign-out"></i> Status Property</label>
+        <input type="text" id="node-input-statusInputProperty" placeholder="status">
+    </div>
+    <div class="form-row">
         <label for="node-input-statusTimeout" title="Time to wait for status response (seconds, positive number)"><i class="fa fa-clock-o"></i> Status Timeout</label>
         <input type="number" id="node-input-statusTimeout" placeholder="30" min="0.01" step="any">
     </div>
     <div class="form-row">
-        <label for="node-input-clearDelay" title="Delay before clearing status and alarm after call ends (seconds, positive number)"><i class="fa fa-clock-o"></i> Clear Delay</label>
-        <input type="number" id="node-input-clearDelay" placeholder="10" min="0.01" step="any">
+        <label for="node-input-clearDelay" title="Delay before clearing status and alarm after call ends (seconds, 0=immediate)"><i class="fa fa-hourglass"></i> Clear Delay</label>
+        <input type="number" id="node-input-clearDelay" placeholder="10" min="0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-debounce" title="Debounce status flicker (milliseconds, 0=disabled)"><i class="fa fa-filter"></i> Debounce</label>
+        <input type="number" id="node-input-debounce" placeholder="100" min="0" step="any">
+    </div>
+    <div class="form-row">
+        <label for="node-input-heartbeatTimeout" title="Heartbeat window for continuous status monitoring (seconds, 0=disabled)"><i class="fa fa-pulse"></i> Heartbeat Timeout</label>
+        <input type="number" id="node-input-heartbeatTimeout" placeholder="30" min="0" step="any">
     </div>
     <div class="form-row">
         <label for="node-input-runLostStatus" title="Alarm if status is lost during call (boolean)"><i class="fa fa-exclamation-triangle"></i> Run Lost Status</label>
@@ -37,8 +53,12 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
+            statusInputProperty: { value: "status" },
             statusTimeout: { value: 30, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; } },
-            clearDelay: { value: 10, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; } },
+            clearDelay: { value: 10, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            debounce: { value: 100, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
+            heartbeatTimeout: { value: 30, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
             runLostStatus: { value: false },
             noStatusOnRun: { value: true },
             runLostStatusMessage: { value: "Status lost during run" },
@@ -58,43 +78,78 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="call-status-block">
-Monitors call and status signals with alarm diagnostics.
+Monitors call and status signals to detect equipment faults, communication losses, and synchronization errors.
 
 ### Inputs
-- payload (boolean): Call activation/deactivation signal
-- status (boolean): Status response from equipment (only processed when call is active)
+
+: payload (boolean) : Requested equipment state (call signal). Default property name for sending call commands. When true, block expects equipment to respond with status=true within timeout period. Property name configurable via inputProperty setting.
+: status (boolean) : Equipment response signal. Updates actual equipment state and triggers state transitions. Default property name `msg.status`. Accepts `msg.context="status"` with `msg.payload` as fallback routing.
 
 ### Outputs
-- call (boolean): Current call state
-- status (object): `{ call: boolean, status: boolean, alarm: boolean, alarmMessage: string, timeout: boolean, neverReceivedStatus: boolean }`
+
+: payload (boolean) : Current call/requested state (true=on, false=off).
+: status (object) : State information object with properties: call (boolean), status (boolean), alarm (boolean), alarmMessage (string).
+: diagnostics (object) : Internal state for monitoring with properties: state (state machine state), initialTimeout (boolean), heartbeatActive (boolean), neverReceivedStatus (boolean), lastStatusTime (milliseconds or null), timeSinceLastStatus (milliseconds or null).
 
 ### Properties
-- name (string): Display name in editor
-- statusTimeout (number): Time to wait for status response (seconds, > 0)
-- clearDelay (number): Delay before clearing status and alarm after call ends (seconds, > 0)
-- runLostStatus (boolean): Alarm if status is lost during call
-- noStatusOnRun (boolean): Alarm if no status received during call
-- runLostStatusMessage (string): Message for status lost alarm
-- noStatusOnRunMessage (string): Message for no status alarm
 
-### Alarm Conditions
-1. Status without call: Status=true when call=false (immediate alarm)
-2. No status during call: No status received within timeout period (after statusTimeout)
-3. Lost status during call: Status=false when call=true and status was previously received (immediate alarm)
+- name (string) - Display name in editor. Default: `"call status"`.
+- inputProperty (string) - Input message property for call signal. Default: `"payload"`.
+- statusInputProperty (string) - Input message property for status signal. Default: `"status"`.
+- statusTimeout (number) - Seconds to wait for initial status response (0.01–3600s). Default: `30`. If heartbeat monitoring is disabled, this is the only timeout check.
+- heartbeatTimeout (number) - Seconds for continuous status heartbeat monitoring while call=true (0–3600s). Default: `30`. Set to 0 to disable heartbeat monitoring.
+- clearDelay (number) - Seconds to hold actual state after call deactivated (0–3600s). Default: `10`.
+- debounce (number) - Milliseconds to filter status flicker (0–10000ms). Default: `100`.
+- runLostStatus (checkbox) - Alarm if equipment status becomes false while call is true. Default: checked.
+- noStatusOnRun (checkbox) - Alarm if no status response within initial timeout. Default: checked.
+- runLostStatusMessage (string) - Alarm text for status lost. Default: `"Status lost during run"`.
+- noStatusOnRunMessage (string) - Alarm text for no status. Default: `"No status received during run"`.
 
-### Behavior
-- When call is activated: Expects status=true response
-- Status is only processed when call is active
-- Clears all state after clearDelay when call ends
-- Timer acts as a blocking gate for status reception
+### Details
 
-### Status Indicators
-- Green (ring): Configuration errors
-- Blue (dot): Normal operation, no alarms
-- Red (dot): Active alarm condition
-- Yellow (ring): Invalid input
+The block implements a 4-state controller: IDLE (call=false), WAITING_FOR_STATUS (call=true, status pending), RUNNING (call=true, status=true), and STATUS_LOST (call=true, status=false).
+
+When call=true, the block expects two things: (1) Initial status arrival within statusTimeout seconds, and (2) if heartbeatTimeout is enabled, continuous status updates at least once every heartbeatTimeout seconds. If either requirement is violated, an alarm is triggered.
+
+When call=false but status=true, the block monitors that status goes false within clearDelay + 1 second. If status remains true beyond this window, an alarm is triggered indicating the equipment did not respond to the deactivation.
+
+Input routing processes messages in priority order: Status Update (from `msg.status` or `msg.context="status"`), Call Request (from configured input property).
+
+Debounce collapses rapid status changes within the configured window into a single state transition, preventing false alarms from sensor noise. All alarm conditions include 100ms hysteresis to prevent false triggers.
+
+#### Heartbeat Monitoring
+
+When call=true and heartbeatTimeout > 0, the block continuously verifies that status updates arrive within the heartbeat window. This detects communication loss or equipment failures mid-cycle. Set heartbeatTimeout=0 to disable this feature.
+
+#### Alarm Conditions
+
+Status Active Without Call (Hysteresis 100ms): Triggered when status=true AND call=false, indicating potential equipment fault, check valve failure, or external signal interference.
+
+No Status Response on Run (Hysteresis: statusTimeout seconds): Triggered when call=true but no status arrives within initial timeout, indicating equipment not responding or wiring failure at call initiation.
+
+Status Lost During Run (Hysteresis 100ms): Triggered when call=true, status=true initially, but either: (1) status goes false mid-cycle, or (2) heartbeat monitoring detects no status update within heartbeatTimeout window. Indicates mid-cycle shutdown or communication loss.
+
+Status Not Clearing (Hysteresis 100ms): Triggered when call=false, status=true initially, but status does not go false within clearDelay + 1 second window. Indicates equipment failed to deactivate.
+
+#### HVAC Scenarios
+
+Scenario 1: Chiller with unloader valve feedback. Send `{payload: true}` to request call. Chiller responds with `{context: "status", payload: true}` within 30s. As long as call=true and status updates arrive every 30 seconds, no alarm. If 31 seconds elapse without update, heartbeat alarm triggers. Configuration: Status Timeout=30s, Heartbeat Timeout=30s, Run Lost Status=true.
+
+Scenario 2: VAV box with wireless controller. Send `{payload: true}` to activate damper. If wireless module not responding, No Status alarm triggers after 10s. Configuration: Status Timeout=10s, Heartbeat Timeout=0 (heartbeat disabled), No Status On Run=true.
+
+Scenario 3: Pump with 5-second startup lag. Send `{payload: true}` at t=0. Pump motor spins up for 5 seconds, status arrives at t=5s. Send `{payload: false}` at t=10s. Clear Delay holds actual state for 3 seconds. At t=13s, state fully cleared. Configuration: Status Timeout=8s, Heartbeat Timeout=15s, Clear Delay=3s, Debounce=200ms.
+
+Scenario 4: Equipment with 60-second status heartbeat. Enable heartbeat monitoring with 60-second window. Configuration: Status Timeout=30s, Heartbeat Timeout=60s. Status must arrive at least once every 60 seconds to avoid "Status Lost" alarm.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
+
 - [Node-RED Documentation](https://nodered.org/docs/)
 - [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
 </script>
