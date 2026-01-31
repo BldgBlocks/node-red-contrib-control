@@ -1,3 +1,4 @@
 # Local-only files and folders
 .github/.local/
 .github/copilot-instructions.md
+.github/.local/
