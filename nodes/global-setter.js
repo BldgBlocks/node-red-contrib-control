@@ -49,10 +49,25 @@ module.exports = function(RED) {
                 let state = await utils.getGlobalState(node, node.varName, node.storeName);
                 if (!state || typeof state !== 'object' || !state.priority) {
                     // If not, set default
-                    const newState = buildDefaultState();
-                    await utils.setGlobalState(node, node.varName, node.storeName, newState);
+                    state = buildDefaultState();
+                    await utils.setGlobalState(node, node.varName, node.storeName, state);
                     utils.setStatusOK(node, `initialized: default:${node.defaultValue}`);
+                } else {
+                    utils.setStatusOK(node, `loaded: ${state.value}`);
                 }
+                
+                // Send properly formed state object downstream after full initialization
+                // Allows network-register and other downstream nodes to register on startup
+                // Use setTimeout with delay to allow getter nodes time to establish their event listeners
+                setTimeout(() => {
+                    // Emit event so getter nodes with 'always' update mode receive initial value
+                    RED.events.emit("bldgblocks-global-update", {
+                        key: node.varName,
+                        store: node.storeName,
+                        data: state
+                    });
+                    node.send(state);
+                }, 500);
             } catch (err) {
                 // Silently fail or log if init fails (DB down on boot?)
                 node.error(`Init Error: ${err.message}`);
@@ -146,6 +161,8 @@ module.exports = function(RED) {
                     prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
                     const noChangeText = `no change: ${prefix}${node.writePriority}:${state.value}${state.units}`;
                     utils.setStatusUnchanged(node, noChangeText);
+                    // Pass message through even if no context change
+                    send({ ...state });
                     if (done) done();
                     return;
                 }

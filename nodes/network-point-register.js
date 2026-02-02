@@ -1,6 +1,7 @@
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
-    function NetworkRegisterNode(config) {
+
+    function NetworkPointRegisterNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
         
@@ -108,5 +109,6 @@ module.exports = function(RED) {
             done();
         });
     }
-    RED.nodes.registerType("network-register", NetworkRegisterNode);
+    RED.nodes.registerType("network-point-register", NetworkPointRegisterNode);
+    RED.nodes.registerType("network-register", NetworkPointRegisterNode);
 }

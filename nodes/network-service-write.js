@@ -1,6 +1,6 @@
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
-    function NetworkWriteNode(config) {
+    function NetworkServiceWriteNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
         node.registry = RED.nodes.getNode(config.registry);
@@ -79,5 +79,5 @@ module.exports = function(RED) {
             }
         });
     }
-    RED.nodes.registerType("network-write", NetworkWriteNode);
+    RED.nodes.registerType("network-service-write", NetworkServiceWriteNode);
 }

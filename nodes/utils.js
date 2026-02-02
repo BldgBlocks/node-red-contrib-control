@@ -1,4 +1,29 @@
 module.exports = function(RED) {
+    // Shared state across all nodes using this utils module
+    // We attach the registries set to the RED object to ensure a true singleton
+    // across multiple invocations of this module function.
+    if (!RED._bldgblocks_registries) {
+        RED._bldgblocks_registries = new Set();
+    }
+    const registries = RED._bldgblocks_registries;
+
+    function registerRegistryNode(node) {
+        registries.add(node);
+        node.on("close", () => registries.delete(node));
+    }
+
+    function lookupPointMetadata(pointId) {
+        const pid = parseInt(pointId);
+        if (isNaN(pid)) return null;
+        
+        for (const reg of registries) {
+            if (reg.points && reg.points.has(pid)) {
+                return reg.points.get(pid);
+            }
+        }
+        return null;
+    }
+
     function requiresEvaluation(type) { return type === "flow" || type === "global" || type === "msg"; }
     
     // Safe evaluation helper (promisified)
@@ -265,6 +290,8 @@ module.exports = function(RED) {
         validateNumericPayload,
         validateSlotIndex,
         validateBoolean,
-        validateIntRange
+        validateIntRange,
+        registerRegistryNode,
+        lookupPointMetadata
     };
 }

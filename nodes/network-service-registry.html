@@ -1,4 +1,4 @@
-<script type="text/html" data-template-name="network-point-registry">
+<script type="text/html" data-template-name="network-service-registry">
     <div class="form-row">
         <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-config-input-name" placeholder="Main Registry">
@@ -24,7 +24,7 @@
 </script>
 
 <script type="text/javascript">
-    RED.nodes.registerType('network-point-registry', {
+    RED.nodes.registerType("network-service-registry", {
         category: 'config',
         defaults: {
             name: { value: "" }
@@ -75,7 +75,7 @@
     });
 </script>
 
-<script type="text/markdown" data-help-name="network-point-registry">
+<script type="text/markdown" data-help-name="network-service-registry">
 Map Point IDs to global variables.
 
 ### Details
@@ -88,8 +88,11 @@ Create a single registry for your network of nodes and reference it from each ne
 * `lookup(id)`: Find the path/store for an ID.
 
 ### Status
-- Green (dot): Configuration valid
-- Red (ring): Configuration error
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

@@ -1,6 +1,7 @@
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
-    function NetworkReadNode(config) {
+    
+    function NetworkServiceReadNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
         node.registry = RED.nodes.getNode(config.registry);
@@ -53,5 +54,5 @@ module.exports = function(RED) {
             done();
         });
     }
-    RED.nodes.registerType("network-read", NetworkReadNode);
+    RED.nodes.registerType("network-service-read", NetworkServiceReadNode);
 }

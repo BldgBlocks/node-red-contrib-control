@@ -1,0 +1,125 @@
+<script type="text/html" data-template-name="network-service-bridge">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Network Bridge">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("network-service-bridge", {
+        category: "bldgblocks network",
+        color: "#3090C7",
+        defaults: {
+            name: { value: "Network Bridge" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["read requests / responses"],
+        outputLabels: ["routed to/from remote"],
+        icon: "font-awesome/fa-exchange",
+        paletteLabel: "network point bridge",
+        label: function() {
+            return this.name || "network point bridge";
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="network-service-bridge">
+Routes point read/write requests through WebSocket to remote devices and correlates responses.
+
+Sits in the network flow between point-reference nodes and WebSocket communication, handling request/response routing and request correlation.
+
+### Inputs
+: action (string) : Command - read, write
+: pointId (number) : Target point ID for read/write operations.
+: requestId (string) : Unique request identifier for correlation.
+: priority (number) : Priority level for write operations.
+: value (any) : Value to write (read operations ignore this).
+: timestamp (number) : Request timestamp (milliseconds since epoch).
+
+### Outputs
+: payload (object) : Response data (value for reads, status for writes).
+: pointId (number) : Echo of request point ID.
+: requestId (string) : Matching request ID for correlation.
+: action (string) : readResponse, writeResponse, or stats.
+: value (any) : Retrieved value (for reads) or winner value (for writes).
+: timestamp (number) : Response timestamp.
+
+### Details
+Request/Response Correlation:
+1. Assigns unique requestId to each request
+2. Tracks pending requests in memory
+3. Matches incoming responses to original requests
+4. Timeout: 10 seconds per request
+
+Management Commands:
+- getBridgeStats: Returns sent/received/pending counts
+- clearPending: Clear all pending request timeouts
+- resetStats: Reset statistics counters
+
+Flow Architecture:
+- Left input: Requests from point-read/point-write nodes
+- Right input: Responses from remote via WebSocket
+- Outputs routed appropriately (back to requester or to WebSocket)
+
+### Status
+- Green (dot): Idle, no pending requests
+- Blue (dot): Requests pending
+- Blue (ring): Active, zero pending
+- Yellow (ring): Some requests failed
+- Red (ring): Configuration error
+
+### References
+5. Cleans up stale requests automatically
+
+Request Flow:
+```
+[point-reference] sends read request
+    ↓
+[point-network-bridge] assigns requestId, forwards to WebSocket
+    ↓
+[WebSocket client] sends to remote
+    ↓
+[Remote receives, gets value]
+    ↓
+[WebSocket client] receives response
+    ↓
+[point-network-bridge] matches by requestId, forwards back
+    ↓
+[point-reference] updates cache
+```
+
+#### Architecture
+
+This node is the **bridge** between:
+- **LOCAL**: point-reference nodes (send read requests)
+- **REMOTE**: WebSocket endpoint (receives/sends over network)
+
+Enables non-blocking polling pattern:
+- Logic flows request cached values from point-reference
+- point-reference triggers reads via this bridge
+- Responses update cache in background
+- Logic flows get instant responses without network latency
+
+#### Statistics
+
+- **sent**: Total read requests sent to remote
+- **received**: Total responses received from remote
+- **errors**: Requests that timed out
+- **pending**: Currently outstanding requests
+
+#### Example Flow
+
+```
+Network Flow:
+[WebSocket client] ←→ [point-network-bridge]
+                              ↑
+                        [point-reference #301]
+                        [point-reference #302]
+                        (send read requests)
+```
+
+#### References
+- [Polling Architecture](../planning/POLLING_ARCHITECTURE.md)
+- [point-reference Node](./point-reference.html)
+</script>

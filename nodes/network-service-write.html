@@ -1,0 +1,89 @@
+<script type="text/html" data-template-name="network-service-write">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-registry"><i class="fa fa-book"></i> Registry</label>
+        <input type="text" id="node-input-registry">
+    </div>
+    
+    <div class="form-tips">
+        <b>Input Payload Format:</b><br>
+        <pre>
+        {
+            "action": "write",
+            "pointId": 101,
+            "priority": 8,
+            "value": 75.5  // or null || "null" to release
+        }
+        </pre>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('network-service-write', {
+        category: 'bldgblocks network',
+        color: '#3090C7',
+        defaults: {
+            name: { value: "" },
+            registry: { value: "", type: "network-service-registry", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-pencil", 
+        label: function() {
+            return this.name || "network service write";
+        },
+        paletteLabel: "network service write",
+        oneditprepare: function() {
+            
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="network-service-write">
+Writes network commands to global variables using priority array logic.
+
+Acts as inbound gateway, handling priority write arbitration and global state synchronization.
+
+### Inputs
+: payload (object) : Command object with `action`, `pointId`, `priority`, `value`.
+: action (string) : Command type - write for standard priority write.
+: pointId (number) : The integer ID of the point target.
+: priority (number) : Priority level (1-16) to write to, or 0 for release.
+: value (any) : Value to set at priority level, or null to relinquish.
+
+### Outputs
+: payload (object) : Confirmation object with status, pointId, winner value.
+: pointId (number) : Point ID of write target.
+: priority (number) : Priority level that was written.
+: winner (any) : Current highest-priority active value.
+: timestamp (number) : Write timestamp (milliseconds since epoch).
+: status (string) : ok or error status.
+
+### Details
+Priority Write Process:
+1. Looks up pointId in Registry for global variable path
+2. Fetches current state object from global context
+3. Updates specific slot in priority array
+4. Recalculates Present Value (highest priority active)
+5. Saves global variable and emits update event
+6. Triggers reactive getters immediately
+
+Priority Rules:
+- Level 1-16: Explicit priorities, higher wins
+- Level 0: Release (relinquish) this priority
+- null value: Clear the slot
+
+### Status
+- Green (dot): Write successful
+- Blue (dot): State changed
+- Blue (ring): No change
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

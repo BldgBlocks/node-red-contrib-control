@@ -1,0 +1,149 @@
+<script type="text/html" data-template-name="network-point-write">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Write Zone Temp SP">
+    </div>
+    <div class="form-row">
+        <label for="node-input-pointId" title="Point ID to write to (e.g., 301)"><i class="fa fa-hashtag"></i> Point ID</label>
+        <input type="number" id="node-input-pointId" placeholder="301" min="0" required>
+    </div>
+    <div class="form-row">
+        <label for="node-input-priority" title="Write priority (1=highest, 16=lowest)"><i class="fa fa-sort-numeric-asc"></i> Priority</label>
+        <input type="number" id="node-input-priority" placeholder="16" min="1" max="16" required>
+    </div>
+    <div class="form-row">
+        <label for="node-input-inputProperty" title="Property to read value from (e.g., payload)"><i class="fa fa-sign-in"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <hr style="margin: 10px 0;">
+    <div class="form-row">
+        <label for="node-input-bridgeNodeId" title="Select which network bridge to use"><i class="fa fa-link"></i> Network Bridge</label>
+        <input type="text" id="node-input-bridgeNodeId" style="width: calc(70% - 45px);">
+        <button id="node-config-find-bridge" class="editor-button" style="margin-left: 5px; width: 40px;" title="Find Bridge Node">
+            <i class="fa fa-search"></i>
+        </button>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("network-point-write", {
+        category: "bldgblocks network",
+        color: "#3090C7",
+        defaults: {
+            name: { value: "" },
+            pointId: { 
+                value: 0, 
+                required: true,
+                validate: function(v) { 
+                    return !isNaN(parseInt(v)) && parseInt(v) >= 0; 
+                }
+            },
+            priority: {
+                value: 16,
+                required: true,
+                validate: function(v) {
+                    var p = parseInt(v);
+                    return !isNaN(p) && p >= 1 && p <= 16;
+                }
+            },
+            inputProperty: {
+                value: "payload",
+                required: true
+            },
+            bridgeNodeId: { 
+                value: "", 
+                required: true
+            }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["value to write"],
+        outputLabels: ["write confirmation"],
+        icon: "font-awesome/fa-pencil",
+        paletteLabel: "network point write",
+        label: function() {
+            const id = this.pointId ? ` #${this.pointId}` : " (unconfigured)";
+            const pri = this.priority ? ` @${this.priority}` : "";
+            return this.name ? `${this.name}${id}${pri}` : `network point write${id}${pri}`;
+        },
+        oneditprepare: function() {
+            const node = this;
+            
+            let candidateNodes = [];
+            RED.nodes.eachNode(function(n) {
+                if (n.type === 'network-service-bridge') {
+                    candidateNodes.push({
+                        value: n.id,
+                        label: n.name || "(unnamed bridge)"
+                    });
+                }
+            });
+
+            candidateNodes.sort((a, b) => a.label.localeCompare(b.label));
+
+            $("#node-input-bridgeNodeId").typedInput({
+                types: [{ value: "bridge", options: candidateNodes }]
+            });
+
+            // Find button
+            $("#node-config-find-bridge").on("click", function() {
+                if (node.bridgeNodeId) {
+                    RED.viewport.reveal(node.bridgeNodeId);
+                }
+            });
+        },
+        oneditsave: function() {
+            // Optional: log configuration
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="network-point-write">
+Sends control commands to remote network points via service bridge.
+
+Validates payload before sending to prevent invalid network updates.
+
+### Inputs
+: payload (number | string | boolean) : Value to write from configured input property.
+: pointId (number) : Target remote point ID (e.g., 401).
+: priority (number) : Priority level (1-16, higher wins).
+: bridge (node) : Network service bridge for communication.
+
+### Outputs
+: payload (number | string | boolean) : Echo of sent value.
+: pointId (number) : Target point ID.
+: priority (number) : Priority used for this write.
+: timestamp (number) : Write timestamp (milliseconds since epoch).
+: action (string) : writeConfirmed or writeError.
+
+### Properties
+: name (string) : Display name in editor.
+: pointId (number) : The remote point ID to write to.
+: priority (number) : Write priority (1=highest, 16=lowest).
+: inputProperty (string) : Property to read value from (default payload).
+: bridgeNodeId (node) : The bridge node for network communication.
+
+### Details
+BACnet-style priority array (1-16):
+- 1: Manual Life Safety
+- 2: Automatic Life Safety
+- 5: Critical Equipment Control
+- 8: Manual Operator
+- 16: Default/Available (lowest)
+
+Configuration Commands:
+- pointId: Change target point
+- priority: Change write priority
+- release: Release priority (write null)
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

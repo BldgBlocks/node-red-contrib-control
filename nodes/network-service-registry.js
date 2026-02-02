@@ -1,7 +1,12 @@
 module.exports = function(RED) {
-    function NetworkPointRegistryNode(config) {
+    
+    function NetworkServiceRegistryNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
+        
+        // Register this registry with utils for global lookup
+        const utils = require('./utils')(RED);
+        utils.registerRegistryNode(node);
         
         // The Map: { 101: { nodeId: "abc.123", writable: true, ... } }
         node.points = new Map();
@@ -34,7 +39,7 @@ module.exports = function(RED) {
             return node.points.get(parseInt(pointId));
         };
     }
-    RED.nodes.registerType("network-point-registry", NetworkPointRegistryNode);
+    RED.nodes.registerType("network-service-registry", NetworkServiceRegistryNode);
 
     // --- HTTP Endpoint for Editor Validation ---
     // Route: /network-point-registry/check/<RegistryID>/<PointID>/<CurrentNodeID>

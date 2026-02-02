@@ -1,4 +1,4 @@
-<script type="text/html" data-template-name="network-register">
+<script type="text/html" data-template-name="network-point-register">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
@@ -24,12 +24,12 @@
 </script>
 
 <script type="text/javascript">
-    RED.nodes.registerType('network-register', {
+    RED.nodes.registerType("network-point-register", {
         category: 'bldgblocks network',
         color: '#3090C7',
         defaults: {
             name: { value: "" },
-            registry: { value: "", type: "network-point-registry", required: true },
+            registry: { value: "", type: "network-service-registry", required: true },
             pointId: { value: null, required: true, validate: RED.validators.number() },
             writable: { value: false }
         },
@@ -38,9 +38,37 @@
         icon: "font-awesome/fa-book",
         label: function() {
             const id = this.pointId || "?";
-            return `(id:${id}) ${this.name || "network register"}`;
+            return `(id:${id}) ${this.name || "network point register"}`;
         },
-        paletteLabel: "network register",
+        paletteLabel: "network point register",
+        onadd: function() {
+            // Fires when node is added to workspace (including paste/import)
+            const node = this;
+            const registry = node.registry;
+            
+            if (!registry || registry === "_ADD_") return;
+            
+            // Find max pointId and check for collision
+            let maxId = 0;
+            let collision = false;
+            const myId = parseInt(node.pointId);
+            
+            RED.nodes.eachNode(function(n) {
+                if (n.type === "network-point-register" && n.registry === registry && n.id !== node.id) {
+                    const pid = parseInt(n.pointId);
+                    if (!isNaN(pid)) {
+                        if (pid > maxId) maxId = pid;
+                        if (pid === myId) collision = true;
+                    }
+                }
+            });
+            
+            // If collision or no pointId, assign next available
+            if (collision || isNaN(myId) || myId === null) {
+                node.pointId = maxId + 1;
+                node.changed = true;
+            }
+        },
         oneditprepare: function() {
             const nodeId = this.id;
             const statusSpan = $("#point-id-status");
@@ -85,11 +113,30 @@
 
             function loadNextFreeId(registry) {
                 if (!registry || registry === "_ADD_") { return; }
+                
+                // First, find highest pointId from ALL nodes in editor (deployed + not deployed)
+                let maxEditorId = 0;
+                RED.nodes.eachNode(function(n) {
+                    if (n.type === "network-point-register" && n.registry === registry && n.id !== nodeId) {
+                        const pid = parseInt(n.pointId);
+                        if (!isNaN(pid) && pid > maxEditorId) {
+                            maxEditorId = pid;
+                        }
+                    }
+                });
+
+                // Also check deployed registry for any points not visible in editor
                 $.getJSON(`/network-point-registry/list/${registry}`, function (data) {
-                    const next = data.reduce((max, pt) => Math.max(max, pt.id), 0) + 1;        
+                    const maxDeployedId = data.reduce((max, pt) => Math.max(max, pt.id), 0);
+                    const next = Math.max(maxEditorId, maxDeployedId) + 1;
                     idInput.val(next);
                 }).fail(function () {
-                    statusSpan.html('<i class="fa fa-exclamation-triangle" style="color:red;"></i> Cannot fetch points').show();
+                    // Fallback to editor-only max if server unavailable
+                    const next = maxEditorId + 1;
+                    idInput.val(next);
+                    if (maxEditorId === 0) {
+                        statusSpan.html('<i class="fa fa-exclamation-triangle" style="color:orange;"></i> Registry not deployed').show();
+                    }
                 });
             }
 
@@ -110,7 +157,7 @@
 </script>
 
 <!-- Help Section -->
-<script type="text/markdown" data-help-name="network-register">
+<script type="text/markdown" data-help-name="network-point-register">
 Register a data point in a network registry for shared access across devices, similar to BACnet usage.
 
 ### Inputs

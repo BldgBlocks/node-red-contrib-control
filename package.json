@@ -67,10 +67,13 @@
         "global-setter": "nodes/global-setter.js",
         "history-collector": "nodes/history-collector.js",
         "history-config": "nodes/history-config.js",
-        "network-read": "nodes/network-read.js",
-        "network-register": "nodes/network-register.js",
-        "network-write": "nodes/network-write.js",
-        "network-point-registry": "nodes/network-point-registry.js"
+        "network-service-read": "nodes/network-service-read.js",
+        "network-service-write": "nodes/network-service-write.js",
+        "network-service-registry": "nodes/network-service-registry.js",
+        "network-service-bridge": "nodes/network-service-bridge.js",
+        "network-point-register": "nodes/network-point-register.js",
+        "network-point-read": "nodes/network-point-read.js",
+        "network-point-write": "nodes/network-point-write.js"
 
       }
   },

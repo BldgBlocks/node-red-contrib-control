@@ -1,0 +1,81 @@
+<script type="text/html" data-template-name="network-service-read">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-registry"><i class="fa fa-book"></i> Registry</label>
+        <input type="text" id="node-input-registry">
+    </div>
+    
+    <div class="form-tips">
+        <b>Input Payload Format:</b><br>
+        <pre>
+        {
+            "action": "read",
+            "pointId": 101
+        }
+        </pre>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('network-service-read', {
+        category: 'bldgblocks network',
+        color: '#3090C7',
+        defaults: {
+            name: { value: "" },
+            registry: { value: "", type: "network-service-registry", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-database",
+        label: function() {
+            return "network service read";
+        },
+        paletteLabel: "network service read",
+        oneditprepare: function() {
+            const nodeId = this.id;
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="network-service-read">
+Reads a network point value from the service registry.
+
+Looks up global variable path corresponding to pointId and returns the current value.
+
+### Inputs
+: action (string) : Command - read to retrieve point value.
+: pointId (number) : The integer ID of the point to read.
+: payload (object) : Message object (optional, can include context).
+
+### Outputs
+: payload (object) : Value of the referenced global variable.
+: pointId (number) : Echo of requested point ID.
+: status (string) : ok or error status code.
+: message (string) : Status message describing result.
+
+### Details
+Registry Lookup Process:
+1. Receives pointId in input message
+2. Queries Network Service Registry for point metadata (path, store)
+3. Fetches value from global context using path/store
+4. Returns value in payload
+
+Use With:
+- network-service-registry - Central point registry config
+- network-service-bridge - Remote point access
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

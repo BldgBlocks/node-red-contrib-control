@@ -205,7 +205,7 @@ module.exports = function(RED) {
                 
                 // No state change, pass the message through
                 node.state = inputValue;
-                desired = inputValue;
+                node.desired = inputValue;
                 send(msg);
             }
 
