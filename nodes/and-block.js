@@ -14,6 +14,9 @@ module.exports = function(RED) {
         // Initialize fields
         let lastResult = null;
         let lastInputs = node.inputs.slice();
+        let lastOutputTime = 0;           // Track last output timestamp for debounce
+        let lastOutputValue = undefined;  // Track last output value for duplicate suppression
+        const DEBOUNCE_MS = 500;          // Debounce period in milliseconds
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -46,14 +49,37 @@ module.exports = function(RED) {
                     const result = node.inputs.every(v => v === true);
                     const isUnchanged = result === lastResult && node.inputs.every((v, i) => v === lastInputs[i]);
                     const statusText = `in: [${node.inputs.join(", ")}], out: ${result}`;
-                    if (isUnchanged) {
+                    
+                    // ================================================================
+                    // Debounce: Suppress consecutive same outputs within 500ms
+                    // But always output if value is different or debounce time expired
+                    // ================================================================
+                    const now = Date.now();
+                    const timeSinceLastOutput = now - lastOutputTime;
+                    const isSameOutput = result === lastOutputValue;
+                    const shouldSuppress = isSameOutput && timeSinceLastOutput < DEBOUNCE_MS;
+                    
+                    if (shouldSuppress) {
+                        // Same output within debounce window - don't send, just update status
                         utils.setStatusUnchanged(node, statusText);
                     } else {
-                        utils.setStatusChanged(node, statusText);
+                        // Different output or debounce period expired - send it
+                        if (isUnchanged) {
+                            utils.setStatusUnchanged(node, statusText);
+                        } else {
+                            utils.setStatusChanged(node, statusText);
+                        }
+                        
+                        // Record output for next debounce comparison
+                        lastOutputTime = now;
+                        lastOutputValue = result;
+                        
+                        // Send output to allow all downstream branches to update
+                        send({ payload: result });
                     }
+                    
                     lastResult = result;
                     lastInputs = node.inputs.slice();
-                    send({ payload: result });
                     if (done) done();
                     return;
                 } else {

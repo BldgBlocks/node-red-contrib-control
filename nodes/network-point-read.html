@@ -9,11 +9,20 @@
     </div>
     <hr style="margin: 10px 0;">
     <div class="form-row">
+        <label for="node-input-outputProperty" title="Set output message property"><i class="fa fa-arrow-right"></i> Target</label>
+        <input type="text" id="node-input-outputProperty" placeholder="msg.payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-bridgeNodeId" title="Select which network bridge to query"><i class="fa fa-link"></i> Network Bridge</label>
         <input type="text" id="node-input-bridgeNodeId" style="width: calc(70% - 45px);">
         <button id="node-config-find-bridge" class="editor-button" style="margin-left: 5px; width: 40px;" title="Find Bridge Node">
             <i class="fa fa-search"></i>
         </button>
+    </div>
+    <hr style="margin: 10px 0;">
+    <div class="form-row">
+        <label for="node-input-startupDelay" title="Delay before processing read requests (seconds, allows network to come online)"><i class="fa fa-clock-o"></i> Startup Delay (sec)</label>
+        <input type="number" id="node-input-startupDelay" placeholder="30" min="0" step="1">
     </div>
 </script>
 
@@ -23,6 +32,7 @@
         color: "#3090C7",
         defaults: {
             name: { value: "" },
+            outputProperty: { value: "payload" },
             pointId: { 
                 value: 0, 
                 required: true,
@@ -33,7 +43,8 @@
             bridgeNodeId: { 
                 value: "", 
                 required: true
-            }
+            },
+            startupDelay: { value: 30, required: false, validate: function(v) { return !isNaN(parseInt(v)) && parseInt(v) >= 0; } }
         },
         inputs: 1,
         outputs: 1,
@@ -64,7 +75,11 @@
             $("#node-input-bridgeNodeId").typedInput({
                 types: [{ value: "bridge", options: candidateNodes }]
             });
+$("#node-input-outputProperty").typedInput({
+                types: ['msg']
+            });
 
+            
             // Find button
             $("#node-config-find-bridge").on("click", function() {
                 if (node.bridgeNodeId) {

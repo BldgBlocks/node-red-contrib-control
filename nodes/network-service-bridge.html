@@ -3,6 +3,11 @@
         <label for="node-input-name" title="Display name shown on canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Network Bridge">
     </div>
+    <hr style="margin: 10px 0;">
+    <div class="form-row">
+        <label for="node-input-startupDelay" title="Delay before processing requests (seconds, allows network to come online)"><i class="fa fa-clock-o"></i> Startup Delay (sec)</label>
+        <input type="number" id="node-input-startupDelay" placeholder="30" min="0" step="1">
+    </div>
 </script>
 
 <script type="text/javascript">
@@ -10,7 +15,8 @@
         category: "bldgblocks network",
         color: "#3090C7",
         defaults: {
-            name: { value: "Network Bridge" }
+            name: { value: "Network Bridge" },
+            startupDelay: { value: 30, required: false, validate: function(v) { return !isNaN(parseInt(v)) && parseInt(v) >= 0; } }
         },
         inputs: 1,
         outputs: 1,

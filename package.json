@@ -67,6 +67,7 @@
         "global-setter": "nodes/global-setter.js",
         "history-collector": "nodes/history-collector.js",
         "history-config": "nodes/history-config.js",
+        "history-buffer": "nodes/history-buffer.js",
         "network-service-read": "nodes/network-service-read.js",
         "network-service-write": "nodes/network-service-write.js",
         "network-service-registry": "nodes/network-service-registry.js",

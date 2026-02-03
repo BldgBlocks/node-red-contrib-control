@@ -8,8 +8,9 @@ module.exports = function(RED) {
         // ====================================================================
         // Initialize configuration
         // ====================================================================
-        // No configuration needed - bridge is wired directly to WebSocket
-        // Messages pass through: requests go out, responses come back
+        node.startupDelay = parseInt(config.startupDelay) || 30;  // Delay in seconds
+        node.startupTime = Date.now();  // Track when node was deployed
+        node.startupComplete = false;
 
         // ====================================================================
         // Initialize state
@@ -31,6 +32,18 @@ module.exports = function(RED) {
         // Helper: Update status
         // ====================================================================
         const updateStatus = function() {
+            // Check startup delay
+            if (!node.startupComplete) {
+                const elapsedSeconds = (Date.now() - node.startupTime) / 1000;
+                if (elapsedSeconds < node.startupDelay) {
+                    const remainingSeconds = Math.ceil(node.startupDelay - elapsedSeconds);
+                    utils.setStatusWarn(node, `Startup delay: ${remainingSeconds}s remaining...`);
+                    return;
+                } else {
+                    node.startupComplete = true;
+                }
+            }
+            
             const pending = Object.keys(node.pendingRequests).length;
             const successRate = node.stats.sent > 0 
                 ? Math.round((node.stats.received / node.stats.sent) * 100)
@@ -53,13 +66,30 @@ module.exports = function(RED) {
             if (data.bridgeNodeId !== node.id) {
                 return;
             }
+
+            // ================================================================
+            // Track if request is during startup phase (for error suppression)
+            // ================================================================
+            let isStartupPhase = false;
+            if (!node.startupComplete) {
+                const elapsedSeconds = (Date.now() - node.startupTime) / 1000;
+                if (elapsedSeconds < node.startupDelay) {
+                    isStartupPhase = true;
+                    const remainingSeconds = Math.ceil(node.startupDelay - elapsedSeconds);
+                    utils.setStatusWarn(node, `Startup delay: ${remainingSeconds}s - allowing retries...`);
+                } else {
+                    node.startupComplete = true;
+                    updateStatus();
+                }
+            }
             
             // Track this cross-flow request
             node.pendingRequests[data.requestId] = {
                 requestId: data.requestId,
                 pointId: data.pointId,
                 timestamp: Date.now(),
-                sourceNodeId: data.sourceNodeId  // Where to send response
+                sourceNodeId: data.sourceNodeId,  // Where to send response
+                isStartupPhase: isStartupPhase     // Mark if during startup (errors suppressed)
             };
 
             // Create outbound message for WebSocket
@@ -79,7 +109,16 @@ module.exports = function(RED) {
             // Timeout: if no response after 10 seconds, clean up
             setTimeout(() => {
                 if (node.pendingRequests[data.requestId]) {
+                    const pending = node.pendingRequests[data.requestId];
                     delete node.pendingRequests[data.requestId];
+                    
+                    // Suppress error notification during startup phase
+                    // (allows network to come online without nuisance errors)
+                    if (pending.isStartupPhase) {
+                        // Silently drop timeout during startup
+                        return;
+                    }
+                    
                     const errorText = `Read timeout for point #${data.pointId}`;
                     utils.setStatusWarn(node, errorText);
                     node.error(errorText);  // Show in debug panel
@@ -107,6 +146,22 @@ module.exports = function(RED) {
             if (data.bridgeNodeId !== node.id) {
                 return;
             }
+
+            // ================================================================
+            // Track if request is during startup phase (for error suppression)
+            // ================================================================
+            let isStartupPhase = false;
+            if (!node.startupComplete) {
+                const elapsedSeconds = (Date.now() - node.startupTime) / 1000;
+                if (elapsedSeconds < node.startupDelay) {
+                    isStartupPhase = true;
+                    const remainingSeconds = Math.ceil(node.startupDelay - elapsedSeconds);
+                    utils.setStatusWarn(node, `Startup delay: ${remainingSeconds}s - allowing retries...`);
+                } else {
+                    node.startupComplete = true;
+                    updateStatus();
+                }
+            }
             
             // Track this cross-flow request
             node.pendingRequests[data.requestId] = {
@@ -114,7 +169,8 @@ module.exports = function(RED) {
                 pointId: data.pointId,
                 timestamp: Date.now(),
                 sourceNodeId: data.sourceNodeId,
-                isWrite: true
+                isWrite: true,
+                isStartupPhase: isStartupPhase  // Mark if during startup (errors suppressed)
             };
 
             // Create outbound message for WebSocket
@@ -138,6 +194,14 @@ module.exports = function(RED) {
                 if (node.pendingRequests[data.requestId]) {
                     const pending = node.pendingRequests[data.requestId];
                     delete node.pendingRequests[data.requestId];
+                    
+                    // Suppress error notification during startup phase
+                    // (allows network to come online without nuisance errors)
+                    if (pending.isStartupPhase) {
+                        // Silently drop timeout during startup
+                        return;
+                    }
+                    
                     const errorText = `Write timeout for point #${data.pointId}`;
                     utils.setStatusWarn(node, errorText);
                     node.error(errorText);  // Show in debug panel
@@ -195,7 +259,8 @@ module.exports = function(RED) {
                         matchingRequests.push({
                             requestId: reqId,
                             sourceNodeId: reqData.sourceNodeId,
-                            isWrite: reqData.isWrite
+                            isWrite: reqData.isWrite,
+                            isStartupPhase: reqData.isStartupPhase  // Preserve startup phase flag
                         });
                     }
                 }
@@ -219,7 +284,8 @@ module.exports = function(RED) {
                                 error: match.isWrite ? statusMessage : true,
                                 errorMessage: statusMessage,
                                 requestId: match.requestId,
-                                timestamp: Date.now()
+                                timestamp: Date.now(),
+                                isStartupPhase: match.isStartupPhase  // Pass startup phase flag
                             });
                         } else {
                             // Success response
@@ -229,9 +295,11 @@ module.exports = function(RED) {
                                 sourceNodeId: match.sourceNodeId,
                                 pointId: responsePointId,
                                 value: responseValue,
+                                message: msg,
                                 error: match.isWrite ? null : false,
                                 requestId: match.requestId,
-                                timestamp: msg.timestamp || Date.now()
+                                timestamp: msg.timestamp || Date.now(),
+                                isStartupPhase: match.isStartupPhase  // Pass startup phase flag
                             });
                         }
                     }
