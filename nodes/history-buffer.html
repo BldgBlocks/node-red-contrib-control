@@ -37,47 +37,60 @@
 </script>
 
 <script type="text/markdown" data-help-name="history-buffer">
-Persistent trend history for FlowFuse Dashboard 2.0 ui-chart nodes, stored as hourly files instead of context.
+Persistent trend history for FlowFuse Dashboard 2.0 `ui-chart` nodes.
 
-No dependencies, settings.js, or context config required. Does not block Node-RED startup. Does not hammer SD storage. Does not spike CPU.
+Stores time-series data as hourly files on disk, surviving Node-RED restarts without blocking startup or using global context.
 
 ### Inputs
-: topic (string) : Series identifier (e.g., "Return Temp", "Supply Temp").
+: topic (string) : Series identifier (e.g., "Return Temp").
 : payload (number) : Data value for this series.
-: ts (number) : Unix timestamp (optional, auto-filled if missing).
+: ts (number) : Timestamp in milliseconds (optional, auto-filled).
 
 ### Outputs
-: topic (string) : Series identifier passed through.
-: payload (number) : Data value.
-: ts (number) : Timestamp.
-: action (string) : "replace" (first historical point on startup) or "append" (subsequent points).
+: topic (string) : Series identifier.
+: payload (number|array) : Single value (append) or array of points (replace).
+: ts (number) : Timestamp in milliseconds.
+: action (string) : `"replace"` on startup, `"append"` for live data.
 
-### Details
-Maintains a rolling buffer of time-series data in hourly chunks on disk, persisting across Node-RED restarts without blocking startup or using global context.
+### ui-chart Configuration (IMPORTANT)
 
-Data is stored as Line-Delimited JSON (JSONL) in `~/.node-red/.bldgblocks/trends/`:
-- `buffer_current.json` : Active file, appended every 30 seconds
-- `trend_<timestamp>.json` : Finalized hourly chunks
+The `ui-chart` node **must** be configured to read data from the correct keys.
 
-On startup (5-second delay):
-- Loads all historical files within buffer age
-- Sends each point with action="replace" for first, "append" for rest
-- Begins accepting live data
+In the chart's **Properties** section, set:
 
-Supports 0.01 to 24 hours retention. Old files are automatically pruned every 60 seconds.
+| Property | Type | Value |
+|----------|------|-------|
+| **Series** | `key` | `topic` |
+| **X** | `key` | `ts` |
+| **Y** | `key` | `payload` |
 
-### Memory
-- Live buffer: ~20-40 KB (accumulates between commits)
-- Historical chunks: Loaded briefly during startup, then discarded
-- Total active memory: <100 KB
+**Critical:** The type must be `key` (not `msg`). This tells the chart to look *inside* each array element for these fields.
+
+Also set:
+- **X-Axis Type**: `Timescale`
+- **X-Axis Limit**: `0` (disables time culling)
+
+### Storage
+
+Data is stored as Line-Delimited JSON in `~/.node-red/.bldgblocks/trends/`:
+- `buffer_<nodeid>.json` : Active buffer, committed every 30 seconds
+- `trend_<timestamp>_<nodeid>.json` : Hourly rotation files
+
+On startup:
+1. Waits 5 seconds for Node-RED to stabilize
+2. Loads all files within retention window
+3. Sends historical data with `action: "replace"`
+4. Begins accepting live data
+
+Supports 0.01 to 24 hours retention. Old files pruned automatically.
 
 ### Status
-- Green (dot) : Ready or configuration updated
-- Blue (dot) : History loaded, receiving live data
-- Red (ring) : Error (missing topic/payload, file write failure)
-- Yellow (ring) : Warning (invalid file, prune failure)
+- **Green** : Ready
+- **Blue** : Active, receiving data
+- **Yellow** : Warning (file issue)
+- **Red** : Error
 
 ### References
-- [FlowFuse Dashboard 2.0](https://flowfuse.com/docs/user/dashboard/)
-- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-control.git)
+- [ui-chart Documentation](https://dashboard.flowfuse.com/nodes/widgets/ui-chart.html)
+- [GitHub](https://github.com/BldgBlocks/node-red-contrib-control.git)
 </script>
