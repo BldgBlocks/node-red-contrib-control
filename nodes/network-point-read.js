@@ -11,9 +11,6 @@ module.exports = function(RED) {
         node.pointId = parseInt(config.pointId);
         node.bridgeNodeId = config.bridgeNodeId;
         node.outputProperty = config.outputProperty || "payload";
-        node.startupDelay = parseInt(config.startupDelay) || 30;  // Delay in seconds
-        node.startupTime = Date.now();  // Track when node was deployed
-        node.startupComplete = false;
         
         // Validate pointId
         if (isNaN(node.pointId) || node.pointId < 0) {
@@ -62,30 +59,12 @@ module.exports = function(RED) {
         // Send read request to bridge via event
         // ====================================================================
         const triggerRead = function() {
-            // ================================================================
-            // Check startup delay - suppress error messages during startup
-            // but allow requests to proceed (network may come online early)
-            // ================================================================
-            let isStartupPhase = false;
-            if (!node.startupComplete) {
-                const elapsedSeconds = (Date.now() - node.startupTime) / 1000;
-                if (elapsedSeconds < node.startupDelay) {
-                    isStartupPhase = true;
-                    const remainingSeconds = Math.ceil(node.startupDelay - elapsedSeconds);
-                    utils.setStatusWarn(node, `Startup delay: ${remainingSeconds}s (silently retrying)...`);
-                } else {
-                    node.startupComplete = true;
-                }
-            }
-
             if (node.isPollPending) {
                 return;  // Already waiting for response
             }
             
             node.isPollPending = true;
-            if (!isStartupPhase) {
-                utils.setStatusUnchanged(node, `Fetching... ${getStatusText()}`);
-            }
+            utils.setStatusUnchanged(node, `Fetching... ${getStatusText()}`);
             
             // Send read request to bridge node via event (cross-flow communication)
             const requestId = `${node.id}_${node.pointId}_${Date.now()}`;
@@ -93,8 +72,7 @@ module.exports = function(RED) {
                 sourceNodeId: node.id,
                 bridgeNodeId: node.bridgeNodeId,
                 pointId: node.pointId,
-                requestId: requestId,
-                isStartupPhase: isStartupPhase  // Flag for error suppression
+                requestId: requestId
             });
         };
 
@@ -169,13 +147,6 @@ module.exports = function(RED) {
             
             // Check for error response
             if (data.error) {
-                // Suppress error messages during startup phase
-                // (allows network to come online without nuisance errors)
-                if (data.isStartupPhase) {
-                    // Silently retry later, don't show error
-                    return;
-                }
-                
                 const errorText = `Read failed for point #${node.pointId}: ${data.errorMessage || "Unknown error"}`;
                 utils.setStatusError(node, `Error: ${data.errorMessage || "Unknown error"}`);
                 node.error(errorText);  // Show in debug panel
@@ -253,28 +224,6 @@ module.exports = function(RED) {
                 utils.setStatusChanged(node, text);
             }
         }, 2000);
-
-        // ====================================================================
-        // Monitor startup delay and update status periodically during it
-        // ====================================================================
-        if (node.startupDelay > 0) {
-            const startupStatusInterval = setInterval(() => {
-                if (node.startupComplete) {
-                    clearInterval(startupStatusInterval);
-                    return;
-                }
-
-                const elapsedSeconds = (Date.now() - node.startupTime) / 1000;
-                if (elapsedSeconds >= node.startupDelay) {
-                    node.startupComplete = true;
-                    clearInterval(startupStatusInterval);
-                    utils.setStatusOK(node, getStatusText());
-                } else {
-                    const remainingSeconds = Math.ceil(node.startupDelay - elapsedSeconds);
-                    utils.setStatusWarn(node, `Startup delay: ${remainingSeconds}s remaining...`);
-                }
-            }, 1000);  // Update status every second during startup
-        }
     }
 
     RED.nodes.registerType("network-point-read", NetworkPointReadNode);

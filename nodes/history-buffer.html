@@ -1,17 +1,11 @@
 <script type="text/html" data-template-name="history-buffer">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Trend History">
     </div>
     <div class="form-row">
-        <label for="node-input-bufferHours"><i class="fa fa-clock-o"></i> Buffer Duration</label>
+        <label for="node-input-bufferHours" title="How many hours of history to retain (default 3)"><i class="fa fa-clock-o"></i> Buffer Hours</label>
         <input type="number" id="node-input-bufferHours" placeholder="3" min="0.01" max="24" step="0.01">
-        <span style="margin-left: 10px; color: #666;">hours</span>
-    </div>
-    <div class="form-row">
-        <label for="node-input-commitIntervalMin"><i class="fa fa-save"></i> Commit Interval</label>
-        <input type="number" id="node-input-commitIntervalMin" placeholder="10" min="1" max="120" step="1">
-        <span style="margin-left: 10px; color: #666;">minutes</span>
     </div>
 </script>
 
@@ -24,56 +18,66 @@
             bufferHours: {
                 value: 3,
                 required: true,
-                validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0.01 && parseFloat(v) <= 24; }
-            },
-            commitIntervalMin: {
-                value: 10,
-                required: true,
-                validate: function(v) { return !isNaN(parseInt(v)) && parseInt(v) >= 1 && parseInt(v) <= 120; }
+                validate: function(v) {
+                    const val = parseFloat(v);
+                    return !isNaN(val) && val >= 0.01 && val <= 24;
+                }
             }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["data"],
-        outputLabels: ["buffered"],
+        outputLabels: ["chart"],
         icon: "font-awesome/fa-history",
         paletteLabel: "history buffer",
         label: function() {
-            return this.name || "history buffer";
+            return this.name ? `${this.name} (${this.bufferHours}h)` : `history buffer (${this.bufferHours}h)`;
         }
     });
 </script>
 
 <script type="text/markdown" data-help-name="history-buffer">
-Maintains a rolling buffer of time-series data with periodic persistence across Node-RED restarts.
+Persistent trend history for FlowFuse Dashboard 2.0 ui-chart nodes, stored as hourly files instead of context.
+
+No dependencies, settings.js, or context config required. Does not block Node-RED startup. Does not hammer SD storage. Does not spike CPU.
 
 ### Inputs
-: topic (string) : Series name or identifier (e.g., "Return Temperature", "HP Stage 1").
-: payload (number) : The data point value (temperature, state, etc.).
-: ts (number, optional) : Timestamp in milliseconds. Auto-added if missing.
+: topic (string) : Series identifier (e.g., "Return Temp", "Supply Temp").
+: payload (number) : Data value for this series.
+: ts (number) : Unix timestamp (optional, auto-filled if missing).
 
 ### Outputs
-: topic (string) : Same series name from input.
-: payload (number) : Same data value from input.
-: ts (number) : Timestamp of the data point.
-: status (object) : Status object with action, buffer size, and timestamp.
+: topic (string) : Series identifier passed through.
+: payload (number) : Data value.
+: ts (number) : Timestamp.
+: action (string) : "replace" (first historical point on startup) or "append" (subsequent points).
 
 ### Details
-Buffers incoming data points in memory while periodically saving to persistent node context. Restores all historical data on Node-RED restart or deploy.
+Maintains a rolling buffer of time-series data in hourly chunks on disk, persisting across Node-RED restarts without blocking startup or using global context.
 
-On startup, all previously stored points are replayed to restore chart visualization. Subsequent data is appended to the buffer with `msg.status.action: "append"`. Every N minutes (commit interval), data older than the buffer duration is pruned, and remaining points are saved to context.
+Data is stored as Line-Delimited JSON (JSONL) in `~/.node-red/.bldgblocks/trends/`:
+- `buffer_current.json` : Active file, appended every 30 seconds
+- `trend_<timestamp>.json` : Finalized hourly chunks
 
-Configuration options control how long to keep data (buffer duration, default 3 hours) and how often to persist (commit interval, default 10 minutes). Adjust based on desired history depth and storage frequency.
+On startup (5-second delay):
+- Loads all historical files within buffer age
+- Sends each point with action="replace" for first, "append" for rest
+- Begins accepting live data
 
-The node validates that incoming messages have `msg.topic` and `msg.payload`. Timestamps are required for accurate time-series charting; missing timestamps are auto-added using current time.
+Supports 0.01 to 24 hours retention. Old files are automatically pruned every 60 seconds.
+
+### Memory
+- Live buffer: ~20-40 KB (accumulates between commits)
+- Historical chunks: Loaded briefly during startup, then discarded
+- Total active memory: <100 KB
 
 ### Status
-: green (dot) : Configuration update or normal operation
-: blue (dot) : Data received and buffered
-: yellow (ring) : Warning (missing topic or payload)
-: red (ring) : Error (storage or persistence failure)
+- Green (dot) : Ready or configuration updated
+- Blue (dot) : History loaded, receiving live data
+- Red (ring) : Error (missing topic/payload, file write failure)
+- Yellow (ring) : Warning (invalid file, prune failure)
 
 ### References
-- [Node-RED Documentation](https://nodered.org/docs/)
-- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+- [FlowFuse Dashboard 2.0](https://flowfuse.com/docs/user/dashboard/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-control.git)
 </script>
