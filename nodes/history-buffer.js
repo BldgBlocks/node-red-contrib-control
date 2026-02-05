@@ -199,8 +199,9 @@ module.exports = function(RED) {
 
         function finalizeAndSend(allHistory, fileCount) {
             if (allHistory.length > 0) {
-                // Don't set msg.topic - let chart read topic from each data point
+                // Send history replace message
                 node.send({
+                    topic: config.topic || node.name || 'history',
                     payload: allHistory,
                     action: 'replace'
                 });
@@ -215,19 +216,19 @@ module.exports = function(RED) {
             // Dump queue
             if (queuedMessages.length > 0) {
                 const toProcess = queuedMessages.splice(0, queuedMessages.length);
-                const msgsToEmit = [];
                 
                 toProcess.forEach(qMsg => {
                     liveBuffer.push(qMsg);
-                    msgsToEmit.push({
+                    node.send({
                         topic: qMsg.topic,
-                        payload: qMsg.payload,
-                        ts: qMsg.ts,
+                        payload: {
+                            topic: qMsg.topic,
+                            payload: qMsg.payload,
+                            ts: qMsg.ts
+                        },
                         action: 'append'
                     });
                 });
-                
-                msgsToEmit.forEach(m => node.send(m));
             }
             
             updateStatus(`${messageCount} msgs, ${cachedChunkCount} chunks, buf: ${liveBuffer.length}`, true);
@@ -395,15 +396,18 @@ module.exports = function(RED) {
             // Pass through to chart immediately
             send({
                 topic: msg.topic,
-                payload: msg.payload,
-                ts: ts,
+                payload: {
+                    topic: msg.topic,
+                    payload: msg.payload,
+                    ts: ts
+                },
                 action: 'append'
             });
 
             messageCount++;
             
             // Loose status update
-            if (messageCount % 10 === 0) {
+            if (messageCount % 20 === 0) {
                 updateStatus(`${messageCount} msgs, ${cachedChunkCount} chunks, buf: ${liveBuffer.length}`);
             }
 
