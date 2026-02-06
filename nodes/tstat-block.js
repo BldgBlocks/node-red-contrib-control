@@ -328,7 +328,7 @@ module.exports = function(RED) {
             // The Tstat node does not control heating/cooling mode, only operates heating or cooling according to the mode set and respective setpoints.
             if (node.algorithm === "single") {
                 // Note:
-                // Make sure your mode selection is handled upstream and does not osciallate modes.
+                // Make sure your mode selection is handled upstream and does not oscillate modes.
                 // This was changed to allow for broader anticipator authority, or even negative (overshoot) so duty cycle can be better managed.
                 // So the same setpoint can be used year round and maintain tight control. 
                 // Alternatively, you would need a larger diff value to prevent oscillation.

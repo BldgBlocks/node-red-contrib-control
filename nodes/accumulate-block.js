@@ -54,7 +54,7 @@ module.exports = function(RED) {
                 }
                 inputValue = boolVal.value;
 
-                // Prevent extended time running isues
+                // Prevent extended time running issues
                 if (node.count > 9999) {
                     node.count = 0;
                 }

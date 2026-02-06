@@ -131,10 +131,10 @@ module.exports = function(RED) {
 
                 if (setterNode && setterNode.varName) {
                     // Async Get - required default store to keep values in memory for polled getter nodes. 
-                    // 'persistant' for cross reboot storage.
+                    // 'persistent' for cross reboot storage.
                     let storedObject = await utils.getGlobalState(node, setterNode.varName, 'default');
                     if (!storedObject) {
-                        // Fallback to persistant store if not found in default. Should not happen normally.
+                        // Fallback to persistent store if not found in default. Should not happen normally.
                         storedObject = await utils.getGlobalState(node, setterNode.varName, setterNode.storeName);
                     }
                     sendValue(storedObject, msg, done);

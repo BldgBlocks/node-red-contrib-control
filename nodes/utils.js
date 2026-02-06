@@ -1,6 +1,6 @@
 module.exports = function(RED) {
     // Shared state across all nodes using this utils module
-    // We attach the registries set to the RED object to ensure a true singleton
+    // Registries set attached to RED object to ensure a true singleton
     // across multiple invocations of this module function.
     if (!RED._bldgblocks_registries) {
         RED._bldgblocks_registries = new Set();
