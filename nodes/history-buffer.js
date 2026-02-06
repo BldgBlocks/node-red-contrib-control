@@ -249,10 +249,20 @@ module.exports = function(RED) {
                 // Reset live buffer immediately so new messages go into next batch
                 liveBuffer = [];
                 
-                const lines = pointsToCommit.map(p => JSON.stringify(p)).join('\n') + '\n';
-
+                const lines = pointsToCommit.map(p => JSON.stringify(p)).join('\n');
+                
                 try {
-                    await fs.promises.appendFile(BUFFER_FILE, lines);
+                    // Only add prefix newline if file exists and has content (simplified check)
+                    // We'll let the next append handle its own newline or just ensure we join efficiently.
+                    // Actually, safest is to append WITH a preceding newline if file exists.
+                    
+                    let prefix = '';
+                    try {
+                        const stats = await fs.promises.stat(BUFFER_FILE);
+                        if (stats.size > 0) prefix = '\n';
+                    } catch(e) { /* File doesn't exist, no prefix needed */ }
+
+                    await fs.promises.appendFile(BUFFER_FILE, prefix + lines);
                 } catch (err) {
                     node.warn(`Buffer commit failed: ${err.message}`);
                     // Put points back at the start of buffer if write failed
@@ -325,9 +335,15 @@ module.exports = function(RED) {
             if (liveBuffer.length > 0) {
                 const pointsToCommit = liveBuffer;
                 liveBuffer = []; // Clear memory
-                const lines = pointsToCommit.map(p => JSON.stringify(p)).join('\n') + '\n';
+                const lines = pointsToCommit.map(p => JSON.stringify(p)).join('\n');
                 try {
-                    await fs.promises.appendFile(BUFFER_FILE, lines);
+                    let prefix = '';
+                    try {
+                        const stats = await fs.promises.stat(BUFFER_FILE);
+                        if (stats.size > 0) prefix = '\n';
+                    } catch(e) { /* File doesn't exist */ }
+
+                    await fs.promises.appendFile(BUFFER_FILE, prefix + lines);
                 } catch (err) {
                     // If append fails, we might lose these points during rotation, 
                     // put them back and abort rotation. Use concat for safety.
@@ -406,10 +422,8 @@ module.exports = function(RED) {
 
             messageCount++;
             
-            // Loose status update
-            if (messageCount % 20 === 0) {
-                updateStatus(`${messageCount} msgs, ${cachedChunkCount} chunks, buf: ${liveBuffer.length}`);
-            }
+            // Status update (throttled internally to 1s)
+            updateStatus(`${messageCount} msgs, ${cachedChunkCount} chunks, buf: ${liveBuffer.length}`, messageCount === 1);
 
             if (done) done();
         });

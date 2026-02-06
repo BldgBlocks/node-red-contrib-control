@@ -1,0 +1,84 @@
+<script type="text/html" data-template-name="history-service">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-historyConfig" title="History configuration to relay events from"><i class="fa fa-database"></i> History Config</label>
+        <input type="text" id="node-input-historyConfig">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("history-service", {
+        category: "bldgblocks control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            historyConfig: {
+                value: "",
+                required: true,
+                type: "history-config"
+            }
+        },
+        inputs: 0,
+        outputs: 1,
+        outputLabels: ["records"],
+        icon: "font-awesome/fa-database",
+        paletteLabel: "history-service",
+        label: function() {
+            const historyNode = RED.nodes.node(this.historyConfig);
+            const configName = historyNode ? historyNode.name : "unknown";
+            return this.name ? `${this.name} (${configName})` : `history-service (${configName})`;
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="history-service">
+Event relay for history collectors.
+
+### Purpose
+Receives events emitted by **history-collector** nodes and outputs them as individual records. Acts as an event-to-message bridge, allowing collectors to emit data without needing output wires.
+
+### Configuration
+- **History Config**: The history-config node to relay events from
+
+### Outputs
+: payload (object) : History record object containing:
+  - `measurement` (string): Measurement name
+  - `timestamp` (number): Nanosecond Unix timestamp
+  - `fields` (object): Values (typically `{value: number}`)
+  - `tags` (object): Metadata tags including `historyGroup`
+  - `lineProtocol` (string): Pre-formatted InfluxDB line protocol
+  - `seriesName` (string): Original series name from collector
+  - `historyConfigId` (string): Config ID
+  - `historyConfigName` (string): Config name
+
+### Details
+This node listens for events emitted by all **history-collector** nodes configured with the same history-config. Each incoming record is output immediately.
+
+**Typical wiring**:
+```
+[history-collector] ──(event)──> [history-service] ──> [join] ──> [influxdb batch]
+                                                          (batches)
+```
+
+Use the **join** node to batch records if needed:
+- Set join mode: "Custom"
+- Build: "Array"
+- Count: number of records to batch (e.g., 5000)
+- Or timeout: seconds to wait before sending partial batch
+
+This design decouples collection from storage and lets you choose batching strategy.
+
+### Status
+- Green (dot): Ready and listening
+- Blue (dot): Just relayed a record
+- Red (ring): Configuration error
+
+### References
+- [history-collector](history-collector.html) - Emits events to this service
+- [history-config](history-config.html) - Configuration node
+- [Node-RED join node](https://nodered.org/docs/nodes/core/flow/join) - For batching
+- [Node-RED Documentation](https://nodered.org/docs/)
+</script>
