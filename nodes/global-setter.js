@@ -61,7 +61,7 @@ module.exports = function(RED) {
                 // Use setTimeout with delay to allow getter nodes time to establish their event listeners
                 setTimeout(() => {
                     // Emit event so getter nodes with 'always' update mode receive initial value
-                    RED.events.emit("bldgblocks-global-update", {
+                    RED.events.emit("bldgblocks:global:value-changed", {
                         key: node.varName,
                         store: node.storeName,
                         data: state
@@ -116,7 +116,7 @@ module.exports = function(RED) {
 
                 // Handle Reload
                 if (msg.context === "reload") {
-                    RED.events.emit("bldgblocks-global-update", { key: node.varName, store: node.storeName, data: state });
+                    RED.events.emit("bldgblocks:global:value-changed", { key: node.varName, store: node.storeName, data: state });
                     await utils.setGlobalState(node, node.varName, node.storeName, state);
                     
                     prefix = state.activePriority === 'default' ? '' : 'P';
@@ -201,7 +201,7 @@ module.exports = function(RED) {
                 const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
                 const statusText = `write: ${prefix}${node.writePriority}:${inputValue}${state.units} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units}`;
 
-                RED.events.emit("bldgblocks-global-update", {
+                RED.events.emit("bldgblocks:global:value-changed", {
                     key: node.varName,
                     store: node.storeName,
                     data: state
@@ -217,7 +217,7 @@ module.exports = function(RED) {
 
         node.on('close', function(removed, done) {
             if (removed && node.varName) {
-                RED.events.removeAllListeners("bldgblocks-global-update");
+                RED.events.removeAllListeners("bldgblocks:global:value-changed");
                 // Callback style safe for close
                 node.context().global.set(node.varName, undefined, node.storeName, function() {
                     done();

@@ -1,0 +1,96 @@
+<script type="text/html" data-template-name="alarm-service">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Node Name</label>
+        <input type="text" id="node-input-name" placeholder="Alarm Relay">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-filterTopic"><i class="fa fa-filter"></i> Filter by Topic (optional)</label>
+        <input type="text" id="node-input-filterTopic" placeholder="Leave blank to relay all topics">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-filterPriority"><i class="fa fa-exclamation-triangle"></i> Filter by Priority (optional)</label>
+        <select id="node-input-filterPriority">
+            <option value="">All Priorities</option>
+            <option value="urgent">Urgent</option>
+            <option value="high">High</option>
+            <option value="normal">Normal</option>
+            <option value="low">Low</option>
+        </select>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("alarm-service", {
+        category: "bldgblocks alarms",
+        color: "#800020",
+        defaults: {
+            name: { value: "" },
+            filterTopic: { value: "" },
+            filterPriority: { value: "" }
+        },
+        inputs: 0,
+        outputs: 1,
+        outputLabels: ["alarm events"],
+        icon: "font-awesome/fa-bell",
+        label: function() {
+            return this.name || "alarm-service";
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="alarm-service">
+Listens to alarm events from all collectors and relays them downstream with status information.
+
+### Configuration
+- **Node Name**: Display name for this relay instance
+- **Filter by Topic** (optional): Only relay alarms matching a specific topic (e.g., "Alarms_HVAC")
+- **Filter by Priority** (optional): Only relay alarms with specific priority level
+
+### Outputs
+Single output with status included in message:
+- **payload** (object): Full alarm event data with topic, priority, title, message, etc.
+- **status** (object): `{ state: "triggered" | "cleared", transition: "false → true" | "true → false" }`
+- **activeAlarmCount** (number): Current number of active alarms being tracked
+- **alarmKey** (string): Topic or auto-generated ID for grouping related alarms
+
+### How It Works
+1. Listens to `bldgblocks:alarms:state-change` event emitted by all collectors
+2. Filters alarms by topic and priority (if configured)
+3. Tracks state transitions (cleared→alarmed or alarmed→cleared)
+4. Includes transition state in `msg.status` for downstream routing logic
+5. Updates status showing number of active alarms
+
+### Status
+- **Green dot**: Service running, no current alarms
+- **Yellow ring**: Multiple alarms active
+- **Red ring**: Alarm(s) active
+
+### Downstream Routing
+
+Route using `msg.status.state` field:
+
+```
+[alarm-service]
+    ├─ [Switch node] → status.state == "triggered"
+    │  ├─ [Format for ntfy] → [HTTP POST] → ntfy.sh (push notification)
+    │  ├─ [InfluxDB out] → InfluxDB (record alarm trigger)
+    │  └─ [Email] → Send alert email
+    │
+    └─ [Switch node] → status.state == "cleared"
+       ├─ [Format for ntfy] → [HTTP POST] → ntfy.sh (all clear)
+       └─ [InfluxDB out] → InfluxDB (record alarm cleared)
+```
+
+### Control Messages
+
+Send control messages via wired input (optional):
+- `{ context: "getStatus" }` — Returns array of active alarms
+- `{ context: "clearAll", payload: true }` — Clears alarm tracking (for testing/reset)
+
+### References
+- Pair with [alarm-collector] nodes to monitor conditions
+- Use `msg.status.state` to conditionally handle triggered vs cleared alarms
+- Multiple services can listen to same collectors (fan-out/routing pattern)
+</script>

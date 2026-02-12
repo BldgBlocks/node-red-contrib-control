@@ -24,7 +24,7 @@ module.exports = function(RED) {
         return null;
     }
 
-    function requiresEvaluation(type) { return type === "flow" || type === "global" || type === "msg"; }
+    function requiresEvaluation(type) { return type === "flow" || type === "global" || type === "msg" || type === "jsonata"; }
     
     // Safe evaluation helper (promisified)
     function evaluateNodeProperty(value, type, node, msg) {

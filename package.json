@@ -1,6 +1,6 @@
 {
   "name": "@bldgblocks/node-red-contrib-control",
-  "version": "0.1.35",
+  "version": "0.1.36",
   "description": "Sedona-inspired control nodes for Node-RED",
   "keywords": [ "node-red", "sedona", "control", "hvac" ],
   "files": ["nodes/*.js", "nodes/*.html"],
@@ -75,8 +75,10 @@
         "network-service-bridge": "nodes/network-service-bridge.js",
         "network-point-register": "nodes/network-point-register.js",
         "network-point-read": "nodes/network-point-read.js",
-        "network-point-write": "nodes/network-point-write.js"
-
+        "network-point-write": "nodes/network-point-write.js",
+        "alarm-collector": "nodes/alarm-collector.js",
+        "alarm-config": "nodes/alarm-config.js",
+        "alarm-service": "nodes/alarm-service.js"
       }
   },
   "author": "buildingblocks",

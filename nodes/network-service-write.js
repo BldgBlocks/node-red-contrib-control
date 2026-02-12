@@ -69,7 +69,7 @@ module.exports = function(RED) {
 
                 msg = { ...state, status: null }; 
                 
-                RED.events.emit("bldgblocks-global-update", { key: path, store: store, data: state });
+                RED.events.emit("bldgblocks:global:value-changed", { key: path, store: store, data: state });
 
                 utils.sendSuccess(node, msg, done, statusMsg, msg.pointId, "ring");
 

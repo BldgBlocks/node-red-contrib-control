@@ -1,0 +1,260 @@
+<script type="text/html" data-template-name="alarm-collector">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Node Name</label>
+        <input type="text" id="node-input-name" placeholder="e.g., Temperature High">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-alarmConfig"><i class="fa fa-cog"></i> Alarm Registry</label>
+        <input type="text" id="node-input-alarmConfig">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-sourceNode"><i class="fa fa-link"></i> Data Source</label>
+        <input type="text" id="node-input-sourceNode">
+        <input type="hidden" id="node-input-sourceNodeType">
+    </div>
+
+    <div class="form-row" id="input-field-row" style="display: none;">
+        <label for="node-input-inputField"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputField" placeholder="payload">
+        <input type="hidden" id="node-input-inputFieldType">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-inputMode"><i class="fa fa-sliders"></i> Input Mode</label>
+        <select id="node-input-inputMode">
+            <option value="boolean">Boolean Trigger</option>
+            <option value="value">Numeric Threshold</option>
+        </select>
+    </div>
+
+    <!-- Boolean mode options (hidden by default) -->
+    <div id="boolean-options" style="display: none;">
+        <div class="form-row">
+            <label for="node-input-alarmWhenTrue"><i class="fa fa-check"></i> Alarm When</label>
+            <select id="node-input-alarmWhenTrue">
+                <option value="true">True</option>
+                <option value="false">False</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Value mode options (hidden by default) -->
+    <div id="value-options" style="display: none;">
+        <div class="form-row">
+            <label for="node-input-highThreshold"><i class="fa fa-arrow-up"></i> High Threshold</label>
+            <input type="number" id="node-input-highThreshold" placeholder="85" step="0.1">
+        </div>
+        <div class="form-row">
+            <label for="node-input-lowThreshold"><i class="fa fa-arrow-down"></i> Low Threshold</label>
+            <input type="number" id="node-input-lowThreshold" placeholder="68" step="0.1">
+        </div>
+        <div class="form-row">
+            <label for="node-input-compareMode"><i class="fa fa-code-branch"></i> Compare Mode</label>
+            <select id="node-input-compareMode">
+                <option value="either">Either (High OR Low)</option>
+                <option value="high-only">High Only</option>
+                <option value="low-only">Low Only</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="node-input-hysteresisMagnitude"><i class="fa fa-arrows-h"></i> Hysteresis Magnitude</label>
+            <input type="number" id="node-input-hysteresisMagnitude" placeholder="2" step="0.1" min="0">
+        </div>
+    </div>
+
+    <!-- Shared hysteresis time option -->
+    <div class="form-row">
+        <label for="node-input-hysteresisTime"><i class="fa fa-hourglass-start"></i> Hysteresis Time</label>
+        <input type="number" id="node-input-hysteresisTime" placeholder="500" step="50" min="0">
+    </div>
+
+    <!-- Alarm Message Properties -->
+    <hr style="margin: 15px 0;">
+
+    <div class="form-row">
+        <label for="node-input-priority"><i class="fa fa-exclamation-triangle"></i> Priority</label>
+        <select id="node-input-priority">
+            <option value="urgent">Urgent</option>
+            <option value="high">High</option>
+            <option value="normal">Normal</option>
+            <option value="low">Low</option>
+        </select>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-topic"><i class="fa fa-folder-open"></i> Topic</label>
+        <input type="text" id="node-input-topic" placeholder="Alarms_HVAC">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-title"><i class="fa fa-font"></i> Title</label>
+        <input type="text" id="node-input-title" placeholder="Temperature Out of Range">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-message"><i class="fa fa-comment"></i> Message</label>
+        <input type="text" id="node-input-message" placeholder="Zone exceeds setpoint">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-tags"><i class="fa fa-tags"></i> Tags</label>
+        <input type="text" id="node-input-tags" placeholder="hvac,temperature,building_a">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-units"><i class="fa fa-thermometer"></i> Units</label>
+        <input type="text" id="node-input-units" placeholder="°F">
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("alarm-collector", {
+        category: "bldgblocks alarms",
+        color: "#800020",
+        defaults: {
+            name: { value: "" },
+            alarmConfig: { value: null, type: "alarm-config" },
+            sourceNode: { value: "" },
+            sourceNodeType: { value: "wired" },
+            inputField: { value: "payload" },
+            inputFieldType: { value: "msg" },
+            inputMode: { value: "value", required: true },
+            alarmWhenTrue: { value: true },
+            highThreshold: { value: 85 },
+            lowThreshold: { value: 68 },
+            compareMode: { value: "either" },
+            hysteresisTime: { value: 500 },
+            hysteresisMagnitude: { value: 2 },
+            priority: { value: "high" },
+            topic: { value: "Alarms_Default" },
+            title: { value: "Alarm" },
+            message: { value: "Condition triggered" },
+            tags: { value: "" },
+            units: { value: "°F" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["alarm"],
+        icon: "font-awesome/fa-bell-o",
+        paletteLabel: "alarm collector",
+        label: function() {
+            return this.name || "alarm collector";
+        },
+        oneditprepare: function() {
+            const node = this;
+
+            // Build searchable list of global-setter nodes
+            var candidateNodes = [];
+            RED.nodes.eachNode(function(n) {
+                if (n.type === 'global-setter') {
+                    let displayPath = n.path || "No Path";
+                    if (displayPath.startsWith("#") && displayPath.includes(":")) {
+                        displayPath = displayPath.substring(displayPath.indexOf(":") + 1);
+                    }
+                    candidateNodes.push({
+                        value: n.id,
+                        label: displayPath + (n.name ? ` (${n.name})` : ""),
+                        path: displayPath
+                    });
+                }
+            });
+            candidateNodes.sort((a, b) => a.label.localeCompare(b.label));
+
+            // Setup typedInput: "wired" mode or "setter" searchable list
+            $("#node-input-sourceNode").typedInput({
+                types: [
+                    {
+                        value: "wired",
+                        label: "wired input",
+                        hasValue: false,
+                        icon: "fa fa-arrow-right"
+                    },
+                    {
+                        value: "setter",
+                        icon: "fa fa-crosshairs",
+                        label: "global variable",
+                        options: candidateNodes
+                    }
+                ],
+                typeField: "#node-input-sourceNodeType"
+            }).typedInput("type", node.sourceNodeType || "wired").typedInput("value", node.sourceNode || "");
+
+            // Show/hide Input Field based on sourceNodeType
+            const updateInputFieldDisplay = () => {
+                let sourceType = $("#node-input-sourceNode").typedInput("type");
+                $("#input-field-row").toggle(sourceType === "wired");
+            };
+
+            $("#node-input-sourceNode").on("change", updateInputFieldDisplay);
+            updateInputFieldDisplay();
+
+            // Setup inputField typedInput with only msg type
+            $("#node-input-inputField").typedInput({
+                types: ["msg"],
+                typeField: "#node-input-inputFieldType"
+            }).typedInput("type", node.inputFieldType || "msg").typedInput("value", node.inputField || "payload");
+
+            // Show/hide sections based on inputMode
+            const updateDisplay = () => {
+                let mode = $("#node-input-inputMode").val();
+                $("#boolean-options").toggle(mode === "boolean");
+                $("#value-options").toggle(mode === "value");
+            };
+
+            $("#node-input-inputMode").on("change", updateDisplay);
+            updateDisplay();
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="alarm-collector">
+Monitors a condition and emits alarm events on state transitions.
+
+### Inputs
+- **payload** (number | boolean): Sensor value or trigger boolean
+
+### Outputs
+- **payload** (boolean): true=alarmed, false=cleared
+- **alarm** (object): Full alarm event data with metadata
+
+### Configuration
+
+**Alarm Registry**: Reference an alarm-config node to register this alarm. The registry displays all active alarms and allows quick navigation to collectors.
+
+**Data Source (Optional)**: Select a network-point-register to auto-subscribe, or use wired input messages.
+
+### Modes
+
+**Boolean Trigger**: msg.payload = true/false triggers alarm after hysteresis time
+
+**Numeric Threshold**: msg.payload = number, evaluated against high/low thresholds with time + magnitude hysteresis
+
+### Hysteresis
+
+**Time-based**: Condition must persist for N milliseconds before triggering alarm or clearing it
+- Prevents false alarms from sensor noise
+- Configurable delay (default 500ms)
+
+**Magnitude-based** (numeric mode only): Additional deadband before clearing alarm
+- Requires sensor to move away from threshold to prevent chatter
+- Example: highThreshold=85, magnitude=2 requires cool to 83°F to clear (not 84°F)
+
+### Event Emission
+
+Emits `bldgblocks:alarms:state-change` event only on **state transitions** (false→true or true→false)
+- Registers/updates alarm in the registry with current status
+- Service listens to these events and relays downstream
+- Can be wired directly to notification/storage nodes
+
+### Status
+- **Green dot**: No alarm, condition not met
+- **Yellow ring**: Condition met, waiting for hysteresis timer to expire
+- **Red ring**: Alarm active (condition has persisted past hysteresis window)
+
+### References
+- Pair with [alarm-service] for event relay
+- Route output to [ntfy], [InfluxDB], [Slack], etc. for notifications and storage
+</script>

@@ -91,6 +91,18 @@ module.exports = function(RED) {
                     return utils.sendSuccess(node, networkObject, done, statusText, node.pointId, "dot");
                 }
 
+                // Emit point-update event for reactive listeners (e.g., alarm-collector)
+                const pointUpdateData = {
+                    pointId: node.pointId,
+                    nodeId: node.id,
+                    value: msg.value,
+                    activePriority: msg.activePriority,
+                    units: msg.units || "",
+                    metadata: msg.metadata,
+                    timestamp: new Date().toISOString()
+                };
+                RED.events.emit("bldgblocks:network:point-update", pointUpdateData);
+
                 // Passthrough
                 const prefix = msg.activePriority === 'default' ? '' : 'P';
                 const statusText = `Passthrough: ${prefix}${msg.activePriority}:${msg.value}${msg.units}`;

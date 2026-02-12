@@ -7,6 +7,8 @@ module.exports = function(RED) {
         this.seriesName = config.seriesName;
         this.storageType = config.storageType || 'memory';
         this.tags = config.tags || '';
+        this.inputProperty = config.inputProperty || "payload";
+        this.inputPropertyType = config.inputPropertyType || "msg";
         const node = this;
 
         // Parse tags into key-value object
@@ -26,11 +28,14 @@ module.exports = function(RED) {
             return tags;
         }
 
-        node.on('input', function(msg) {
+        node.on('input', async function(msg, send, done) {
+            send = send || function() { node.send.apply(node, arguments); };
+
             // Guard against invalid message
             if (!msg) {
                 utils.setStatusError(node, "invalid message");
                 node.error('Invalid message received');
+                if (done) done();
                 return;
             }
 
@@ -38,21 +43,33 @@ module.exports = function(RED) {
             if (!node.historyConfig) {
                 utils.setStatusError(node, "missing history config");
                 node.error('Missing history configuration', msg);
+                if (done) done();
                 return;
             }
             if (!node.seriesName) {
                 utils.setStatusError(node, "missing series name");
                 node.error('Missing series name', msg);
+                if (done) done();
                 return;
             }
             if (!node.historyConfig.name) {
                 utils.setStatusError(node, "missing bucket name");
                 node.error('Missing bucket name in history configuration', msg);
+                if (done) done();
+                return;
+            }
+
+            // Evaluate input property (msg or jsonata)
+            let payloadValue;
+            try {
+                payloadValue = await utils.evaluateNodeProperty(node.inputProperty, node.inputPropertyType, node, msg);
+            } catch (err) {
+                utils.setStatusError(node, "input evaluation error");
+                if (done) done();
                 return;
             }
 
             // Validate payload
-            let payloadValue = msg.payload;
             let formattedValue;
             if (typeof payloadValue === 'number') {
                 formattedValue = isNaN(payloadValue) ? null : payloadValue;
@@ -65,13 +82,13 @@ module.exports = function(RED) {
                 }
             } else {
                 utils.setStatusError(node, "invalid payload");
-                node.warn(`Invalid payload type: ${typeof payloadValue}`);
+                if (done) done();
                 return;
             }
 
             if (formattedValue === null) {
                 utils.setStatusError(node, "invalid payload");
-                node.warn(`Invalid payload value: ${msg.payload}`);
+                if (done) done();
                 return;
             }
 
@@ -142,6 +159,8 @@ module.exports = function(RED) {
                 node.send(msg);
                 utils.setStatusChanged(node, `sent: ${valueString}`);
             }
+
+            if (done) done();
         });
 
         node.on("close", function(done) {

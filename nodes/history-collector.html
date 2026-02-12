@@ -12,6 +12,11 @@
         <input type="text" id="node-input-seriesName">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Source for value extraction (msg property or jsonata expression)"><i class="fa fa-folder-open"></i> Input Value</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+        <input type="hidden" id="node-input-inputPropertyType">
+    </div>
+    <div class="form-row">
         <label for="node-input-tags"><i class="fa fa-tags"></i> Tags</label>
         <input type="hidden" id="node-input-tags">
         
@@ -49,6 +54,8 @@
         defaults: {
             historyConfig: { value: "", type: "history-config", required: true },
             seriesName: { value: "", required: true },
+            inputProperty: { value: "payload" },
+            inputPropertyType: { value: "msg" },
             tags: { value: "" },
             storageType: { value: "batchObject" },
             name: { value: "" }
@@ -66,6 +73,17 @@
             const storageType = $("#node-input-storageType");
             const tagContainer = $("#node-input-tag-container");
             const hiddenTagInput = $("#node-input-tags");
+
+            // Initialize typed input for input property (msg or jsonata)
+            try {
+                $("#node-input-inputProperty").typedInput({
+                    default: "msg",
+                    types: ["msg", "jsonata"],
+                    typeField: "#node-input-inputPropertyType"
+                }).typedInput("type", node.inputPropertyType || "msg").typedInput("value", node.inputProperty);
+            } catch (err) {
+                console.error("Error initializing inputProperty typedInput:", err);
+            }
 
             // Initialize empty typedInputs first
             seriesInput.typedInput({
@@ -147,7 +165,10 @@
         },
         oneditsave: function() {
             const seriesInput = $("#node-input-seriesName");
+            const inputProperty = $("#node-input-inputProperty");
             this.seriesName = seriesInput.typedInput('value');
+            this.inputProperty = inputProperty.typedInput('value');
+            this.inputPropertyType = inputProperty.typedInput('type');
             this.storageType = $("#node-input-storageType").val();
             // tags are already in the hidden input thanks to the checkbox change handler
         }

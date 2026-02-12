@@ -56,6 +56,11 @@ module.exports = function(RED) {
                 else if (typeof valDisplay === "object") valDisplay = JSON.stringify(valDisplay);
                 else valDisplay = typeof valDisplay === "number" ? valDisplay : valDisplay;
                 
+                // Trim to 64 characters with ellipsis
+                if (valDisplay.length > 64) {
+                    valDisplay = valDisplay.substring(0, 64) + "...";
+                }
+                
                 utils.sendSuccess(node, msg, done, `get: ${valDisplay}`, null, "dot");
             } else {
                 utils.sendError(node, msg, done, "global variable undefined");
@@ -68,7 +73,7 @@ module.exports = function(RED) {
             
             if (setterNode && setterNode.varName && node.updates === 'always') {
                 if (updateListener) {
-                    RED.events.removeListener("bldgblocks-global-update", updateListener);
+                    RED.events.removeListener("bldgblocks:global:value-changed", updateListener);
                 }
                 
                 updateListener = function(evt) {
@@ -78,7 +83,7 @@ module.exports = function(RED) {
                     }
                 };
                 
-                RED.events.on("bldgblocks-global-update", updateListener);
+                RED.events.on("bldgblocks:global:value-changed", updateListener);
                 
                 if (retryAction) {
                     clearInterval(retryAction);
@@ -93,7 +98,7 @@ module.exports = function(RED) {
 
         function startHealthCheck() {
             const check = () => {
-                const listeners = RED.events.listeners("bldgblocks-global-update");
+                const listeners = RED.events.listeners("bldgblocks:global:value-changed");
                 const hasOurListener = listeners.includes(updateListener);
                 if (!hasOurListener) {
                     node.warn("Event listener lost, reconnecting...");
@@ -158,7 +163,7 @@ module.exports = function(RED) {
             if (healthCheckAction) clearInterval(healthCheckAction);
             if (retryAction) clearInterval(retryAction);
             if (removed && updateListener) {
-                RED.events.removeListener("bldgblocks-global-update", updateListener);
+                RED.events.removeListener("bldgblocks:global:value-changed", updateListener);
             }
             done();
         });
