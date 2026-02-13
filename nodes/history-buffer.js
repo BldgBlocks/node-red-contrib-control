@@ -33,7 +33,8 @@ module.exports = function(RED) {
         let liveBuffer = [];                    // Accumulate points since last commit to BUFFER_FILE
         let commitTimer = null;
         let pruneTimer = null;
-        let messageCount = 0;
+        let messageCount = 0;                   // Total messages received
+        let activeBufferCount = 0;              // Messages in current buffer file (resets on rotate)
         let cachedChunkCount = 0;               // Cached count of historical files
         let isInitializing = true;              // Flag: initialization in progress
         let queuedMessages = [];                // Queue messages during initialization
@@ -361,6 +362,7 @@ module.exports = function(RED) {
                 await fs.promises.access(BUFFER_FILE);
                 await fs.promises.rename(BUFFER_FILE, newName);
                 cachedChunkCount++;
+                activeBufferCount = 0;  // Reset active buffer count after rotation
             } catch (err) {
                 // BUFFER_FILE doesn't exist - no data to rotate
             }
@@ -421,9 +423,10 @@ module.exports = function(RED) {
             });
 
             messageCount++;
+            activeBufferCount++;  // Increment count of messages in current buffer file
             
             // Status update (throttled internally to 1s)
-            updateStatus(`${messageCount} msgs, ${cachedChunkCount} chunks, buf: ${liveBuffer.length}`, messageCount === 1);
+            updateStatus(`${messageCount} processed, ${activeBufferCount} active, ${cachedChunkCount} chunks`, messageCount === 1);
 
             if (done) done();
         });

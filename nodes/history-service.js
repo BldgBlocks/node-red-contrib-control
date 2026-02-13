@@ -15,6 +15,18 @@ module.exports = function(RED) {
         // Generate matching event name based on history-config ID
         const eventName = `bldgblocks:history:${node.historyConfig.id}`;
 
+        // Status throttling - prevent rapid status updates from fast-streaming histories
+        let lastRelayedName = null;
+        let statusDirty = false;
+        let statusInterval = null;
+
+        statusInterval = setInterval(() => {
+            if (statusDirty && lastRelayedName) {
+                utils.setStatusChanged(node, `relayed: ${lastRelayedName}`);
+                statusDirty = false;
+            }
+        }, 2000);
+
         // Listen for events from history-collector nodes with this config
         const eventListener = (eventData) => {
             // Guard against invalid event data
@@ -24,17 +36,14 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Create output message with the event data as payload
-            // Preserve topic if it exists in the event data
+            // Send event data directly as payload (already in InfluxDB batch format)
             const msg = { 
-                payload: eventData,
-                topic: eventData.topic
+                payload: eventData
             };
             
             node.send(msg);
-            
-            // Update status
-            utils.setStatusChanged(node, `relayed: ${eventData.seriesName || 'data'}`);
+            lastRelayedName = eventData.measurement || 'data';
+            statusDirty = true;
         };
 
         // Subscribe to events
@@ -42,6 +51,11 @@ module.exports = function(RED) {
         utils.setStatusOK(node, `listening on ${node.historyConfig.name}`);
 
         node.on("close", function(done) {
+            // Clear status interval
+            if (statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = null;
+            }
             // Unsubscribe from events on close
             RED.events.off(eventName, eventListener);
             done();

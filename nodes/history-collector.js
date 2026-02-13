@@ -106,6 +106,15 @@ module.exports = function(RED) {
             // Set initial status
             utils.setStatusOK(node, "configuration received");
 
+            // Emit event for history-service relay (InfluxDB batch format)
+            const eventName = `bldgblocks:history:${node.historyConfig.id}`;
+            RED.events.emit(eventName, {
+                measurement: escapedMeasurementName,
+                fields: { value: formattedValue },
+                tags: tagsObj,
+                timestamp: timestamp
+            });
+
             // Handle storage type
             if (node.storageType === 'memory') {
                 const contextKey = `history_data_${node.historyConfig.name}`;
