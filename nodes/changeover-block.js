@@ -225,7 +225,7 @@ module.exports = function(RED) {
             // ----------------------------------------------------------------
             // 7. Build and send output
             // ----------------------------------------------------------------
-            send(buildOutputs());
+            send(buildOutputs(msg));
             updateStatus();
             if (done) done();
         });
@@ -317,22 +317,24 @@ module.exports = function(RED) {
         // ====================================================================
         // Build output message
         // ====================================================================
-        function buildOutputs() {
+        function buildOutputs(msg) {
             const isHeating = node.currentMode === "heating";
             const { heating: effectiveHeating, cooling: effectiveCooling } = getThresholds();
 
-            return [{
-                payload: node.lastTemperature,
+            // Preserve all original message properties (e.g., singleSetpoint, splitHeatingSetpoint)
+            // and add/overwrite changeover-specific fields
+            msg.payload = node.lastTemperature;
+            msg.isHeating = isHeating;
+            msg.status = {
+                mode: node.currentMode,
+                operationMode: node.operationMode,
                 isHeating,
-                status: {
-                    mode: node.currentMode,
-                    operationMode: node.operationMode,
-                    isHeating,
-                    heatingSetpoint: effectiveHeating,
-                    coolingSetpoint: effectiveCooling,
-                    temperature: node.lastTemperature
-                }
-            }];
+                heatingSetpoint: effectiveHeating,
+                coolingSetpoint: effectiveCooling,
+                temperature: node.lastTemperature
+            };
+
+            return [msg];
         }
 
         // ====================================================================
@@ -350,9 +352,12 @@ module.exports = function(RED) {
 
             const temp = node.lastTemperature !== null ? node.lastTemperature.toFixed(1) : "?";
             const { heating, cooling } = getThresholds();
+            // Show the threshold that explains the current mode:
+            //   heating → show cooling threshold (we're heating because temp < cooling threshold)
+            //   cooling → show heating threshold (we're cooling because temp > heating threshold)
             const threshold = isHeating
-                ? `<${heating.toFixed(1)}`
-                : `>${cooling.toFixed(1)}`;
+                ? `<${cooling.toFixed(1)}`
+                : `>${heating.toFixed(1)}`;
             let text = `${temp}° ${threshold} [${node.operationMode}] ${node.currentMode}`;
 
             if (pendingMode && conditionStartTime) {
