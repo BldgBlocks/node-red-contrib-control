@@ -48,7 +48,7 @@ module.exports = function(RED) {
                     node.inputs[slotVal.index - 1] = Boolean(msg.payload);
                     const result = node.inputs.every(v => v === true);
                     const isUnchanged = result === lastResult && node.inputs.every((v, i) => v === lastInputs[i]);
-                    const statusText = `in: [${node.inputs.join(", ")}], out: ${result}`;
+                    const statusText = `[${node.inputs.join(", ")}] -> ${result}`;
                     
                     // ================================================================
                     // Debounce: Suppress consecutive same outputs within 500ms
