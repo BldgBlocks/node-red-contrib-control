@@ -15,8 +15,8 @@
         <input type="hidden" id="node-input-statusValueType">
     </div>
     <div class="form-row">
-        <label for="node-input-statusTimeout" title="Time to wait for status response (seconds, positive number)"><i class="fa fa-clock-o"></i> Status Timeout</label>
-        <input type="number" id="node-input-statusTimeout" placeholder="30" min="0.01" step="any">
+        <label for="node-input-statusTimeout" title="Time to wait for initial status response after call activates (seconds, 0=disabled)"><i class="fa fa-clock-o"></i> Status Timeout</label>
+        <input type="number" id="node-input-statusTimeout" placeholder="30" min="0" step="any">
     </div>
     <div class="form-row">
         <label for="node-input-heartbeatTimeout" title="Heartbeat window for continuous status monitoring (seconds, 0=disabled)"><i class="fa fa-heartbeat"></i> Heartbeat Timeout</label>
@@ -67,7 +67,7 @@
             callValueType: { value: "msg" },
             statusValue: { value: "status" },
             statusValueType: { value: "msg" },
-            statusTimeout: { value: 30, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) > 0; } },
+            statusTimeout: { value: 30, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
             heartbeatTimeout: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
             clearDelay: { value: 10, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
             debounce: { value: 0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; } },
@@ -130,8 +130,8 @@ Every incoming message triggers the node to evaluate both values and process sta
 
 - **Call Value** (typed input) — Source of the call (request) signal. Default: `msg.payload`. Can be `msg`, `flow`, `global`, or `bool`.
 - **Status Value** (typed input) — Source of the status (response) signal. Default: `msg.status`. Can be `msg`, `flow`, `global`, or `bool`.
-- **Status Timeout** (number) — Seconds to wait for initial status response after call activates (0.01–3600s). Default: `30`.
-- **Heartbeat Timeout** (number) — Seconds for continuous status heartbeat monitoring while call=true (0=disabled). Default: `0`.
+- **Status Timeout** (number) — Seconds to wait for the *first* status=true after call activates (0=disabled). This is a one-shot timer for initial equipment response. Default: `30`.
+- **Heartbeat Timeout** (number) — Seconds for ongoing status freshness monitoring while running. Each status=true resets the timer. If it expires without a refresh, status is considered lost (0=disabled). Default: `0`.
 - **Clear Delay** (number) — Seconds to hold actual state after call deactivated (0=immediate). Default: `10`.
 - **Debounce** (number) — Milliseconds to filter status value changes (0=disabled). Default: `0`.
 - **No Status On Run** (checkbox) — Alarm if no status response within initial timeout. Default: checked.

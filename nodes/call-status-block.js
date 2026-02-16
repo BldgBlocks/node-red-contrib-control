@@ -37,7 +37,7 @@ module.exports = function(RED) {
         node.isBusy = false;
 
         node.config = {
-            statusTimeout: Math.max(num(config.statusTimeout, 30), 0.01),
+            statusTimeout: Math.max(num(config.statusTimeout, 30), 0),  // 0 = disabled
             heartbeatTimeout: Math.max(num(config.heartbeatTimeout, 0), 0),  // 0 = disabled
             clearDelay: Math.max(num(config.clearDelay, 10), 0),
             debounce: Math.max(num(config.debounce, 0), 0),  // ms, 0 = disabled
@@ -254,7 +254,7 @@ module.exports = function(RED) {
                 clearAllTimers();
 
                 // Start timeout waiting for initial status response
-                if (node.config.noStatusOnRun) {
+                if (node.config.noStatusOnRun && node.config.statusTimeout > 0) {
                     node.initialStatusTimer = setTimeout(() => {
                         node.initialStatusTimer = null;
                         if (node.neverReceivedStatus && node.requestedState) {
