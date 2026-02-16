@@ -1,3 +1,26 @@
+// ============================================================================
+// Call Status Block - Equipment Call/Status Monitor
+// ============================================================================
+// Monitors call and status signals to detect equipment faults, communication
+// losses, and synchronization errors.
+//
+// State machine: IDLE → WAITING_FOR_STATUS → RUNNING → STATUS_LOST
+//
+// Both "call" and "status" are typed inputs — they can come from msg properties,
+// flow variables, global variables, or static boolean values.
+//
+// On every incoming message:
+//   1. Evaluate call value from typed input
+//   2. Evaluate status value from typed input
+//   3. Process state transitions and alarm conditions
+//
+// Alarm conditions:
+//   - No status received within statusTimeout after call activates
+//   - Status lost during active call (goes false or heartbeat expires)
+//   - Status remains active after call deactivates (equipment stuck)
+//   - Status active without any call (unexpected equipment activity)
+// ============================================================================
+
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
 
@@ -5,53 +28,62 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        // State management
+        // ====================================================================
+        // Configuration — safe parse helpers
+        // ====================================================================
+        const num = (v, fallback) => { const n = parseFloat(v); return isNaN(n) ? fallback : n; };
+
+        node.name = config.name;
+        node.isBusy = false;
+
+        node.config = {
+            statusTimeout: Math.max(num(config.statusTimeout, 30), 0.01),
+            heartbeatTimeout: Math.max(num(config.heartbeatTimeout, 0), 0),  // 0 = disabled
+            clearDelay: Math.max(num(config.clearDelay, 10), 0),
+            debounce: Math.max(num(config.debounce, 0), 0),  // ms, 0 = disabled
+            runLostStatus: config.runLostStatus === true,
+            noStatusOnRun: config.noStatusOnRun !== false,
+            statusWithoutCall: config.statusWithoutCall !== false,
+            runLostStatusMessage: config.runLostStatusMessage || "Status lost during run",
+            noStatusOnRunMessage: config.noStatusOnRunMessage || "No status received during run",
+            statusWithoutCallMessage: config.statusWithoutCallMessage || "Status active without call"
+        };
+
+        // ====================================================================
+        // Runtime state
+        // ====================================================================
         node.requestedState = false;      // What we want equipment to do (call)
         node.actualState = false;         // What equipment is actually doing (status)
         node.alarm = false;
         node.alarmMessage = "";
         node.lastStatusTime = null;
-        node.neverReceivedStatus = true;  // Track if status arrived during this call
-        
+        node.neverReceivedStatus = true;
+
+        // ====================================================================
         // Timer management
-        node.initialStatusTimer = null;   // Initial timeout waiting for first status response
+        // ====================================================================
+        node.initialStatusTimer = null;   // Timeout waiting for first status response
         node.heartbeatTimer = null;       // Continuous heartbeat verification timer
         node.statusLostTimer = null;      // Hysteresis timer for status lost alarm
-        node.inactiveStatusTimer = null;  // Timer to verify status goes inactive when call=false
+        node.inactiveStatusTimer = null;  // Timer to verify status goes inactive
         node.clearTimer = null;           // Timer to clear state after call ends
         node.debounceTimer = null;        // Debounce status flicker
 
-        // State machine states
+        // ====================================================================
+        // State machine
+        // ====================================================================
         const STATES = {
             IDLE: "IDLE",
             WAITING_FOR_STATUS: "WAITING_FOR_STATUS",
             RUNNING: "RUNNING",
-            STATUS_LOST: "STATUS_LOST",
-            SHUTDOWN: "SHUTDOWN"
+            STATUS_LOST: "STATUS_LOST"
         };
 
-        // Configuration with defaults and validation
-        node.config = {
-            inputProperty: config.inputProperty || "payload",
-            statusInputProperty: config.statusInputProperty || "status",
-            statusTimeout: Math.max(parseFloat(config.statusTimeout) || 30, 0.01),
-            heartbeatTimeout: Math.max(parseFloat(config.heartbeatTimeout) || 30, 0),  // 0 = disabled
-            clearDelay: Math.max(parseFloat(config.clearDelay) || 10, 0),
-            debounce: Math.max(parseFloat(config.debounce) || 100, 0),  // ms
-            runLostStatus: config.runLostStatus === true,
-            noStatusOnRun: config.noStatusOnRun === true,
-            runLostStatusMessage: config.runLostStatusMessage || "Status lost during run",
-            noStatusOnRunMessage: config.noStatusOnRunMessage || "No status received during run"
-        };
-
-        /**
-         * Get the current state machine state
-         */
         function getCurrentState() {
             if (!node.requestedState) {
                 return STATES.IDLE;
             }
-            if (node.requestedState && node.neverReceivedStatus && node.initialStatusTimer) {
+            if (node.requestedState && node.neverReceivedStatus) {
                 return STATES.WAITING_FOR_STATUS;
             }
             if (node.requestedState && node.actualState) {
@@ -63,9 +95,23 @@ module.exports = function(RED) {
             return STATES.IDLE;
         }
 
-        /**
-         * Build the output message
-         */
+        // ====================================================================
+        // Typed-input evaluation helpers
+        // ====================================================================
+        function evalBool(configValue, configType, fallback, msg) {
+            return utils.evaluateNodeProperty(configValue, configType, node, msg)
+                .then(val => {
+                    if (typeof val === "boolean") return val;
+                    if (val === "true" || val === 1) return true;
+                    if (val === "false" || val === 0) return false;
+                    return fallback;
+                })
+                .catch(() => fallback);
+        }
+
+        // ====================================================================
+        // Output builder
+        // ====================================================================
         function buildOutput() {
             return {
                 payload: node.requestedState,
@@ -86,74 +132,55 @@ module.exports = function(RED) {
             };
         }
 
-        /**
-         * Update node status indicator
-         */
+        // ====================================================================
+        // Status display
+        // ====================================================================
         function updateNodeStatus() {
             const state = getCurrentState();
-            const timeSince = node.lastStatusTime ? Math.round((Date.now() - node.lastStatusTime) / 1000) : '-';
             let text;
 
             if (node.alarm) {
-                text = `${state} | ALARM: ${node.alarmMessage}`;
+                text = `ALARM: ${node.alarmMessage} | call:${node.requestedState} status:${node.actualState}`;
                 utils.setStatusError(node, text);
-            } else if (node.heartbeatTimer && node.requestedState && node.actualState) {
-                text = `${state} | call:ON status:ON heartbeat:${timeSince}s | monitoring`;
+            } else if (state === STATES.WAITING_FOR_STATUS) {
+                text = `call:ON status:WAITING | initial timeout`;
                 utils.setStatusBusy(node, text);
-            } else if (node.inactiveStatusTimer && !node.requestedState && node.actualState) {
-                text = `${state} | call:OFF status:ON | waiting for deactivation`;
-                utils.setStatusBusy(node, text);
-            } else if (node.initialStatusTimer) {
-                text = `${state} | call:ON status:WAITING | initial timeout`;
-                utils.setStatusBusy(node, text);
-            } else if (node.requestedState && node.actualState) {
-                text = `${state} | call:ON status:ON heartbeat:${timeSince}s | running`;
+            } else if (node.requestedState && node.actualState && node.heartbeatTimer) {
+                text = `call:ON status:ON | running heartbeat:${node.config.heartbeatTimeout}s`;
                 utils.setStatusOK(node, text);
-            } else if (node.requestedState && !node.actualState) {
-                text = `${state} | call:ON status:OFF | off`;
-                utils.setStatusUnchanged(node, text);
+            } else if (node.requestedState && node.actualState) {
+                text = `call:ON status:ON | running`;
+                utils.setStatusOK(node, text);
+            } else if (!node.requestedState && node.actualState) {
+                text = `call:OFF status:ON | waiting for deactivation`;
+                utils.setStatusWarn(node, text);
+            } else if (node.requestedState && !node.actualState && !node.neverReceivedStatus) {
+                text = `call:ON status:OFF | status lost`;
+                utils.setStatusWarn(node, text);
             } else if (!node.requestedState && !node.actualState) {
-                text = `${state} | call:OFF status:OFF | idle`;
+                text = `call:OFF status:OFF | idle`;
                 utils.setStatusUnchanged(node, text);
             } else {
-                text = `${state} | call:${node.requestedState} status:${node.actualState}`;
+                text = `call:OFF status:OFF | idle`;
                 utils.setStatusUnchanged(node, text);
             }
         }
 
-        /**
-         * Clear all timers
-         */
+        // ====================================================================
+        // Timer management
+        // ====================================================================
         function clearAllTimers() {
-            if (node.initialStatusTimer) {
-                clearTimeout(node.initialStatusTimer);
-                node.initialStatusTimer = null;
-            }
-            if (node.heartbeatTimer) {
-                clearTimeout(node.heartbeatTimer);
-                node.heartbeatTimer = null;
-            }
-            if (node.statusLostTimer) {
-                clearTimeout(node.statusLostTimer);
-                node.statusLostTimer = null;
-            }
-            if (node.inactiveStatusTimer) {
-                clearTimeout(node.inactiveStatusTimer);
-                node.inactiveStatusTimer = null;
-            }
-            if (node.clearTimer) {
-                clearTimeout(node.clearTimer);
-                node.clearTimer = null;
-            }
-            if (node.debounceTimer) {
-                clearTimeout(node.debounceTimer);
-                node.debounceTimer = null;
-            }
+            if (node.initialStatusTimer) { clearTimeout(node.initialStatusTimer); node.initialStatusTimer = null; }
+            if (node.heartbeatTimer) { clearTimeout(node.heartbeatTimer); node.heartbeatTimer = null; }
+            if (node.statusLostTimer) { clearTimeout(node.statusLostTimer); node.statusLostTimer = null; }
+            if (node.inactiveStatusTimer) { clearTimeout(node.inactiveStatusTimer); node.inactiveStatusTimer = null; }
+            if (node.clearTimer) { clearTimeout(node.clearTimer); node.clearTimer = null; }
+            if (node.debounceTimer) { clearTimeout(node.debounceTimer); node.debounceTimer = null; }
         }
 
-        /**
-         * Start heartbeat verification timer
-         */
+        // ====================================================================
+        // Heartbeat monitoring — continuous status freshness check
+        // ====================================================================
         function startHeartbeatMonitoring(send) {
             if (!node.config.heartbeatTimeout || node.config.heartbeatTimeout <= 0) {
                 return;  // Heartbeat monitoring disabled
@@ -164,156 +191,103 @@ module.exports = function(RED) {
             }
 
             node.heartbeatTimer = setTimeout(() => {
-                // Check if status has been updated within the heartbeat window
-                const timeSinceLastUpdate = node.lastStatusTime ? Date.now() - node.lastStatusTime : Infinity;
-                
-                if (node.requestedState && node.actualState && timeSinceLastUpdate > node.config.heartbeatTimeout * 1000) {
-                    // Status hasn't been updated within heartbeat window - arm the alarm
-                    if (!node.statusLostTimer && node.config.runLostStatus) {
-                        // Start hysteresis timer before alarming
-                        node.statusLostTimer = setTimeout(() => {
-                            if (node.requestedState && !node.actualState && node.lastStatusTime && 
-                                (Date.now() - node.lastStatusTime > node.config.heartbeatTimeout * 1000)) {
-                                node.alarm = true;
-                                node.alarmMessage = node.config.runLostStatusMessage;
-                                send(buildOutput());
-                                updateNodeStatus();
-                            }
-                            node.statusLostTimer = null;
-                        }, 500);  // 500ms hysteresis
-                    }
-                }
-
-                // Restart heartbeat timer
                 node.heartbeatTimer = null;
-                startHeartbeatMonitoring(send);
+
+                // Only alarm if call is still active
+                if (!node.requestedState) return;
+
+                const timeSinceLastUpdate = node.lastStatusTime
+                    ? Date.now() - node.lastStatusTime
+                    : Infinity;
+
+                if (timeSinceLastUpdate > node.config.heartbeatTimeout * 1000) {
+                    // Status hasn't been refreshed within heartbeat window
+                    if (node.config.runLostStatus) {
+                        node.alarm = true;
+                        node.alarmMessage = node.config.runLostStatusMessage;
+                        send(buildOutput());
+                        updateNodeStatus();
+                    }
+                } else {
+                    // Status was refreshed recently, schedule next check
+                    startHeartbeatMonitoring(send);
+                }
             }, node.config.heartbeatTimeout * 1000);
         }
 
-        /**
-         * Start timer to verify status goes inactive when call is inactive
-         */
+        // ====================================================================
+        // Inactive status monitoring — verify equipment deactivates
+        // ====================================================================
         function startInactiveStatusMonitoring(send) {
             if (node.inactiveStatusTimer) {
                 clearTimeout(node.inactiveStatusTimer);
             }
 
-            // When call=false but status=true, monitor with hysteresis
             node.inactiveStatusTimer = setTimeout(() => {
-                if (!node.requestedState && node.actualState) {
-                    // Status should have gone false by now
-                    if (!node.statusLostTimer) {
-                        node.statusLostTimer = setTimeout(() => {
-                            if (!node.requestedState && node.actualState) {
-                                node.alarm = true;
-                                node.alarmMessage = "Status not clearing after call deactivated";
-                                send(buildOutput());
-                                updateNodeStatus();
-                            }
-                            node.statusLostTimer = null;
-                        }, 500);  // 500ms hysteresis
-                    }
-                }
                 node.inactiveStatusTimer = null;
-            }, (node.config.clearDelay + 1) * 1000);  // Check after clear delay passes
-        }
-
-        /**
-         * Check alarm conditions and set alarm state
-         */
-        function checkAlarmConditions() {
-            // Condition 1: Status active without a call (with hysteresis)
-            if (node.actualState && !node.requestedState) {
-                if (!node.statusLostTimer) {
-                    node.statusLostTimer = setTimeout(() => {
-                        if (node.actualState && !node.requestedState) {
-                            node.alarm = true;
-                            node.alarmMessage = "Status active without call";
-                        }
-                        node.statusLostTimer = null;
-                    }, 500);  // 500ms hysteresis to prevent false alarms
+                if (!node.requestedState && node.actualState) {
+                    node.alarm = true;
+                    node.alarmMessage = "Status not clearing after call deactivated";
+                    send(buildOutput());
+                    updateNodeStatus();
                 }
-                return;
-            }
-
-            // Condition 2: Status lost during active call (checked by heartbeat/status update)
-            // This is handled by heartbeat monitoring and status timeout handlers
-
-            // If no conditions met and no timers running, clear alarm
-            if (!node.heartbeatTimer && !node.statusLostTimer && !node.inactiveStatusTimer && !node.initialStatusTimer) {
-                node.alarm = false;
-                node.alarmMessage = "";
-            }
+            }, (node.config.clearDelay + 1) * 1000);
         }
 
-        /**
-         * Process a requested state (call) change
-         */
-        function processRequestedState(value, send) {
-            const { valid, value: boolValue, error } = utils.validateBoolean(value);
-            
-            if (!valid) {
-                utils.setStatusError(node, error || "invalid requested state");
-                return;
+        // ====================================================================
+        // Process call state change
+        // ====================================================================
+        function processCallChange(newCall, send) {
+            if (newCall === node.requestedState) {
+                return false;  // No change
             }
 
-            // No change
-            if (boolValue === node.requestedState) {
-                utils.setStatusUnchanged(node, "no change");
-                return;
-            }
-
-            node.requestedState = boolValue;
+            node.requestedState = newCall;
 
             if (node.requestedState) {
-                // Call activated - expect status to arrive and be maintained
+                // === Call activated ===
                 node.neverReceivedStatus = true;
                 node.alarm = false;
                 node.alarmMessage = "";
 
-                // Clear any existing timers
+                // Clear timers from previous cycle
                 clearAllTimers();
 
-                // Set timeout waiting for initial status response
+                // Start timeout waiting for initial status response
                 if (node.config.noStatusOnRun) {
                     node.initialStatusTimer = setTimeout(() => {
+                        node.initialStatusTimer = null;
                         if (node.neverReceivedStatus && node.requestedState) {
                             node.alarm = true;
                             node.alarmMessage = node.config.noStatusOnRunMessage;
                             send(buildOutput());
                             updateNodeStatus();
                         }
-                        node.initialStatusTimer = null;
                     }, node.config.statusTimeout * 1000);
                 }
             } else {
-                // Call deactivated - start monitoring for status to go false
-                if (node.initialStatusTimer) {
-                    clearTimeout(node.initialStatusTimer);
-                    node.initialStatusTimer = null;
-                }
-                if (node.heartbeatTimer) {
-                    clearTimeout(node.heartbeatTimer);
-                    node.heartbeatTimer = null;
-                }
+                // === Call deactivated ===
+                if (node.initialStatusTimer) { clearTimeout(node.initialStatusTimer); node.initialStatusTimer = null; }
+                if (node.heartbeatTimer) { clearTimeout(node.heartbeatTimer); node.heartbeatTimer = null; }
+                if (node.statusLostTimer) { clearTimeout(node.statusLostTimer); node.statusLostTimer = null; }
 
                 // Monitor that status goes inactive
                 if (node.actualState) {
                     startInactiveStatusMonitoring(send);
                 }
 
+                // Schedule clear of state after delay
                 if (node.config.clearDelay > 0) {
                     node.clearTimer = setTimeout(() => {
+                        node.clearTimer = null;
                         node.actualState = false;
                         node.alarm = false;
                         node.alarmMessage = "";
                         node.neverReceivedStatus = true;
                         send(buildOutput());
                         updateNodeStatus();
-                        node.clearTimer = null;
                     }, node.config.clearDelay * 1000);
                 } else {
-                    // No delay, clear immediately
                     node.actualState = false;
                     node.alarm = false;
                     node.alarmMessage = "";
@@ -321,118 +295,231 @@ module.exports = function(RED) {
                 }
             }
 
-            checkAlarmConditions();
-            send(buildOutput());
-            updateNodeStatus();
+            return true;  // State changed
         }
 
-        /**
-         * Process a status update with debounce
-         */
-        function processStatus(value, send) {
-            const { valid, value: boolValue, error } = utils.validateBoolean(value);
-            
-            if (!valid) {
-                utils.setStatusError(node, error || "invalid status");
-                return;
+        // ====================================================================
+        // Process status update (after debounce, if applicable)
+        // ====================================================================
+        function processStatusChange(newStatus, send) {
+            node.actualState = newStatus;
+
+            // Clear status lost hysteresis on status going true
+            if (node.statusLostTimer && newStatus === true) {
+                clearTimeout(node.statusLostTimer);
+                node.statusLostTimer = null;
             }
 
-            // Debounce rapid status changes
-            if (node.debounceTimer) {
-                clearTimeout(node.debounceTimer);
+            // If call active and status true → running, start heartbeat
+            if (node.requestedState && newStatus) {
+                node.alarm = false;
+                node.alarmMessage = "";
+                startHeartbeatMonitoring(send);
             }
 
-            node.debounceTimer = setTimeout(() => {
-                // Check if status actually changed
-                if (boolValue === node.actualState) {
-                    utils.setStatusUnchanged(node, "status unchanged");
-                    node.debounceTimer = null;
-                    return;
+            // If call active and status went false → status lost alarm
+            if (node.requestedState && !newStatus && node.config.runLostStatus) {
+                node.statusLostTimer = setTimeout(() => {
+                    node.statusLostTimer = null;
+                    if (node.requestedState && !node.actualState) {
+                        node.alarm = true;
+                        node.alarmMessage = node.config.runLostStatusMessage;
+                        send(buildOutput());
+                        updateNodeStatus();
+                    }
+                }, 100);  // 100ms hysteresis
+            }
+
+            // If call inactive and status goes false → all clear
+            if (!node.requestedState && !newStatus) {
+                if (node.inactiveStatusTimer) {
+                    clearTimeout(node.inactiveStatusTimer);
+                    node.inactiveStatusTimer = null;
                 }
+                node.alarm = false;
+                node.alarmMessage = "";
+            }
 
-                node.actualState = boolValue;
+            // If status active without call and no clearTimer running → unexpected
+            if (!node.requestedState && newStatus && !node.clearTimer && node.config.statusWithoutCall) {
+                node.statusLostTimer = setTimeout(() => {
+                    node.statusLostTimer = null;
+                    if (node.actualState && !node.requestedState) {
+                        node.alarm = true;
+                        node.alarmMessage = node.config.statusWithoutCallMessage;
+                        send(buildOutput());
+                        updateNodeStatus();
+                    }
+                }, 100);  // 100ms hysteresis
+            }
+
+            return true;
+        }
+
+        // ====================================================================
+        // Process status with heartbeat refresh and optional debounce
+        //
+        // CRITICAL: lastStatusTime must be updated on EVERY status=true receipt,
+        // even if the value hasn't changed. Without this, heartbeat monitoring
+        // would alarm despite equipment continuously reporting status=true.
+        //
+        // neverReceivedStatus is only cleared when status=true is received,
+        // not when status=false comes in (false doesn't confirm equipment ran).
+        // ====================================================================
+        function processStatus(newStatus, send) {
+            // Only mark as "received" and update timestamp when status is true
+            // A false status doesn't confirm the equipment responded
+            if (newStatus === true) {
                 node.lastStatusTime = Date.now();
                 node.neverReceivedStatus = false;
 
-                // Clear initial timeout if we finally got status
+                // Clear initial timeout — we received a positive status response
                 if (node.initialStatusTimer) {
                     clearTimeout(node.initialStatusTimer);
                     node.initialStatusTimer = null;
                 }
+            }
 
-                // Clear status lost hysteresis timer on successful update
-                if (node.statusLostTimer && boolValue === true) {
-                    clearTimeout(node.statusLostTimer);
-                    node.statusLostTimer = null;
+            // If value hasn't changed (or reverted back), cancel any pending
+            // debounce and just refresh heartbeat timer (no output)
+            if (newStatus === node.actualState) {
+                // Cancel pending debounce — the transient change reverted
+                if (node.debounceTimer) {
+                    clearTimeout(node.debounceTimer);
+                    node.debounceTimer = null;
                 }
 
-                // If call is active and status is true, start heartbeat monitoring
-                if (node.requestedState && boolValue) {
-                    startHeartbeatMonitoring(send);
-                }
-
-                // If call is inactive and status goes false, clear inactiveStatusTimer
-                if (!node.requestedState && !boolValue && node.inactiveStatusTimer) {
-                    clearTimeout(node.inactiveStatusTimer);
-                    node.inactiveStatusTimer = null;
+                // CRITICAL: If alarm is active and we receive status=true with
+                // call active, clear the alarm. The heartbeat timer sets alarm
+                // without changing actualState, so we must recover here.
+                if (node.alarm && newStatus && node.requestedState) {
                     node.alarm = false;
                     node.alarmMessage = "";
+                    startHeartbeatMonitoring(send);
+                    return true;  // Changed (alarm cleared) — caller should send
                 }
 
-                // Re-evaluate alarm conditions
-                checkAlarmConditions();
-                send(buildOutput());
-                updateNodeStatus();
-                node.debounceTimer = null;
-            }, node.config.debounce);
+                if (node.requestedState && node.actualState && node.config.heartbeatTimeout > 0) {
+                    startHeartbeatMonitoring(send);
+                }
+                return false;  // No change — caller decides whether to send
+            }
+
+            // Value changed — apply debounce if configured
+            if (node.config.debounce > 0) {
+                if (node.debounceTimer) {
+                    clearTimeout(node.debounceTimer);
+                }
+                node.debounceTimer = setTimeout(() => {
+                    node.debounceTimer = null;
+                    processStatusChange(newStatus, send);
+                    send(buildOutput());
+                    updateNodeStatus();
+                }, node.config.debounce);
+                return false;  // Will send after debounce
+            } else {
+                // No debounce — process immediately
+                processStatusChange(newStatus, send);
+                return true;  // Changed — caller should send
+            }
         }
 
-        node.on("input", function(msg, send, done) {
+        // ====================================================================
+        // Reset all state
+        // ====================================================================
+        function resetState(send) {
+            clearAllTimers();
+            node.requestedState = false;
+            node.actualState = false;
+            node.alarm = false;
+            node.alarmMessage = "";
+            node.lastStatusTime = null;
+            node.neverReceivedStatus = true;
+            utils.setStatusOK(node, "state reset");
+            send(buildOutput());
+        }
+
+        // ====================================================================
+        // Initial status
+        // ====================================================================
+        utils.setStatusUnchanged(node, "call:OFF status:OFF | idle");
+
+        // ====================================================================
+        // Main input handler
+        // ====================================================================
+        node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
-            // Validate message exists
-            if (!msg || typeof msg !== 'object') {
+            if (!msg) {
                 utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
             }
 
-            try {
-                // ===== STATUS UPDATE (Dedicated Property Priority) =====
-                // 1. Check dedicated status property first (msg.status)
-                if (msg.hasOwnProperty(node.config.statusInputProperty) && 
-                    typeof msg[node.config.statusInputProperty] === 'boolean') {
-                    processStatus(msg[node.config.statusInputProperty], send);
-                    if (done) done();
-                    return;
+            // Handle reset context (project convention)
+            if (msg.hasOwnProperty("context") && msg.context === "reset") {
+                if (msg.payload === true) {
+                    resetState(send);
+                } else {
+                    utils.setStatusError(node, "invalid reset");
                 }
-
-                // 2. Fallback to context tagging (msg.context === "status")
-                if (msg.hasOwnProperty("context") && msg.context === "status") {
-                    processStatus(msg.payload, send);
-                    if (done) done();
-                    return;
-                }
-
-                // ===== REQUESTED STATE (Call) =====
-                // Check configured input property
-                if (msg.hasOwnProperty(node.config.inputProperty)) {
-                    processRequestedState(msg[node.config.inputProperty], send);
-                    if (done) done();
-                    return;
-                }
-
-                // Default: no recognized command
-                utils.setStatusWarn(node, "unrecognized input");
                 if (done) done();
-
-            } catch (err) {
-                node.error(`Error processing message: ${err.message}`);
-                utils.setStatusError(node, `error: ${err.message}`);
-                if (done) done();
+                return;
             }
+
+            // ----------------------------------------------------------------
+            // 1. Evaluate typed inputs (async phase — acquire busy lock)
+            // ----------------------------------------------------------------
+            if (node.isBusy) {
+                utils.setStatusBusy(node);
+                if (done) done();
+                return;
+            }
+            node.isBusy = true;
+
+            let callValue, statusValue;
+            try {
+                const results = await Promise.all([
+                    evalBool(config.callValue, config.callValueType, node.requestedState, msg),
+                    evalBool(config.statusValue, config.statusValueType, node.actualState, msg),
+                ]);
+                callValue = results[0];
+                statusValue = results[1];
+            } catch (err) {
+                node.error(`Error evaluating properties: ${err.message}`);
+                utils.setStatusError(node, `eval error: ${err.message}`);
+                if (done) done();
+                return;
+            } finally {
+                node.isBusy = false;
+            }
+
+            // ----------------------------------------------------------------
+            // 2. Process call and status values
+            // ----------------------------------------------------------------
+
+            // Track whether call is being deactivated (before processCallChange modifies state)
+            const callJustDeactivated = !callValue && node.requestedState;
+
+            // Process call first (may start/stop timers that status needs)
+            processCallChange(callValue, send);
+
+            // Process status (handles heartbeat refresh, debounce, alarms)
+            // Skip status processing if call was just deactivated with clearDelay=0
+            // (state was already fully cleared by processCallChange)
+            if (!(callJustDeactivated && node.config.clearDelay === 0)) {
+                processStatus(statusValue, send);
+            }
+
+            // Always send current state output on every message
+            send(buildOutput());
+            updateNodeStatus();
+            if (done) done();
         });
 
+        // ====================================================================
+        // Cleanup
+        // ====================================================================
         node.on("close", function(done) {
             clearAllTimers();
             done();
