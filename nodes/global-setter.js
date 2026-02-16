@@ -158,6 +158,8 @@ module.exports = function(RED) {
 
                 // Check for change
                 if (value === state.value && priority === state.activePriority) {
+                    // Ensure payload stays in sync with value
+                    state.payload = state.value;
                     prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
                     const noChangeText = `no change: ${prefix}${node.writePriority}:${state.value}${state.units}`;
                     utils.setStatusUnchanged(node, noChangeText);

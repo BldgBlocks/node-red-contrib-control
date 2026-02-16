@@ -21,6 +21,19 @@ module.exports = function(RED) {
         node.isHeating = config.isHeating === true;
         node.algorithm = config.algorithm;
 
+        // Startup delay: suppress above/below calls until mode has settled
+        node.startupDelay = Math.max(parseInt(config.startupDelay) || 30, 0);
+        node.startupComplete = node.startupDelay === 0;
+        node.startupTimer = null;
+        if (!node.startupComplete) {
+            utils.setStatusWarn(node, `startup delay: ${node.startupDelay}s`);
+            node.startupTimer = setTimeout(() => {
+                node.startupComplete = true;
+                node.startupTimer = null;
+                utils.setStatusOK(node, "startup delay complete");
+            }, node.startupDelay * 1000);
+        }
+
         let above = false;
         let below = false;
         let lastAbove = false;
@@ -436,6 +449,12 @@ module.exports = function(RED) {
                 statusInfo.anticipator = node.anticipator;
             }
 
+            // During startup delay, suppress call outputs (above/below)
+            // Internal state still tracks, so when delay expires the next input
+            // will output the correct state. isHeating always passes through.
+            const outputAbove = node.startupComplete ? above : false;
+            const outputBelow = node.startupComplete ? below : false;
+
             // Create outputs with status information
             const outputs = [
                 { 
@@ -444,27 +463,32 @@ module.exports = function(RED) {
                     status: statusInfo
                 },
                 { 
-                    payload: above,
+                    payload: outputAbove,
                     status: statusInfo
                 },
                 { 
-                    payload: below,
+                    payload: outputBelow,
                     status: statusInfo
                 }
             ];
 
             send(outputs);
 
-            if (above === lastAbove && below === lastBelow) {
-                utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: ${node.isHeating ? "heating" : "cooling"}, above: ${above}, below: ${below}`);
+            const statusSuffix = !node.startupComplete ? " [startup]" : "";
+            if (outputAbove === lastAbove && outputBelow === lastBelow) {
+                utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: ${node.isHeating ? "heating" : "cooling"}, above: ${outputAbove}, below: ${outputBelow}${statusSuffix}`);
             } else {
-                utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${node.isHeating ? "heating" : "cooling"}, above: ${above}, below: ${below}`);
+                utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${node.isHeating ? "heating" : "cooling"}, above: ${outputAbove}, below: ${outputBelow}${statusSuffix}`);
             }
 
             if (done) done();
         });
 
         node.on("close", function(done) {
+            if (node.startupTimer) {
+                clearTimeout(node.startupTimer);
+                node.startupTimer = null;
+            }
             done();
         });
     }

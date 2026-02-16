@@ -141,7 +141,13 @@ module.exports = function(RED) {
                 if (!isNaN(results[7])) node.maxTempSetpoint = results[7];
                 if (results[8]) node.algorithm = results[8];
                 if (results[9]) node.operationMode = results[9];
-                node.currentMode = node.operationMode === "cool" ? "cooling" : "heating";   
+                // Only override currentMode for explicit heat/cool modes.
+                // In "auto" mode, currentMode is managed by evaluateState().
+                if (node.operationMode === "cool") {
+                    node.currentMode = "cooling";
+                } else if (node.operationMode === "heat") {
+                    node.currentMode = "heating";
+                }
       
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);

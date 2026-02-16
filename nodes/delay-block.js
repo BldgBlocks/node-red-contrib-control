@@ -5,14 +5,19 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
+        // Unit multipliers (constant, computed once)
+        const delayOnMultiplier = config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1;
+        const delayOffMultiplier = config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1;
+
         // Initialize state
         node.name = config.name;
         node.state = false;
         node.desired = false;
-        node.delayOn = parseFloat(config.delayOn) * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
-        node.delayOff = parseFloat(config.delayOff) * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);
+        node.delayOn = parseFloat(config.delayOn) * delayOnMultiplier;
+        node.delayOff = parseFloat(config.delayOff) * delayOffMultiplier;
 
         let timeoutId = null;
+        let pendingDone = null;   // Track deferred done() for in-flight timers
         node.isBusy = false;
 
         node.on("input", async function(msg, send, done) {
@@ -46,21 +51,21 @@ module.exports = function(RED) {
                     utils.requiresEvaluation(config.delayOnType) 
                         ? utils.evaluateNodeProperty(config.delayOn, config.delayOnType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.delayOn),
+                        : Promise.resolve(parseFloat(config.delayOn)),
                 );
                 
                 evaluations.push(
                     utils.requiresEvaluation(config.delayOffType) 
                         ? utils.evaluateNodeProperty(config.delayOff, config.delayOffType, node, msg)
                             .then(val => parseFloat(val))
-                        : Promise.resolve(node.delayOff),
+                        : Promise.resolve(parseFloat(config.delayOff)),
                 );
 
                 const results = await Promise.all(evaluations);   
 
-                // Update runtime with evaluated values
-                if (!isNaN(results[0])) node.delayOn = results[0] * (config.delayOnUnits === "seconds" ? 1000 : config.delayOnUnits === "minutes" ? 60000 : 1);
-                if (!isNaN(results[1])) node.delayOff = results[1] * (config.delayOffUnits === "seconds" ? 1000 : config.delayOffUnits === "minutes" ? 60000 : 1);         
+                // Update runtime with evaluated values (apply unit multiplier to raw config value)
+                if (!isNaN(results[0])) node.delayOn = results[0] * delayOnMultiplier;
+                if (!isNaN(results[1])) node.delayOff = results[1] * delayOffMultiplier;         
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
@@ -98,7 +103,13 @@ module.exports = function(RED) {
                             clearTimeout(timeoutId);
                             timeoutId = null;
                         }
+                        // Complete any deferred done from a cancelled timer
+                        if (pendingDone) {
+                            pendingDone();
+                            pendingDone = null;
+                        }
                         node.state = false;
+                        node.desired = false;
                         utils.setStatusOK(node, "reset");
                     }
                     if (done) done();
@@ -160,44 +171,89 @@ module.exports = function(RED) {
 
             if (!node.state && inputValue === true) {
                 if (node.desired) {
+                    // Already awaiting true, ignore duplicate
                     if (done) done();
                     return;
                 }
                 if (timeoutId) {
                     clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+                // Complete any prior deferred done before starting new timer
+                if (pendingDone) {
+                    pendingDone();
+                    pendingDone = null;
                 }
                 utils.setStatusUnchanged(node, "awaiting true");
                 node.desired = true;
+
+                // Clone msg for the timer callback so we don't hold the original
+                const delayedMsg = RED.util.cloneMessage(msg);
+                // Defer done — this message isn't complete until the timer fires or is cancelled
+                pendingDone = done;
+
                 timeoutId = setTimeout(() => {
                     node.state = true;
-                    msg.payload = true;
-                    delete msg.context;
+                    delayedMsg.payload = true;
+                    delete delayedMsg.context;
                     utils.setStatusChanged(node, "in: true, out: true");
-                    send(msg);
+                    send(delayedMsg);
                     timeoutId = null;
+                    if (pendingDone) {
+                        pendingDone();
+                        pendingDone = null;
+                    }
                 }, node.delayOn);
+
+                // Don't call done() here — it's deferred to the timer callback
+                return;
             } else if (node.state && inputValue === false) {
                 if (node.desired === false) {
+                    // Already awaiting false, ignore duplicate
                     if (done) done();
                     return;
                 }
                 if (timeoutId) {
                     clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+                // Complete any prior deferred done before starting new timer
+                if (pendingDone) {
+                    pendingDone();
+                    pendingDone = null;
                 }
                 utils.setStatusUnchanged(node, "awaiting false");
                 node.desired = false;
+
+                // Clone msg for the timer callback so we don't hold the original
+                const delayedMsg = RED.util.cloneMessage(msg);
+                // Defer done — this message isn't complete until the timer fires or is cancelled
+                pendingDone = done;
+
                 timeoutId = setTimeout(() => {
                     node.state = false;
-                    msg.payload = false;
-                    delete msg.context;
+                    delayedMsg.payload = false;
+                    delete delayedMsg.context;
                     utils.setStatusChanged(node, "in: false, out: false");
-                    send(msg);
+                    send(delayedMsg);
                     timeoutId = null;
+                    if (pendingDone) {
+                        pendingDone();
+                        pendingDone = null;
+                    }
                 }, node.delayOff);
+
+                // Don't call done() here — it's deferred to the timer callback
+                return;
             } else {
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                     timeoutId = null;
+                    // Complete deferred done from the cancelled timer's message
+                    if (pendingDone) {
+                        pendingDone();
+                        pendingDone = null;
+                    }
                     utils.setStatusUnchanged(node, `canceled awaiting ${node.state}`);
                 } else {
                     utils.setStatusUnchanged(node, "no change");
@@ -216,6 +272,11 @@ module.exports = function(RED) {
             if (timeoutId) {
                 clearTimeout(timeoutId);
                 timeoutId = null;
+            }
+            // Complete any deferred done on shutdown
+            if (pendingDone) {
+                pendingDone();
+                pendingDone = null;
             }
             done();
         });

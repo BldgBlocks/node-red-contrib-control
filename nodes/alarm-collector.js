@@ -20,6 +20,7 @@ module.exports = function(RED) {
         node.topic = config.topic || "Alarms_Default";
         node.title = config.title || "Alarm";
         node.message = config.message || "Condition triggered";
+        node.messageType = config.messageType || "str";
         node.tags = config.tags || "";
         node.units = config.units || "";
 
@@ -254,6 +255,18 @@ module.exports = function(RED) {
                         utils.setStatusError(node, "invalid numeric input");
                         if (done) done();
                         return;
+                    }
+                }
+
+                // Resolve message dynamically if configured as msg property
+                if (node.messageType === "msg") {
+                    try {
+                        const resolved = await utils.evaluateNodeProperty(config.message, "msg", node, msg);
+                        if (resolved !== undefined && resolved !== null) {
+                            node.message = String(resolved);
+                        }
+                    } catch (e) {
+                        // Keep existing message on error
                     }
                 }
 

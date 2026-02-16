@@ -147,6 +147,11 @@ module.exports = function(RED) {
             
             // Check for error response
             if (data.error) {
+                // During startup phase, suppress error display (network still coming online)
+                if (data.isStartupPhase) {
+                    // Keep stale value, don't show error - just stay in waiting state
+                    return;
+                }
                 const errorText = `Read failed for point #${node.pointId}: ${data.errorMessage || "Unknown error"}`;
                 utils.setStatusError(node, `Error: ${data.errorMessage || "Unknown error"}`);
                 node.error(errorText);  // Show in debug panel

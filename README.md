@@ -43,3 +43,13 @@ Search for the package name and add to your project.
 - $ npm install node-red-contrib-buildingblocks-control
 # then restart node-red
 ```
+
+## Testing
+Tests use [Mocha](https://mochajs.org/) and [node-red-node-test-helper](https://github.com/node-red/node-red-node-test-helper) to run nodes in an isolated, in-memory Node-RED runtime. Your live Node-RED instance is never touched.
+
+```bash
+npm install   # install dev dependencies (mocha, test helper)
+npm test      # run all tests
+```
+
+Test files live in `test/` and follow the naming convention `*_spec.js`. Shared utilities are in `test/test-helpers.js`.

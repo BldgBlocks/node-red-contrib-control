@@ -112,10 +112,18 @@ module.exports = function(RED) {
                     const pending = node.pendingRequests[data.requestId];
                     delete node.pendingRequests[data.requestId];
                     
-                    // Suppress error notification during startup phase
-                    // (allows network to come online without nuisance errors)
                     if (pending.isStartupPhase) {
-                        // Silently drop timeout during startup
+                        // During startup: still notify point-read to reset isPollPending,
+                        // but suppress error logging (network may still be coming online)
+                        RED.events.emit('pointReference:response', {
+                            sourceNodeId: data.sourceNodeId,
+                            pointId: data.pointId,
+                            value: null,
+                            error: true,
+                            errorMessage: "Startup timeout",
+                            requestId: data.requestId,
+                            isStartupPhase: true
+                        });
                         return;
                     }
                     
@@ -195,10 +203,16 @@ module.exports = function(RED) {
                     const pending = node.pendingRequests[data.requestId];
                     delete node.pendingRequests[data.requestId];
                     
-                    // Suppress error notification during startup phase
-                    // (allows network to come online without nuisance errors)
                     if (pending.isStartupPhase) {
-                        // Silently drop timeout during startup
+                        // During startup: still notify point-write to reset pending state,
+                        // but suppress error logging
+                        RED.events.emit('pointWrite:response', {
+                            sourceNodeId: pending.sourceNodeId,
+                            pointId: data.pointId,
+                            error: "Startup timeout",
+                            requestId: data.requestId,
+                            isStartupPhase: true
+                        });
                         return;
                     }
                     
@@ -240,14 +254,16 @@ module.exports = function(RED) {
             // ================================================================
             
             // Check if this looks like a point response (has network.pointId or status.pointId)
-            const responsePointId = msg.network?.pointId ?? msg.status?.pointId ?? msg.pointId;
+            const rawPointId = msg.network?.pointId ?? msg.status?.pointId ?? msg.pointId;
+            // Normalize to number - point-read stores pointId as int, but WebSocket responses may return strings
+            const responsePointId = rawPointId !== undefined && rawPointId !== null ? parseInt(rawPointId, 10) : undefined;
             const responseValue = msg.value ?? msg.payload;
             const statusCode = msg.status?.code;
             const statusMessage = msg.status?.message || "";
             const isError = statusCode === "error";
             
-            // Valid response if we have a pointId (value can be null/undefined on error)
-            const isValidResponse = responsePointId !== undefined;
+            // Valid response if we have a valid numeric pointId
+            const isValidResponse = responsePointId !== undefined && !isNaN(responsePointId);
             
             if (isValidResponse) {
                 // Find ALL matching pending requests by pointId
@@ -313,8 +329,10 @@ module.exports = function(RED) {
                         updateStatus();
                     }
                 } else {
-                    // Response without matching request - could be stale or unsolicited
-                    utils.setStatusWarn(node, `Unmatched response for point #${responsePointId}`);
+                    // Response without matching request - duplicate, stale, or already timed-out
+                    // This is normal when remote has multiple WebSocket nodes or response arrives after timeout cleanup
+                    // Don't change node status - just log at trace level
+                    node.trace(`Ignoring duplicate/stale response for point #${responsePointId}`);
                 }
 
                 if (done) done();
@@ -358,6 +376,11 @@ module.exports = function(RED) {
         // Node lifecycle
         // ====================================================================
         node.on("close", function(done) {
+            // Clear startup timer
+            if (node.startupTimer) {
+                clearTimeout(node.startupTimer);
+                node.startupTimer = null;
+            }
             // Clear pending requests on close
             node.pendingRequests = {};
             // Remove event listeners
@@ -369,6 +392,15 @@ module.exports = function(RED) {
         // ====================================================================
         // Initialize
         // ====================================================================
+        // One-shot timer to guarantee startup delay completes even if no messages arrive
+        node.startupTimer = setTimeout(() => {
+            if (!node.startupComplete) {
+                node.startupComplete = true;
+                updateStatus();
+            }
+            node.startupTimer = null;
+        }, node.startupDelay * 1000);
+
         updateStatus();
     }
 

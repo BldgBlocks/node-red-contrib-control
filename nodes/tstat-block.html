@@ -63,6 +63,10 @@
         <input type="text" id="node-input-isHeating" style="width: auto; vertical-align: middle;">
         <input type="hidden" id="node-input-isHeatingType">
     </div>
+    <div class="form-row">
+        <label for="node-input-startupDelay" title="Seconds to suppress heating/cooling calls after deploy (0 = disabled)"><i class="fa fa-hourglass-start"></i> Startup Delay</label>
+        <input type="number" id="node-input-startupDelay" placeholder="30" min="0" step="1">
+    </div>
 </script>
 
 <script type="text/javascript">
@@ -94,7 +98,8 @@
             ignoreAnticipatorCycles: { value: "1" },
             ignoreAnticipatorCyclesType: { value: "num" },
             isHeating: { value: false },
-            isHeatingType: { value: "bool" }
+            isHeatingType: { value: "bool" },
+            startupDelay: { value: 30 }
         },
         inputs: 1,
         outputs: 3,
@@ -295,6 +300,12 @@ All outputs include comprehensive status information in `msg.status`. Example:
   - Validates `coolingOn >= coolingOff >= heatingOff >= heatingOn`.
   - For negative `anticipator`, delays turn-off (e.g., heating off above `heatingOff`).
   - Example: `coolingOn=74`, `coolingOff=72`, `heatingOff=68`, `heatingOn=66`, `anticipator=-0.5`, cooling mode sets `above` if `input > 74`, clears at `< 71.5`; heating mode sets `below` if `input < 66`, clears at `> 68.5`.
+
+### Startup Delay
+Configurable delay (default 30 seconds, 0 = disabled) that suppresses `above` and `below` call outputs after deployment.
+This prevents false calls before upstream mode selection (e.g., changeover node) has initialized.
+During the delay, `isHeating` output passes through normally and internal thermostat state is tracked,
+so the correct call state is output immediately when the delay expires. Status shows `[startup]` during suppression.
 
 ### Details
 Compares a numeric temperature input (`msg.payload`) against setpoints to control heating or cooling. 
