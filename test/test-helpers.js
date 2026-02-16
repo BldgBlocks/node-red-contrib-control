@@ -14,21 +14,32 @@ helper.init("/usr/lib/node_modules/node-red/lib/red.js");
 
 /**
  * Build a minimal test flow with a single node under test.
+ * Includes a flow tab for proper status() support.
  * @param {string} type - Node type name (e.g., "delay-block")
  * @param {Object} config - Node config overrides
  * @param {string} [id] - Node ID (default: "n1")
+ * @param {number} [outputs] - Number of outputs (default: 1)
  * @returns {Array} Flow array ready for helper.load()
  */
-function buildFlow(type, config = {}, id = "n1") {
+function buildFlow(type, config = {}, id = "n1", outputs = 1) {
+    const wires = [];
+    const helpers = [];
+    for (let i = 0; i < outputs; i++) {
+        const helperId = `out${i === 0 ? "" : i + 1}`;
+        wires.push([helperId]);
+        helpers.push({ id: helperId, z: "f1", type: "helper" });
+    }
     return [
+        { id: "f1", type: "tab" },
         { 
             id, 
+            z: "f1",
             type, 
             name: "test", 
-            wires: [["out"]],
+            wires,
             ...config 
         },
-        { id: "out", type: "helper" }
+        ...helpers
     ];
 }
 

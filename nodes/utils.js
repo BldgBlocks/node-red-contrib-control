@@ -29,7 +29,7 @@ module.exports = function(RED) {
     // Safe evaluation helper (promisified)
     function evaluateNodeProperty(value, type, node, msg) {
         return new Promise((resolve, reject) => {
-            if (!this.requiresEvaluation(type)) {
+            if (!requiresEvaluation(type)) {
                 resolve(value); // Return raw value for static types
             } else {
                 RED.util.evaluateNodeProperty(

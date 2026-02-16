@@ -264,50 +264,49 @@
 </script>
 
 <script type="text/markdown" data-help-name="changeover-block">
-Manages HVAC mode switching between heating and cooling based on temperature inputs and setpoint configurations.
+Manages HVAC mode switching between heating and cooling based on temperature input and setpoint configuration.
 
 ### Inputs
-: context (string) : Configuration commands - (`"operationMode"`, `"algorithm"`, `"setpoint"`, `"deadband"`, `"heatingSetpoint"`, `"coolingSetpoint"`, `"extent"`, `"swapTime"`, `"minTempSetpoint"`, `"maxTempSetpoint"`, `"initWindow"`). Unknown values trigger a warning.
-: payload (number | string) : Temperature for mode evaluation; configuration value with `msg.context`.
+: payload (number) : Temperature reading for mode evaluation. The property name is configurable via **Input Property**.
 
 ### Outputs
-: isHeating (boolean) : `true` for heating, `false` for cooling, with `msg.context = "isHeating"`.
-: status (object) : `{ mode, isHeating, heatingSetpoint, coolingSetpoint, temperature }`.
+: payload (boolean) : `true` for heating, `false` for cooling.
+: context (string) : Always `"isHeating"`.
+: status (object) : `{ mode, operationMode, isHeating, heatingSetpoint, coolingSetpoint, temperature }`.
+
+### Operation Modes
+All parameters support typed inputs (static value, `msg`, `flow`, or `global`).
+
+- **Auto** — switches between heating and cooling based on temperature vs. algorithm thresholds. A mode change requires the condition to persist for `swapTime` seconds (minimum 60s). A countdown is shown in the status (e.g., `pending: cooling in 120s`).
+- **Heat** — locked to heating regardless of temperature.
+- **Cool** — locked to cooling regardless of temperature.
 
 ### Algorithms
-The node supports two algorithms for determining HVAC mode
 
-- **Single Setpoint**
-  - Uses a single `setpoint`, `deadband`, and `extent`.
-  - **Heating** is triggered if the input temperature is below `setpoint - deadband/2 - extent`.
-  - **Cooling** is triggered if the temperature exceeds `setpoint + deadband/2 + extent`.
-  - Example With `setpoint=70`, `deadband=2``, heating starts below `70 - 2/2 = 68`, and cooling starts above `70 + 2/2 = 72`.
-  - The `extent` widens thresholds to prevent nuisance mode changes due to overshoot.
+- **Single Setpoint** — one setpoint with a deadband.
+  - Heating threshold: `setpoint - deadband / 2`
+  - Cooling threshold: `setpoint + deadband / 2`
+  - Example: `setpoint=70`, `deadband=2` → heat below 69, cool above 71.
 
-- **Split Setpoint**
-  - Uses separate `heatingSetpoint`, `coolingSetpoint`, and `extent`.
-  - **Heating** is triggered if the temperature is below `heatingSetpoint - extent`.
-  - **Cooling** is triggered if the temperature exceeds `coolingSetpoint + extent`.
-  - Example With `heatingSetpoint=68`, `coolingSetpoint=74`, `extent=1`, heating starts below `68 - 1 = 67`, and cooling starts above `74 + 1 = 75`.
-  - Ensures `coolingSetpoint >= heatingSetpoint` to avoid overlap.
+- **Split Setpoint** — separate heating and cooling setpoints with an extent buffer.
+  - Heating threshold: `heatingSetpoint - extent`
+  - Cooling threshold: `coolingSetpoint + extent`
+  - Example: `heatingSetpoint=68`, `coolingSetpoint=74`, `extent=1` → heat below 67, cool above 75.
+
+- **Specified** — explicit trigger temperatures, no calculation.
+  - Heating threshold: `heatingOn`
+  - Cooling threshold: `coolingOn`
 
 ### Details
-Controls HVAC mode (heating or cooling) based on `msg.payload` temperature compared to setpoints. 
-Utilizes a delay on startup for sensor normalization and caches the last temperature to make an immediate decision after the `initWindow` period.
+On startup, the node waits for `initWindow` seconds to let sensors stabilize before selecting the initial mode. During this period, temperature is cached but no output is sent.
 
-- In **auto** mode, the node switches modes based on the algorithm thresholds, requiring the condition to persist for `swapTime` seconds (minimum 60s). A countdown is shown (e.g., `pending cooling in 120s`).
-- In **heat** or **cool** mode, the node locks to heating or cooling, respectively, ignoring temperature inputs.
-- The `extent` widens switching thresholds to prevent unnecessary mode changes while allowing sharing of `deadband` with global variables and other nodes.
-- Configuration options can be set via the editor or `msg.context`
-- Effective setpoints (`effectiveHeatingThreshold`, `effectiveCoolingThreshold`) are always displayed in "Effective Setpoints" for both new and active nodes, 
-showing the calculated mode-switching thresholds.
+The `extent` parameter (split algorithm) widens the switching thresholds beyond the setpoints. This prevents nuisance mode changes from overshoot and allows sharing the same setpoint values with other nodes while having independent switching buffers.
 
 ### Status
-- Green (dot): Configuration update
-- Blue (dot): State changed
-- Blue (ring): State unchanged
-- Red (ring): Error
-- Yellow (ring): Warning
+- **Yellow (ring)**: Initializing (startup window)
+- **Blue (dot)**: Mode just changed
+- **Blue (ring)**: Normal operation, no change
+- **Red (ring)**: Error (invalid temperature, bad configuration)
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

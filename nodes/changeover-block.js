@@ -1,39 +1,90 @@
-//const { parse } = require('echarts/types/src/export/api/time.js');
+// ============================================================================
+// Changeover Block - HVAC Heating/Cooling Mode Selector
+// ============================================================================
+// Determines whether an HVAC system should be in heating or cooling mode
+// based on temperature input and setpoint configuration.
+//
+// Supports three algorithms:
+//   - single:    one setpoint ± deadband/2 defines heating/cooling thresholds
+//   - split:     separate heating/cooling setpoints with extent buffer
+//   - specified: explicit heatingOn/coolingOn trigger temperatures
+//
+// Operation modes:
+//   - auto: temperature-driven switching with swap timer to prevent cycling
+//   - heat: locked to heating regardless of temperature
+//   - cool: locked to cooling regardless of temperature
+//
+// All configuration is via typed inputs (editor, msg, flow, global).
+// ============================================================================
 
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
 
+    const VALID_MODES = ["auto", "heat", "cool"];
+    const VALID_ALGORITHMS = ["single", "split", "specified"];
+    const MIN_SWAP_TIME = 60; // seconds
+
     function ChangeoverBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
-        
-        // Initialize runtime state
-        // Initialize state
+
+        // ====================================================================
+        // Configuration — static defaults parsed from editor config
+        // ====================================================================
         node.name = config.name;
         node.inputProperty = config.inputProperty || "payload";
-        node.initWindow = parseFloat(config.initWindow);
+
+        // Use helper to avoid || clobbering legitimate zero values
+        const num = (v, fallback) => { const n = parseFloat(v); return isNaN(n) ? fallback : n; };
+
+        node.setpoint = num(config.setpoint, 70);
+        node.heatingSetpoint = num(config.heatingSetpoint, 68);
+        node.coolingSetpoint = num(config.coolingSetpoint, 74);
+        node.heatingOn = num(config.heatingOn, 66);
+        node.coolingOn = num(config.coolingOn, 74);
+        node.deadband = num(config.deadband, 2);
+        node.extent = num(config.extent, 1);
+        node.swapTime = num(config.swapTime, 300);
+        node.minTempSetpoint = num(config.minTempSetpoint, 55);
+        node.maxTempSetpoint = num(config.maxTempSetpoint, 90);
+        node.initWindow = num(config.initWindow, 10);
+
+        // Enum typed inputs: when type is dynamic (msg/flow/global), config value
+        // holds the property PATH, not a valid enum value — default safely.
+        node.algorithm = VALID_ALGORITHMS.includes(config.algorithm) ? config.algorithm : "single";
+        node.operationMode = VALID_MODES.includes(config.operationMode) ? config.operationMode : "auto";
+
+        // ====================================================================
+        // Runtime state
+        // ====================================================================
+        node.currentMode = node.operationMode === "cool" ? "cooling" : "heating";
         node.lastTemperature = null;
         node.lastModeChange = 0;
-        node.setpoint = parseFloat(config.setpoint);
-        node.heatingSetpoint = parseFloat(config.heatingSetpoint);
-        node.coolingSetpoint = parseFloat(config.coolingSetpoint);
-        node.swapTime = parseFloat(config.swapTime);
-        node.deadband = parseFloat(config.deadband);
-        node.extent = parseFloat(config.extent);
-        node.minTempSetpoint = parseFloat(config.minTempSetpoint);
-        node.maxTempSetpoint = parseFloat(config.maxTempSetpoint);
-        node.algorithm = config.algorithm;
-        node.operationMode = config.operationMode;
-        node.currentMode = config.operationMode === "cool" ? "cooling" : "heating";
+        node.isBusy = false;
 
-        // Initialize state
         let initComplete = false;
         let conditionStartTime = null;
         let pendingMode = null;
         const initStartTime = Date.now() / 1000;
 
-        node.isBusy = false;
+        // ====================================================================
+        // Typed-input evaluation helpers
+        // ====================================================================
+        function evalNumeric(configValue, configType, fallback, msg) {
+            return utils.evaluateNodeProperty(configValue, configType, node, msg)
+                .then(val => { const n = parseFloat(val); return isNaN(n) ? fallback : n; })
+                .catch(() => fallback);
+        }
 
+        function evalEnum(configValue, configType, allowed, fallback, msg) {
+            return utils.evaluateNodeProperty(configValue, configType, node, msg)
+                .then(val => allowed.includes(val) ? val : fallback)
+                .catch(() => fallback);
+        }
+
+        // ====================================================================
+        // Main input handler
+        // ====================================================================
         node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
 
@@ -41,448 +92,284 @@ module.exports = function(RED) {
                 utils.setStatusError(node, "invalid message");
                 if (done) done();
                 return;
-            }             
+            }
 
-            // Evaluate dynamic properties
+            // ----------------------------------------------------------------
+            // 1. Evaluate typed inputs (async phase — acquire busy lock)
+            // ----------------------------------------------------------------
+            if (node.isBusy) {
+                utils.setStatusBusy(node, "busy - dropped msg");
+                if (done) done();
+                return;
+            }
+            node.isBusy = true;
+
             try {
-                // Check busy lock
-                if (node.isBusy) {
-                    // Update status to let user know they are pushing too fast
-                    utils.setStatusBusy(node, "busy - dropped msg");
-                    if (done) done(); 
-                    return;
-                }
+                const results = await Promise.all([
+                    evalNumeric(config.setpoint,         config.setpointType,         node.setpoint,         msg),  // 0
+                    evalNumeric(config.heatingSetpoint,   config.heatingSetpointType,  node.heatingSetpoint,  msg),  // 1
+                    evalNumeric(config.coolingSetpoint,   config.coolingSetpointType,  node.coolingSetpoint,  msg),  // 2
+                    evalNumeric(config.heatingOn,         config.heatingOnType,        node.heatingOn,        msg),  // 3
+                    evalNumeric(config.coolingOn,         config.coolingOnType,        node.coolingOn,        msg),  // 4
+                    evalNumeric(config.deadband,          config.deadbandType,         node.deadband,         msg),  // 5
+                    evalNumeric(config.extent,            config.extentType,           node.extent,           msg),  // 6
+                    evalNumeric(config.swapTime,          config.swapTimeType,         node.swapTime,         msg),  // 7
+                    evalNumeric(config.minTempSetpoint,   config.minTempSetpointType,  node.minTempSetpoint,  msg),  // 8
+                    evalNumeric(config.maxTempSetpoint,   config.maxTempSetpointType,  node.maxTempSetpoint,  msg),  // 9
+                    evalEnum(config.algorithm,      config.algorithmType,     VALID_ALGORITHMS, node.algorithm,     msg),  // 10
+                    evalEnum(config.operationMode,  config.operationModeType, VALID_MODES,      node.operationMode, msg),  // 11
+                ]);
 
-                // Lock node during evaluation
-                node.isBusy = true;
+                node.setpoint         = results[0];
+                node.heatingSetpoint  = results[1];
+                node.coolingSetpoint  = results[2];
+                node.heatingOn        = results[3];
+                node.coolingOn        = results[4];
+                node.deadband         = results[5];
+                node.extent           = results[6];
+                node.swapTime         = results[7];
+                node.minTempSetpoint  = results[8];
+                node.maxTempSetpoint  = results[9];
+                node.algorithm        = results[10];
+                node.operationMode    = results[11];
 
-                // Begin evaluations
-                const evaluations = [];                    
-                
-                evaluations.push(
-                    utils.requiresEvaluation(config.setpointType) 
-                        ? utils.evaluateNodeProperty(config.setpoint, config.setpointType, node, msg)
-                            .then(val => parseFloat(val))
-                        : Promise.resolve(node.setpoint),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.heatingSetpointType) 
-                        ? utils.evaluateNodeProperty(config.heatingSetpoint, config.heatingSetpointType, node, msg)
-                            .then(val => parseFloat(val))
-                        : Promise.resolve(node.heatingSetpoint),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.coolingSetpointType) 
-                        ? utils.evaluateNodeProperty(config.coolingSetpoint, config.coolingSetpointType, node, msg)
-                            .then(val => parseFloat(val))
-                        : Promise.resolve(node.coolingSetpoint),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.swapTimeType) 
-                        ? utils.evaluateNodeProperty(config.swapTime, config.swapTimeType, node, msg)
-                            .then(val => parseFloat(val))
-                        : Promise.resolve(node.swapTime),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.deadbandType) 
-                        ? utils.evaluateNodeProperty(config.deadband, config.deadbandType, node, msg)
-                            .then(val => parseFloat(val))
-                        : Promise.resolve(node.deadband),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.extentType) 
-                        ? utils.evaluateNodeProperty(config.extent, config.extentType, node, msg)
-                            .then(val => parseFloat(val))
-                        : Promise.resolve(node.extent),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.minTempSetpointType) 
-                        ? utils.evaluateNodeProperty(config.minTempSetpoint, config.minTempSetpointType, node, msg)
-                            .then(val => parseFloat(val))
-                        : Promise.resolve(node.minTempSetpoint),
-                );  
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.maxTempSetpointType)
-                        ? utils.evaluateNodeProperty(config.maxTempSetpoint, config.maxTempSetpointType, node, msg)
-                            .then(val => parseFloat(val))
-                        : Promise.resolve(node.maxTempSetpoint),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.algorithmType)
-                        ? utils.evaluateNodeProperty(config.algorithm, config.algorithmType, node, msg)
-                        : Promise.resolve(node.algorithm),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.operationModeType)
-                        ? utils.evaluateNodeProperty(config.operationMode, config.operationModeType, node, msg)
-                        : Promise.resolve(node.operationMode),
-                );
-
-                const results = await Promise.all(evaluations);   
-
-                // Update runtime with evaluated values
-
-                if (!isNaN(results[0])) node.setpoint = results[0];
-                if (!isNaN(results[1])) node.heatingSetpoint = results[1];
-                if (!isNaN(results[2])) node.coolingSetpoint = results[2];
-                if (!isNaN(results[3])) node.swapTime = results[3];
-                if (!isNaN(results[4])) node.deadband = results[4];
-                if (!isNaN(results[5])) node.extent = results[5];
-                if (!isNaN(results[6])) node.minTempSetpoint = results[6];
-                if (!isNaN(results[7])) node.maxTempSetpoint = results[7];
-                if (results[8]) node.algorithm = results[8];
-                if (results[9]) node.operationMode = results[9];
-                // Only override currentMode for explicit heat/cool modes.
-                // In "auto" mode, currentMode is managed by evaluateState().
-                if (node.operationMode === "cool") {
-                    node.currentMode = "cooling";
-                } else if (node.operationMode === "heat") {
-                    node.currentMode = "heating";
-                }
-      
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
                 return;
             } finally {
-                // Release, all synchronous from here on
                 node.isBusy = false;
             }
 
-            // Validate
-            if (node.coolingSetpoint < node.heatingSetpoint 
-                || node.maxTempSetpoint < node.minTempSetpoint 
-                || node.deadband <= 0 || node.extent < 0) {
-                utils.setStatusError(node, "error validating properties, check setpoints");
-                if (done) done(err);
+            // ----------------------------------------------------------------
+            // 2. Enforce constraints
+            // ----------------------------------------------------------------
+            if (node.swapTime < MIN_SWAP_TIME) {
+                node.swapTime = MIN_SWAP_TIME;
+            }
+            if (node.deadband <= 0) {
+                utils.setStatusError(node, "deadband must be > 0");
+                if (done) done();
                 return;
             }
-            
-            if (node.swapTime < 60) {
-                node.swapTime = 60;
-                utils.setStatusError(node, "swapTime below 60s, using 60");
+            if (node.extent < 0) {
+                utils.setStatusError(node, "extent must be >= 0");
+                if (done) done();
+                return;
+            }
+            if (node.maxTempSetpoint <= node.minTempSetpoint) {
+                utils.setStatusError(node, "maxTempSetpoint must be > minTempSetpoint");
+                if (done) done();
+                return;
+            }
+            if (node.algorithm === "split" && node.coolingSetpoint <= node.heatingSetpoint) {
+                utils.setStatusError(node, "coolingSetpoint must be > heatingSetpoint");
+                if (done) done();
+                return;
+            }
+            if (node.algorithm === "specified" && node.coolingOn <= node.heatingOn) {
+                utils.setStatusError(node, "coolingOn must be > heatingOn");
+                if (done) done();
+                return;
             }
 
-            if (node.coolingSetpoint < node.heatingSetpoint) {
-                node.coolingSetpoint = node.heatingSetpoint + 4;
-                utils.setStatusError(node, "invalid setpoints, using fallback");
-            }
-
-            if (msg.hasOwnProperty("context")) {
-                if (!msg.hasOwnProperty("payload")) {
-                    utils.setStatusError(node, `missing payload for ${msg.context}`);
-                    if (done) done();
-                    return;
-                }
-
-                const value = parseFloat(msg.payload);
-                switch (msg.context) {
-                    case "operationMode":
-                        if (!["auto", "heat", "cool"].includes(msg.payload)) {
-                            utils.setStatusError(node, "invalid operationMode");
-                            if (done) done();
-                            return;
-                        }
-                        node.operationMode = msg.payload;
-                        utils.setStatusOK(node, `in: operationMode=${msg.payload}, out: ${node.currentMode}`);
-                        break;
-                    case "algorithm":
-                        if (!["single", "split"].includes(msg.payload)) {
-                            utils.setStatusError(node, "invalid algorithm");
-                            if (done) done();
-                            return;
-                        }
-                        node.algorithm = msg.payload;
-                        utils.setStatusOK(node, `in: algorithm=${msg.payload}, out: ${node.currentMode}`);
-                        break;
-                    case "setpoint":
-                        if (isNaN(value) || value < node.minTempSetpoint || value > node.maxTempSetpoint) {
-                            utils.setStatusError(node, "invalid setpoint");
-                            if (done) done();
-                            return;
-                        }
-                        node.setpoint = value.toString();
-                        node.setpointType = "num";
-                        utils.setStatusOK(node, `in: setpoint=${value.toFixed(1)}, out: ${node.currentMode}`);
-                        break;
-                    case "deadband":
-                        if (isNaN(value) || value <= 0) {
-                            utils.setStatusError(node, "invalid deadband");
-                            if (done) done();
-                            return;
-                        }
-                        node.deadband = value;
-                        utils.setStatusOK(node, `in: deadband=${value.toFixed(1)}, out: ${node.currentMode}`);
-                        break;
-                    case "heatingSetpoint":
-                        if (isNaN(value) || value < node.minTempSetpoint || value > node.maxTempSetpoint || value > node.coolingSetpoint) {
-                            utils.setStatusError(node, "invalid heatingSetpoint");
-                            if (done) done();
-                            return;
-                        }
-                        node.heatingSetpoint = value.toString();
-                        node.heatingSetpointType = "num";
-                        utils.setStatusOK(node, `in: heatingSetpoint=${value.toFixed(1)}, out: ${node.currentMode}`);
-                        break;
-                    case "coolingSetpoint":
-                        if (isNaN(value) || value < node.minTempSetpoint || value > node.maxTempSetpoint || value < node.heatingSetpoint) {
-                            utils.setStatusError(node, "invalid coolingSetpoint");
-                            if (done) done();
-                            return;
-                        }
-                        node.coolingSetpoint = value.toString();
-                        node.coolingSetpointType = "num";
-                        utils.setStatusOK(node, `in: coolingSetpoint=${value.toFixed(1)}, out: ${node.currentMode}`);
-                        break;
-                    case "extent":
-                        if (isNaN(value) || value < 0) {
-                            utils.setStatusError(node, "invalid extent");
-                            if (done) done();
-                            return;
-                        }
-                        node.extent = value;
-                        utils.setStatusOK(node, `in: extent=${value.toFixed(1)}, out: ${node.currentMode}`);
-                        break;
-                    case "swapTime":
-                        if (isNaN(value) || value < 60) {
-                            utils.setStatusError(node, "invalid swapTime, minimum 60s");
-                            if (done) done();
-                            return;
-                        }
-                        node.swapTime = value.toString();
-                        node.swapTimeType = "num";
-                        utils.setStatusOK(node, `in: swapTime=${value.toFixed(0)}, out: ${node.currentMode}`);
-                        break;
-                    case "minTempSetpoint":
-                        if (isNaN(value) || value >= node.maxTempSetpoint ||
-                            (node.algorithm === "single" && value > node.setpoint) ||
-                            (node.algorithm === "split" && (value > node.heatingSetpoint || value > node.coolingSetpoint))) {
-                            utils.setStatusError(node, "invalid minTempSetpoint");
-                            if (done) done();
-                            return;
-                        }
-                        node.minTempSetpoint = value;
-                        utils.setStatusOK(node, `in: minTempSetpoint=${value.toFixed(1)}, out: ${node.currentMode}`);
-                        break;
-                    case "maxTempSetpoint":
-                        if (isNaN(value) || value <= node.minTempSetpoint ||
-                            (node.algorithm === "single" && value < node.setpoint) ||
-                            (node.algorithm === "split" && (value < node.heatingSetpoint || value < node.coolingSetpoint))) {
-                            utils.setStatusError(node, "invalid maxTempSetpoint");
-                            if (done) done();
-                            return;
-                        }
-                        node.maxTempSetpoint = value;
-                        utils.setStatusOK(node, `in: maxTempSetpoint=${value.toFixed(1)}, out: ${node.currentMode}`);
-                        break;
-                    case "initWindow":
-                        if (isNaN(value) || value < 0) {
-                            utils.setStatusError(node, "invalid initWindow");
-                            if (done) done();
-                            return;
-                        }
-                        node.initWindow = value;
-                        utils.setStatusOK(node, `in: initWindow=${value.toFixed(0)}, out: ${node.currentMode}`);
-                        break;
-                    default:
-                        utils.setStatusWarn(node, "unknown context");
-                        if (done) done();
-                        return;
-                }
+            // ----------------------------------------------------------------
+            // 3. Lock currentMode for explicit heat/cool operation modes
+            // ----------------------------------------------------------------
+            if (node.operationMode === "heat") {
+                node.currentMode = "heating";
                 conditionStartTime = null;
                 pendingMode = null;
-
-                send(evaluateState() || buildOutputs());
-                if (done) done();
-                return;
+            } else if (node.operationMode === "cool") {
+                node.currentMode = "cooling";
+                conditionStartTime = null;
+                pendingMode = null;
             }
 
-            if (!msg.hasOwnProperty("payload")) {
-                utils.setStatusError(node, "missing temperature payload property");
-                if (done) done();
-                return;
-            }
-
+            // ----------------------------------------------------------------
+            // 4. Read temperature from msg
+            // ----------------------------------------------------------------
             let input;
             try {
                 input = parseFloat(RED.util.getMessageProperty(msg, node.inputProperty));
-            } catch (err) {
+            } catch (e) {
                 input = NaN;
             }
             if (isNaN(input)) {
-                utils.setStatusError(node, "missing or invalid input property");
+                utils.setStatusError(node, "missing or invalid temperature");
                 if (done) done();
                 return;
             }
-            
-            if (node.lastTemperature !== input) {
-                node.lastTemperature = input;
-            }
+            node.lastTemperature = input;
 
+            // ----------------------------------------------------------------
+            // 5. Init window — wait for sensors to stabilize
+            // ----------------------------------------------------------------
             const now = Date.now() / 1000;
-            if (!initComplete && now - initStartTime >= node.initWindow) {
-                initComplete = true;
-                evaluateInitialMode();
-            }
-
             if (!initComplete) {
-                updateStatus();
-                if (done) done();
-                return;
+                if (now - initStartTime >= node.initWindow) {
+                    initComplete = true;
+                    evaluateInitialMode();
+                } else {
+                    updateStatus();
+                    if (done) done();
+                    return;
+                }
             }
 
-            send(evaluateState() || buildOutputs());
+            // ----------------------------------------------------------------
+            // 6. Evaluate mode (auto switching with swap timer)
+            // ----------------------------------------------------------------
+            evaluateState();
+
+            // ----------------------------------------------------------------
+            // 7. Build and send output
+            // ----------------------------------------------------------------
+            send(buildOutputs());
             updateStatus();
             if (done) done();
         });
 
+        // ====================================================================
+        // Calculate thresholds for the current algorithm
+        // ====================================================================
+        function getThresholds() {
+            switch (node.algorithm) {
+                case "single":
+                    return {
+                        heating: node.setpoint - node.deadband / 2,
+                        cooling: node.setpoint + node.deadband / 2
+                    };
+                case "split":
+                    return {
+                        heating: node.heatingSetpoint - node.extent,
+                        cooling: node.coolingSetpoint + node.extent
+                    };
+                case "specified":
+                    return {
+                        heating: node.heatingOn,
+                        cooling: node.coolingOn
+                    };
+                default:
+                    return {
+                        heating: node.setpoint - node.deadband / 2,
+                        cooling: node.setpoint + node.deadband / 2
+                    };
+            }
+        }
+
+        // ====================================================================
+        // Initial mode — set immediately without swap timer
+        // ====================================================================
         function evaluateInitialMode() {
             if (node.lastTemperature === null) return;
-            const temp = node.lastTemperature;
-            let newMode = node.currentMode;
+            if (node.operationMode !== "auto") return; // already locked
 
-            if (node.operationMode === "heat") {
-                newMode = "heating";
-            } else if (node.operationMode === "cool") {
-                newMode = "cooling";
-            } else {
-                let heatingThreshold, coolingThreshold;
-                if (node.algorithm === "single") {
-                    heatingThreshold = node.setpoint - node.deadband / 2;
-                    coolingThreshold = node.setpoint + node.deadband / 2;
-                } else if (node.algorithm === "split") {
-                    heatingThreshold = node.heatingSetpoint - node.extent;
-                    coolingThreshold = node.coolingSetpoint + node.extent;
-                } else if (node.algorithm === "specified") {
-                    heatingThreshold = node.heatingOn - node.extent;
-                    coolingThreshold = node.coolingOn + node.extent;
-                }
-
-                if (temp < heatingThreshold) {
-                    newMode = "heating";
-                } else if (temp > coolingThreshold) {
-                    newMode = "cooling";
-                }
+            const { heating, cooling } = getThresholds();
+            if (node.lastTemperature < heating) {
+                node.currentMode = "heating";
+            } else if (node.lastTemperature > cooling) {
+                node.currentMode = "cooling";
             }
-
-            node.currentMode = newMode;
             node.lastModeChange = Date.now() / 1000;
         }
 
+        // ====================================================================
+        // Auto-mode state evaluation with swap timer
+        // ====================================================================
         function evaluateState() {
+            if (!initComplete) return;
+            if (node.operationMode !== "auto") return; // locked modes handled in step 3
+            if (node.lastTemperature === null) return;
+
             const now = Date.now() / 1000;
-            if (!initComplete) return null;
+            const { heating, cooling } = getThresholds();
 
-            let newMode = node.currentMode;
-            if (node.operationMode === "heat") {
-                newMode = "heating";
-                conditionStartTime = null;
-                pendingMode = null;
-            } else if (node.operationMode === "cool") {
-                newMode = "cooling";
-                conditionStartTime = null;
-                pendingMode = null;
-            } else if (node.lastTemperature !== null) {
-                let heatingThreshold, coolingThreshold;
-                if (node.algorithm === "single") {
-                    heatingThreshold = node.setpoint - node.deadband / 2;
-                    coolingThreshold = node.setpoint + node.deadband / 2;
-                } else if (node.algorithm === "split") {
-                    heatingThreshold = node.heatingSetpoint - node.extent;
-                    coolingThreshold = node.coolingSetpoint + node.extent;
-                } else if (node.algorithm === "specified") {
-                    heatingThreshold = node.heatingOn - node.extent;
-                    coolingThreshold = node.coolingOn + node.extent;
-                }
+            // Determine what mode temperature demands
+            let desiredMode = node.currentMode;
+            if (node.lastTemperature < heating) {
+                desiredMode = "heating";
+            } else if (node.lastTemperature > cooling) {
+                desiredMode = "cooling";
+            }
 
-                let desiredMode = node.currentMode;
-                if (node.lastTemperature < heatingThreshold) {
-                    desiredMode = "heating";
-                } else if (node.lastTemperature > coolingThreshold) {
-                    desiredMode = "cooling";
-                }
-
-                if (desiredMode !== node.currentMode) {
-                    if (pendingMode !== desiredMode) {
-                        conditionStartTime = now;
-                        pendingMode = desiredMode;
-                    } else if (conditionStartTime && now - conditionStartTime >= node.swapTime) {
-                        newMode = desiredMode;
-                        conditionStartTime = null;
-                        pendingMode = null;
-                    }
-                } else {
+            if (desiredMode !== node.currentMode) {
+                // Temperature demands a mode change — apply swap timer
+                if (pendingMode !== desiredMode) {
+                    // New pending direction — start the countdown
+                    conditionStartTime = now;
+                    pendingMode = desiredMode;
+                } else if (conditionStartTime && now - conditionStartTime >= node.swapTime) {
+                    // Countdown expired — execute the swap
+                    node.currentMode = desiredMode;
+                    node.lastModeChange = now;
                     conditionStartTime = null;
                     pendingMode = null;
                 }
+                // else: still counting down — do nothing
+            } else {
+                // Temperature no longer demands a change — cancel any pending swap
+                conditionStartTime = null;
+                pendingMode = null;
             }
-
-            if (newMode !== node.currentMode) {
-                node.currentMode = newMode;
-                node.lastModeChange = now;
-            }
-
-            return null;
         }
 
+        // ====================================================================
+        // Build output message
+        // ====================================================================
         function buildOutputs() {
             const isHeating = node.currentMode === "heating";
-            let effectiveHeatingSetpoint, effectiveCoolingSetpoint;
-            if (node.algorithm === "single") {
-                effectiveHeatingSetpoint = node.setpoint - node.deadband / 2;
-                effectiveCoolingSetpoint = node.setpoint + node.deadband / 2;
-            } else if (node.algorithm === "split") {
-                effectiveHeatingSetpoint = node.heatingSetpoint;
-                effectiveCoolingSetpoint = node.coolingSetpoint;
-            } else if (node.algorithm === "specified") {
-                effectiveHeatingSetpoint = node.heatingOn;
-                effectiveCoolingSetpoint = node.coolingOn;
-            }
+            const { heating: effectiveHeating, cooling: effectiveCooling } = getThresholds();
 
-            return [
-                { 
-                    payload: isHeating,
-                    context: "isHeating", 
-                    status: {
-                        mode: node.currentMode,
-                        isHeating,
-                        heatingSetpoint: effectiveHeatingSetpoint,
-                        coolingSetpoint: effectiveCoolingSetpoint,
-                        temperature: node.lastTemperature
-                    }
-                },
-            ];
+            return [{
+                payload: node.lastTemperature,
+                isHeating,
+                status: {
+                    mode: node.currentMode,
+                    operationMode: node.operationMode,
+                    isHeating,
+                    heatingSetpoint: effectiveHeating,
+                    coolingSetpoint: effectiveCooling,
+                    temperature: node.lastTemperature
+                }
+            }];
         }
 
+        // ====================================================================
+        // Node status display
+        // ====================================================================
         function updateStatus() {
             const now = Date.now() / 1000;
-            const inInitWindow = !initComplete && now - initStartTime < node.initWindow;
+            const isHeating = node.currentMode === "heating";
 
-            if (inInitWindow) {
-                utils.setStatusBusy(node, `initializing, out: ${node.currentMode}`);
+            if (!initComplete) {
+                const remaining = Math.max(0, node.initWindow - (now - initStartTime));
+                utils.setStatusBusy(node, `init ${remaining.toFixed(0)}s [${node.operationMode}] ${node.currentMode}`);
+                return;
+            }
+
+            const temp = node.lastTemperature !== null ? node.lastTemperature.toFixed(1) : "?";
+            const { heating, cooling } = getThresholds();
+            const threshold = isHeating
+                ? `<${heating.toFixed(1)}`
+                : `>${cooling.toFixed(1)}`;
+            let text = `${temp}° ${threshold} [${node.operationMode}] ${node.currentMode}`;
+
+            if (pendingMode && conditionStartTime) {
+                const remaining = Math.max(0, node.swapTime - (now - conditionStartTime));
+                text += ` → ${pendingMode} ${remaining.toFixed(0)}s`;
+            }
+
+            if (now - node.lastModeChange < 1) {
+                utils.setStatusChanged(node, text);
             } else {
-                let statusText = `in: temp=${node.lastTemperature !== null ? node.lastTemperature.toFixed(1) : "unknown"}, out: ${node.currentMode}`;
-                if (pendingMode && conditionStartTime) {
-                    const remaining = Math.max(0, node.swapTime - (now - conditionStartTime));
-                    statusText += `, pending: ${pendingMode} in ${remaining.toFixed(0)}s`;
-                }
-                if (now - node.lastModeChange < 1) {
-                    utils.setStatusChanged(node, statusText);
-                } else {
-                    utils.setStatusUnchanged(node, statusText);
-                }
+                utils.setStatusUnchanged(node, text);
             }
         }
 
+        // ====================================================================
+        // Cleanup
+        // ====================================================================
         node.on("close", function(done) {
             done();
         });

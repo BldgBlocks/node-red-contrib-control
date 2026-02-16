@@ -228,106 +228,50 @@
 </script>
 
 <script type="text/markdown" data-help-name="tstat-block">
-Thermostat controller for heating/cooling with single, split, or specified setpoint operation, hysteresis, and anticipation to prevent or allow overshoot for testing.
+Thermostat controller for heating/cooling with single, split, or specified setpoint operation, hysteresis, and anticipation.
 
 ### Inputs
-: context (string) : Configures node (`"algorithm"`, `"setpoint"`, `"heatingSetpoint"`, `"coolingSetpoint"`, `"coolingOn"`, `"coolingOff"`, `"heatingOff"`, `"heatingOn"`, `"diff"`, `"anticipator"`, `"ignoreAnticipatorCycles"`, `"isHeating"`, `"status"`).
-: payload (number | boolean | string) : Number for temperature or config values, boolean for `isHeating`, string for `algorithm` (`"single"`, `"split"`, `"specified"`).
+: payload (number) : Temperature reading.
+: isHeating (boolean) : Optional. Overrides the configured heating mode (typically wired from a changeover node).
 
 ### Outputs
-All output messages include a `msg.status` object containing runtime information
-: isHeating (boolean) : `true` for heating mode, `false` for cooling mode. Includes `msg.context = "isHeating"`.
-: above (boolean) : `true` if input exceeds cooling on threshold.
-: below (boolean) : `true` if input is below heating on threshold.
-: status (object) : Contains detailed runtime information including:
-  - `algorithm`: Current algorithm in use
-  - `input`: Current temperature input value
-  - `isHeating`: Current heating mode
-  - `above/below`: Current output states
-  - Algorithm-specific setpoints and values
-  - `modeChanged`: If mode recently changed
-  - `cyclesSinceModeChange`: Count since last mode change
-  - `effectiveAnticipator`: Current anticipator value after mode change adjustments
+: isHeating (boolean) : Output 1. Current heating mode. Includes `msg.context = "isHeating"`.
+: above (boolean) : Output 2. `true` when cooling call is active (temperature exceeded cooling threshold).
+: below (boolean) : Output 3. `true` when heating call is active (temperature dropped below heating threshold).
 
-### Status Monitoring
-All outputs include comprehensive status information in `msg.status`. Example:
-```json
-{
-  "status": {
-    "algorithm": "single",
-    "input": 68.5,
-    "isHeating": true,
-    "above": false,
-    "below": true,
-    "setpoint": 70,
-    "diff": 2,
-    "anticipator": 0.5,
-    "modeChanged": false,
-    "cyclesSinceModeChange": 3,
-    "effectiveAnticipator": 0.5
-  }
-}
-```
+All outputs include a `msg.status` object with runtime diagnostics: `algorithm`, `input`, `isHeating`, `above`, `below`, `activeSetpoint`, `onThreshold`, `offThreshold`, `diff`, `anticipator`, `effectiveAnticipator`, `modeChanged`, `cyclesSinceModeChange`.
 
 ### Algorithms
-- **Single Setpoint**:
-  - Uses `setpoint`, `diff`, and `anticipator`.
-  - Sets `above` if `input > setpoint + diff/2`, clears when `input < setpoint + anticipator`.
-  - Sets `below` if `input < setpoint - diff/2`, clears when `input > setpoint - anticipator`.
-  - For positive `anticipator`, stops early to prevent overshoot. For negative `anticipator` (testing only), delays turn-off to overshoot setpoint.
-  - Example: `setpoint=70`, `diff=2`, `anticipator=-0.5`, `above` if `input > 71`, clears at `< 69.5` (overshoots); `below` if `input < 69`, clears at `> 70.5` (overshoots).
 
-- **Split Setpoint**:
-  - Uses `heatingSetpoint`, `coolingSetpoint`, `diff`, and `anticipator`.
-  - For `isHeating = true`:
-    - Sets `below` if `input < heatingSetpoint - diff/2`, clears when `input > heatingSetpoint - anticipator`.
-    - `above` is `false`.
-  - For `isHeating = false`:
-    - Sets `above` if `input > coolingSetpoint + diff/2`, clears when `input < coolingSetpoint + anticipator`.
-    - `below` is `false`.
-  - Ensures `heatingSetpoint < coolingSetpoint`.
-  - For negative `anticipator`, delays turn-off (e.g., heating off above `heatingSetpoint`).
-  - Example: `heatingSetpoint=68`, `coolingSetpoint=74`, `diff=2`, `anticipator=-0.5`, heating mode sets `below` if `input < 67`, clears at `> 68.5`; cooling mode sets `above` if `input > 75`, clears at `< 73.5`.
+**Single** — One setpoint with differential hysteresis.
+- Heating: call ON when `temp < setpoint - diff/2`, OFF when `temp > setpoint - anticipator`
+- Cooling: call ON when `temp > setpoint + diff/2`, OFF when `temp < setpoint + anticipator`
 
-- **Specified Setpoint**:
-  - Uses `coolingOn`, `coolingOff`, `heatingOff`, `heatingOn`, and `anticipator`.
-  - For `isHeating = false`:
-    - Sets `above` if `input > coolingOn`, clears when `input < coolingOff + anticipator`.
-    - `below` is `false`.
-  - For `isHeating = true`:
-    - Sets `below` if `input < heatingOn`, clears when `input > heatingOff - anticipator`.
-    - `above` is `false`.
-  - Validates `coolingOn >= coolingOff >= heatingOff >= heatingOn`.
-  - For negative `anticipator`, delays turn-off (e.g., heating off above `heatingOff`).
-  - Example: `coolingOn=74`, `coolingOff=72`, `heatingOff=68`, `heatingOn=66`, `anticipator=-0.5`, cooling mode sets `above` if `input > 74`, clears at `< 71.5`; heating mode sets `below` if `input < 66`, clears at `> 68.5`.
+**Split** — Separate heating/cooling setpoints with differential.
+- Heating: call ON when `temp < heatingSetpoint - diff/2`, OFF when `temp > heatingSetpoint - anticipator`
+- Cooling: call ON when `temp > coolingSetpoint + diff/2`, OFF when `temp < coolingSetpoint + anticipator`
+
+**Specified** — Explicit on/off trigger temperatures.
+- Heating: call ON when `temp < heatingOn`, OFF when `temp > heatingOff - anticipator`
+- Cooling: call ON when `temp > coolingOn`, OFF when `temp < coolingOff + anticipator`
+
+### Anticipator
+Positive values stop early to prevent overshoot. Negative values (≥ -2, testing only) delay turn-off to allow overshoot.
+
+The `ignoreAnticipatorCycles` setting disables the anticipator for N cycles after a mode change to reduce short-cycling.
 
 ### Startup Delay
-Configurable delay (default 30 seconds, 0 = disabled) that suppresses `above` and `below` call outputs after deployment.
-This prevents false calls before upstream mode selection (e.g., changeover node) has initialized.
-During the delay, `isHeating` output passes through normally and internal thermostat state is tracked,
-so the correct call state is output immediately when the delay expires. Status shows `[startup]` during suppression.
+Configurable delay (default 30s, 0 = disabled) suppresses `above`/`below` calls after deployment. Prevents false calls before upstream mode selection has initialized. During delay, `isHeating` passes through normally and internal state is tracked. Status shows `[startup]` during suppression.
 
-### Details
-Compares a numeric temperature input (`msg.payload`) against setpoints to control heating or cooling. 
-
-The `differential` (`diff`) applies to the `single` and `split` setpoint algorithms, providing hysteresis. 
-
-The `anticipator` adjusts turn-off points: positive values stop early to prevent overshoot (subtracts for heating, adds for cooling); 
-negative values (allowed for testing, >= -2) delay turn-off to overshoot setpoint. 
-
-The `isHeating` flag (typically from a changeover node) sets output 1 and selects the active setpoint(s).
-
-The `ignoreAnticipatorCycles` setting allows ignoring the anticipator for a specified number of cycles after a mode change to reduce short-cycling. 
-
-All numeric inputs (`setpoint`, `heatingSetpoint`, `coolingSetpoint`, `coolingOn`, `coolingOff`, `heatingOff`, `heatingOn`, `diff`, `anticipator`, 
-`ignoreAnticipatorCycles`) support `num`, `msg`, `flow`, or `global` types via `typedInput`.
+### Configuration
+All numeric inputs support `num`, `msg`, `flow`, or `global` types via typed inputs. The `isHeating` flag supports `bool`, `msg`, `flow`, or `global`. Algorithm supports dropdown, `msg`, `flow`, or `global`.
 
 ### Status
-- Green (dot): Configuration updates (e.g., `setpoint: 70.0`, `anticipator: 0.5`, `isHeating: true`).
-- Blue (dot): Outputs when state changes (e.g., `in: 65.00, out: heating, above: false, below: true`).
-- Blue (ring): Outputs when state unchanged (e.g., `in: 66.00, out: heating, above: false, below: true`).
-- Red (ring): Errors (e.g., `missing input`, `invalid coolingOff`, `invalid diff, using 2`).
-- Yellow (ring): Warnings (e.g., `unknown context`).
+- Green (dot): Configuration update
+- Blue (dot): State changed
+- Blue (ring): State unchanged
+- Red (ring): Error
+- Yellow (ring): Warning / startup delay
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)
