@@ -20,9 +20,10 @@ module.exports = function(RED) {
         // Constants
         const TRENDS_DIR = getTrendsDirPath();
         // Use node ID in filename to prevent collisions between multiple history nodes
-        const BUFFER_FILE = path.join(TRENDS_DIR, `buffer_${node.id}.json`);
-        // Legacy file path for migration
+        const BUFFER_FILE = path.join(TRENDS_DIR, `buffer_${node.id}.jsonl`);
+        // Legacy file paths for migration
         const LEGACY_BUFFER_FILE = path.join(TRENDS_DIR, 'buffer_current.json');
+        const LEGACY_BUFFER_FILE_JSON = path.join(TRENDS_DIR, `buffer_${node.id}.json`);
         
         const COMMIT_INTERVAL_MS = 30 * 1000;  // 30 seconds
         const PRUNE_INTERVAL_MS = 60 * 1000;   // 60 seconds
@@ -122,6 +123,26 @@ module.exports = function(RED) {
             const now = new Date();
             const currentTimestamp = Math.floor(now.getTime() / 1000);
 
+            // Migrate old .json buffer to .jsonl if it exists
+            try {
+                await fs.promises.access(LEGACY_BUFFER_FILE_JSON);
+                // If the new .jsonl doesn't exist, rename; otherwise append and delete
+                try {
+                    await fs.promises.access(BUFFER_FILE);
+                    // Both exist: append old into new, then remove old
+                    const oldData = await fs.promises.readFile(LEGACY_BUFFER_FILE_JSON);
+                    if (oldData.length > 0) {
+                        await fs.promises.appendFile(BUFFER_FILE, oldData);
+                    }
+                    await fs.promises.unlink(LEGACY_BUFFER_FILE_JSON);
+                } catch (e) {
+                    // New .jsonl doesn't exist, just rename
+                    await fs.promises.rename(LEGACY_BUFFER_FILE_JSON, BUFFER_FILE);
+                }
+            } catch (err) {
+                // No legacy .json buffer, nothing to migrate
+            }
+
             // Check for this node's specific buffer
             try {
                 const stats = await fs.promises.stat(BUFFER_FILE);
@@ -136,7 +157,7 @@ module.exports = function(RED) {
 
                 if (isStale) {
                     const fileTs = Math.floor(stats.mtimeMs / 1000);
-                    const newName = path.join(TRENDS_DIR, `trend_${fileTs}_${node.id}.json`);
+                    const newName = path.join(TRENDS_DIR, `trend_${fileTs}_${node.id}.jsonl`);
                     await fs.promises.rename(BUFFER_FILE, newName);
                 }
 
@@ -147,7 +168,7 @@ module.exports = function(RED) {
             // Check for legacy buffer (migration)
             try {
                 await fs.promises.access(LEGACY_BUFFER_FILE);
-                const legacyName = path.join(TRENDS_DIR, `trend_${currentTimestamp}_legacy.json`);
+                const legacyName = path.join(TRENDS_DIR, `trend_${currentTimestamp}_legacy.jsonl`);
                 await fs.promises.rename(LEGACY_BUFFER_FILE, legacyName);
             } catch (err) {
                 // Ignore
@@ -157,9 +178,9 @@ module.exports = function(RED) {
         async function getHistoricalFiles() {
             try {
                 const files = await fs.promises.readdir(TRENDS_DIR);
-                // Filter for our files: trend_TIMESTAMP_*.json
+                // Filter for our files: trend_TIMESTAMP_*.json or .jsonl
                 return files
-                    .filter(f => f.startsWith('trend_') && f.endsWith('.json'))
+                    .filter(f => f.startsWith('trend_') && (f.endsWith('.json') || f.endsWith('.jsonl')))
                     .sort(); // String sort works for fixed-length timestamps usually, but numeric would be safer
             } catch (err) {
                 return [];
@@ -250,20 +271,10 @@ module.exports = function(RED) {
                 // Reset live buffer immediately so new messages go into next batch
                 liveBuffer = [];
                 
-                const lines = pointsToCommit.map(p => JSON.stringify(p)).join('\n');
+                const lines = pointsToCommit.map(p => JSON.stringify(p)).join('\n') + '\n';
                 
                 try {
-                    // Only add prefix newline if file exists and has content (simplified check)
-                    // We'll let the next append handle its own newline or just ensure we join efficiently.
-                    // Actually, safest is to append WITH a preceding newline if file exists.
-                    
-                    let prefix = '';
-                    try {
-                        const stats = await fs.promises.stat(BUFFER_FILE);
-                        if (stats.size > 0) prefix = '\n';
-                    } catch(e) { /* File doesn't exist, no prefix needed */ }
-
-                    await fs.promises.appendFile(BUFFER_FILE, prefix + lines);
+                    await fs.promises.appendFile(BUFFER_FILE, lines);
                 } catch (err) {
                     node.warn(`Buffer commit failed: ${err.message}`);
                     // Put points back at the start of buffer if write failed
@@ -336,15 +347,9 @@ module.exports = function(RED) {
             if (liveBuffer.length > 0) {
                 const pointsToCommit = liveBuffer;
                 liveBuffer = []; // Clear memory
-                const lines = pointsToCommit.map(p => JSON.stringify(p)).join('\n');
+                const lines = pointsToCommit.map(p => JSON.stringify(p)).join('\n') + '\n';
                 try {
-                    let prefix = '';
-                    try {
-                        const stats = await fs.promises.stat(BUFFER_FILE);
-                        if (stats.size > 0) prefix = '\n';
-                    } catch(e) { /* File doesn't exist */ }
-
-                    await fs.promises.appendFile(BUFFER_FILE, prefix + lines);
+                    await fs.promises.appendFile(BUFFER_FILE, lines);
                 } catch (err) {
                     // If append fails, we might lose these points during rotation, 
                     // put them back and abort rotation. Use concat for safety.
@@ -356,7 +361,7 @@ module.exports = function(RED) {
 
             // Perform Rotation (Rename)
             const timestamp = Math.floor(Date.now() / 1000);
-            const newName = path.join(TRENDS_DIR, `trend_${timestamp}_${node.id}.json`);
+            const newName = path.join(TRENDS_DIR, `trend_${timestamp}_${node.id}.jsonl`);
 
             try {
                 await fs.promises.access(BUFFER_FILE);

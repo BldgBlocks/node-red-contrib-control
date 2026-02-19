@@ -10,10 +10,11 @@ module.exports = function(RED) {
         node.detail = config.detail;
         
         let setterNode = null;
-        let retryAction = null;
-        let healthCheckAction = null;
+        let retryTimeout = null;
+        let healthCheckTimeout = null;
         let updateListener = null;
         let retryCount = 0;
+        let closed = false;
         const retryDelays = [0, 100, 500, 1000, 2000, 4000, 8000, 16000];
         const maxRetries = retryDelays.length - 1;
         
@@ -85,9 +86,9 @@ module.exports = function(RED) {
                 
                 RED.events.on("bldgblocks:global:value-changed", updateListener);
                 
-                if (retryAction) {
-                    clearInterval(retryAction);
-                    retryAction = null;
+                if (retryTimeout) {
+                    clearTimeout(retryTimeout);
+                    retryTimeout = null;
                 }
                 
                 utils.setStatusOK(node, "Connected");
@@ -98,6 +99,11 @@ module.exports = function(RED) {
 
         function startHealthCheck() {
             const check = () => {
+                if (closed) return;
+                if (!updateListener) {
+                    healthCheckTimeout = setTimeout(check, 30000);
+                    return;
+                }
                 const listeners = RED.events.listeners("bldgblocks:global:value-changed");
                 const hasOurListener = listeners.includes(updateListener);
                 if (!hasOurListener) {
@@ -106,13 +112,14 @@ module.exports = function(RED) {
                         utils.setStatusOK(node, "Reconnected");
                     }
                 }
-                setTimeout(check, 30000);
+                healthCheckTimeout = setTimeout(check, 30000);
             };
-            setTimeout(check, 30000);
+            healthCheckTimeout = setTimeout(check, 30000);
         }
 
         function subscribeWithRetry() {
-            retryAction = () => {
+            function attempt() {
+                if (closed) return;
                 if (retryCount >= maxRetries) {
                     utils.sendError(node, null, null, "Connection failed");
                     return;
@@ -122,9 +129,9 @@ module.exports = function(RED) {
                     return; 
                 }
                 retryCount++;
-                setTimeout(retryAction, retryDelays[Math.min(retryCount, maxRetries - 1)]);
-            };
-            setTimeout(retryAction, retryDelays[0]);
+                retryTimeout = setTimeout(attempt, retryDelays[Math.min(retryCount, maxRetries - 1)]);
+            }
+            retryTimeout = setTimeout(attempt, retryDelays[0]);
         }
 
         // --- INPUT HANDLER ---
@@ -160,10 +167,18 @@ module.exports = function(RED) {
         }
 
         node.on('close', function(removed, done) {
-            if (healthCheckAction) clearInterval(healthCheckAction);
-            if (retryAction) clearInterval(retryAction);
-            if (removed && updateListener) {
+            closed = true;
+            if (healthCheckTimeout) {
+                clearTimeout(healthCheckTimeout);
+                healthCheckTimeout = null;
+            }
+            if (retryTimeout) {
+                clearTimeout(retryTimeout);
+                retryTimeout = null;
+            }
+            if (updateListener) {
                 RED.events.removeListener("bldgblocks:global:value-changed", updateListener);
+                updateListener = null;
             }
             done();
         });

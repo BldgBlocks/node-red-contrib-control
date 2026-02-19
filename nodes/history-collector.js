@@ -134,7 +134,7 @@ module.exports = function(RED) {
                 msg.measurement = escapedMeasurementName;
                 msg.payload = line;
                 node.send(msg);
-                utils.setStatusChanged(node, `sent: ${valueString}`);
+                utils.setStatusChanged(node, `stored: ${valueString}`);
             } else if (node.storageType === 'object') {
                 msg.measurement = escapedMeasurementName;
                 msg.payload = {
@@ -144,7 +144,7 @@ module.exports = function(RED) {
                     timestamp: timestamp
                 };
                 node.send(msg);
-                utils.setStatusChanged(node, `sent: ${valueString}`);
+                utils.setStatusChanged(node, `stored: ${valueString}`);
             } else if (node.storageType === 'objectArray') {
                 msg.measurement = escapedMeasurementName;
                 msg.timestamp = timestamp;
@@ -155,7 +155,7 @@ module.exports = function(RED) {
                     tagsObj
                 ]
                 node.send(msg);
-                utils.setStatusChanged(node, `sent: ${valueString}`);
+                utils.setStatusChanged(node, `stored: ${valueString}`);
             } else if (node.storageType === 'batchObject') {
                 msg.payload = {
                     measurement: escapedMeasurementName,
@@ -166,7 +166,7 @@ module.exports = function(RED) {
                     tags: tagsObj
                 }
                 node.send(msg);
-                utils.setStatusChanged(node, `sent: ${valueString}`);
+                utils.setStatusChanged(node, `stored: ${valueString}`);
             }
 
             if (done) done();

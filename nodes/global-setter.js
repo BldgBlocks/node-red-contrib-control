@@ -59,7 +59,8 @@ module.exports = function(RED) {
                 // Send properly formed state object downstream after full initialization
                 // Allows network-register and other downstream nodes to register on startup
                 // Use setTimeout with delay to allow getter nodes time to establish their event listeners
-                setTimeout(() => {
+                initTimer = setTimeout(() => {
+                    initTimer = null;
                     // Emit event so getter nodes with 'always' update mode receive initial value
                     RED.events.emit("bldgblocks:global:value-changed", {
                         key: node.varName,
@@ -120,7 +121,7 @@ module.exports = function(RED) {
                     await utils.setGlobalState(node, node.varName, node.storeName, state);
                     
                     prefix = state.activePriority === 'default' ? '' : 'P';
-                    const statusText = `reload: ${prefix}${state.activePriority}:${state.value}${state.units}`;
+                    const statusText = `reload: ${prefix}${state.activePriority}:${state.value}${state.units || ''}`;
                     
                     return utils.sendSuccess(node, { ...state }, done, statusText, null, "dot");
                 }
@@ -161,7 +162,7 @@ module.exports = function(RED) {
                     // Ensure payload stays in sync with value
                     state.payload = state.value;
                     prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
-                    const noChangeText = `no change: ${prefix}${node.writePriority}:${state.value}${state.units}`;
+                    const noChangeText = `no change: ${prefix}${node.writePriority}:${state.value}${state.units || ''}`;
                     utils.setStatusUnchanged(node, noChangeText);
                     // Pass message through even if no context change
                     send({ ...state });
@@ -201,7 +202,7 @@ module.exports = function(RED) {
 
                 prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
                 const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
-                const statusText = `write: ${prefix}${node.writePriority}:${inputValue}${state.units} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units}`;
+                const statusText = `write: ${prefix}${node.writePriority}:${inputValue}${state.units || ''} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units || ''}`;
 
                 RED.events.emit("bldgblocks:global:value-changed", {
                     key: node.varName,
@@ -218,8 +219,8 @@ module.exports = function(RED) {
         });
 
         node.on('close', function(removed, done) {
+            if (initTimer) { clearTimeout(initTimer); initTimer = null; }
             if (removed && node.varName) {
-                RED.events.removeAllListeners("bldgblocks:global:value-changed");
                 // Callback style safe for close
                 node.context().global.set(node.varName, undefined, node.storeName, function() {
                     done();
