@@ -149,8 +149,11 @@
                 );
             }
 
-            (node.series || []).forEach(addRow);
-            if (node.series.length === 0) {
+            const sortedSeries = (node.series || []).slice().sort((a, b) =>
+                (a.seriesName || '').localeCompare(b.seriesName || '', undefined, { sensitivity: 'base' })
+            );
+            sortedSeries.forEach(addRow);
+            if (sortedSeries.length === 0) {
                 addRow({seriesName: "OutsideTemp", seriesUnits: "°F"});
             }
 
@@ -223,6 +226,9 @@
                 RED.notify("At least one valid series is required", "error");
                 throw new Error("No valid series");
             }
+            series.sort((a, b) =>
+                (a.seriesName || '').localeCompare(b.seriesName || '', undefined, { sensitivity: 'base' })
+            );
             this.series = series;
             this.name = cleanSaveStr($("#node-config-input-name").val()) || 'default';
         }

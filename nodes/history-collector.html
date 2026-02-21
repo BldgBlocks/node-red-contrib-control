@@ -95,7 +95,9 @@
                 
                 // 1. Update Series Dropdown
                 const seriesOptions = configNode && configNode.series ?
-                    configNode.series.map(s => ({ value: s.seriesName, label: s.seriesName })) :
+                    configNode.series
+                        .map(s => ({ value: s.seriesName, label: s.seriesName }))
+                        .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })) :
                     [];
                 
                 seriesInput.typedInput('types', [{

@@ -4,12 +4,22 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     
-    <div class="form-row">
-        <label for="node-input-targetNode"><i class="fa fa-crosshairs"></i> Source</label>
-        <input type="text" id="node-input-targetNode" style="width: calc(70% - 45px);">
-        <button id="node-config-find-source" class="editor-button" style="margin-left: 5px; width: 40px;" title="Find Source Node">
-            <i class="fa fa-search"></i>
-        </button>
+    <div class="form-row" style="margin-bottom: 0px;">
+        <label><i class="fa fa-crosshairs"></i> Source</label>
+        <input type="hidden" id="node-input-targetNode">
+        <span id="node-input-source-toggle" style="float: right; cursor: pointer; padding: 2px 6px; font-size: 14px;" title="Collapse/Expand source list">
+            <i class="fa fa-caret-down"></i>
+        </span>
+    </div>
+    <div id="node-input-source-summary" style="display: none; padding: 4px 8px; margin-bottom: 5px; border: 1px solid #ddd; border-radius: 4px; background: transparent; color: #888; font-style: italic; cursor: pointer;" title="Click to expand">No source selected</div>
+    <div id="node-input-source-expanded">
+        <div style="position: relative; height: 30px; text-align: right;">
+            <div style="display: inline-block; vertical-align: middle;"><input type="text" id="node-input-source-filter"></div>
+            <button id="node-config-find-source" class="editor-button" style="width: 28px; height: 28px; vertical-align: middle; margin-left: 4px; display: inline-flex; align-items: center; justify-content: center;" title="Reveal Source Node">
+                <i class="fa fa-search"></i>
+            </button>
+        </div>
+        <div class="form-row node-input-source-row"></div>
     </div>
 
     <div class="form-row">
@@ -74,6 +84,7 @@
         paletteLabel: "global get",
         oneditprepare: function() {
             const node = this;
+            let initComplete = false;
             
             let candidateNodes = [];
             RED.nodes.eachNode(function(n) {
@@ -93,10 +104,137 @@
 
             candidateNodes.sort((a, b) => a.label.localeCompare(b.label));
 
-            $("#node-input-targetNode").typedInput({
-                types: [{ value: "target", options: candidateNodes }]
+            // Build treeList grouped by flow tab (like link-in node)
+            const sourceList = $("<div>").css({width: "100%", height: "100%"}).appendTo(".node-input-source-row")
+                .treeList({autoSelect: false});
+
+            const flowMap = {};
+            const flows = [];
+            RED.nodes.eachWorkspace(function(ws) {
+                flowMap[ws.id] = {
+                    id: ws.id,
+                    class: 'red-ui-palette-header',
+                    label: (ws.label || ws.id) + (node.z === ws.id ? " *" : ""),
+                    expanded: true,
+                    children: []
+                };
+                flows.push(flowMap[ws.id]);
+            });
+
+            let candidateNodesCount = 0;
+            candidateNodes.forEach(function(opt) {
+                if (flowMap[RED.nodes.node(opt.value)?.z]) {
+                    const targetZ = RED.nodes.node(opt.value).z;
+                    flowMap[targetZ].children.push({
+                        id: opt.value,
+                        node: RED.nodes.node(opt.value),
+                        label: opt.label,
+                        radio: true,
+                        radioGroup: "source-select",
+                        selected: opt.value === node.targetNode
+                    });
+                    candidateNodesCount++;
+                }
+            });
+
+            const flowsFiltered = flows.filter(function(f) { return f.children.length > 0; });
+            sourceList.treeList('data', flowsFiltered);
+
+            // Show current node's flow tab
+            setTimeout(function() { sourceList.treeList('show', node.z); }, 100);
+
+            // searchBox filter (same pattern as link-in)
+            const search = $("#node-input-source-filter").searchBox({
+                style: "compact",
+                delay: 300,
+                change: function() {
+                    const val = $(this).val().trim().toLowerCase();
+                    if (val === "") {
+                        sourceList.treeList("filter", null);
+                        search.searchBox("count", "");
+                    } else {
+                        const count = sourceList.treeList("filter", function(item) {
+                            return item.label && item.label.toLowerCase().indexOf(val) > -1;
+                        });
+                        search.searchBox("count", count + " / " + candidateNodesCount);
+                    }
+                }
             });
             
+            // Helper to get the currently selected source from the treeList
+            function getSelectedSourceId() {
+                const items = sourceList.treeList('data');
+                for (let f = 0; f < items.length; f++) {
+                    const children = items[f].children || [];
+                    for (let c = 0; c < children.length; c++) {
+                        if (children[c].selected) return children[c].id;
+                    }
+                }
+                return "";
+            }
+
+            // --- Collapse / Expand toggle ---
+            const toggleBtn = $("#node-input-source-toggle");
+            const expandedSection = $("#node-input-source-expanded");
+            const summaryBar = $("#node-input-source-summary");
+            let sourceExpanded = true;
+
+            function getSelectedLabel() {
+                const id = getSelectedSourceId();
+                if (!id) return "No source selected";
+                const opt = candidateNodes.find(o => o.value === id);
+                return opt ? opt.label : "Unknown";
+            }
+
+            function resizeSourceList() {
+                if (!sourceExpanded) return;
+                var dialogForm = $("#dialog-form");
+                var height = dialogForm.height();
+                dialogForm.children().each(function() {
+                    var $el = $(this);
+                    if ($el.attr("id") === "node-input-source-expanded") {
+                        // Subtract the search/button bar inside expanded, but not the source-row itself
+                        $el.children().each(function() {
+                            if (!$(this).hasClass("node-input-source-row")) {
+                                height -= $(this).outerHeight(true);
+                            }
+                        });
+                    } else {
+                        height -= $el.outerHeight(true);
+                    }
+                });
+                $(".node-input-source-row").css("height", Math.max(200, height) + "px");
+            }
+
+            function setSourceExpanded(expanded) {
+                sourceExpanded = expanded;
+                if (expanded) {
+                    summaryBar.hide();
+                    expandedSection.show();
+                    toggleBtn.find("i").removeClass("fa-caret-right").addClass("fa-caret-down");
+                    setTimeout(resizeSourceList, 50);
+                } else {
+                    expandedSection.hide();
+                    summaryBar.text(getSelectedLabel()).show();
+                    toggleBtn.find("i").removeClass("fa-caret-down").addClass("fa-caret-right");
+                }
+            }
+
+            toggleBtn.on("click", function() { setSourceExpanded(!sourceExpanded); });
+            summaryBar.on("click", function() { setSourceExpanded(true); });
+
+            // Update summary text and hidden input when selection changes
+            sourceList.on('treelistselect', function() {
+                if (!initComplete) return;
+                $("#node-input-targetNode").val(getSelectedSourceId());
+                if (!sourceExpanded) summaryBar.text(getSelectedLabel());
+            });
+
+            // Start collapsed if a source is already selected
+            if (node.targetNode) {
+                setSourceExpanded(false);
+            }
+
             $("#node-input-outputProperty").typedInput({
                 default: "msg",
                 types: ["msg", "flow",
@@ -110,10 +248,12 @@
             }).typedInput("type", node.outputPropertyType || "msg").typedInput("value", node.outputProperty);
 
             function updateOutputValue() {
+                if (!initComplete) return;
                 const currentType = $("#node-input-outputProperty").typedInput("type");
+                const currentValue = $("#node-input-outputProperty").typedInput("value");
                 
-                if (currentType === "dropdown" && node.outputProperty === "sourceToFlow") {
-                    const selectedSourceId = $("#node-input-targetNode").val();
+                if (currentType === "dropdown" && currentValue === "sourceToFlow") {
+                    const selectedSourceId = getSelectedSourceId();
                     const selectedOption = candidateNodes.find(opt => opt.value === selectedSourceId);
                     
                     if (selectedOption && selectedOption.path) {
@@ -122,14 +262,35 @@
                 }
             }
 
-            $("#node-input-targetNode").on("change", updateOutputValue);
+            sourceList.on('treelistselect', updateOutputValue);
             $("#node-input-outputProperty").on("change", updateOutputValue);
 
             $("#node-config-find-source").on("click", function() {
-                const selectedId = $("#node-input-targetNode").val();
+                const selectedId = getSelectedSourceId();
                 if (selectedId) { RED.view.reveal(selectedId); } 
                 else { RED.notify("Please select a source node first.", "warning"); }
             });
+
+            // Mark init complete - all event handlers now active
+            setTimeout(function() { initComplete = true; }, 200);
+        },
+        oneditresize: function(size) {
+            if ($("#node-input-source-expanded").is(":hidden")) return;
+            var dialogForm = $("#dialog-form");
+            var height = dialogForm.height();
+            dialogForm.children().each(function() {
+                var $el = $(this);
+                if ($el.attr("id") === "node-input-source-expanded") {
+                    $el.children().each(function() {
+                        if (!$(this).hasClass("node-input-source-row")) {
+                            height -= $(this).outerHeight(true);
+                        }
+                    });
+                } else {
+                    height -= $el.outerHeight(true);
+                }
+            });
+            $(".node-input-source-row").css("height", Math.max(200, height) + "px");
         }
     });
 </script>
