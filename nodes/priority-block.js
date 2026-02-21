@@ -174,7 +174,7 @@ module.exports = function(RED) {
             send(currentOutput);
             const inDisplay = typeof msg.payload === "number" ? msg.payload.toFixed(2) : typeof msg.payload === "object" ? JSON.stringify(msg.payload).slice(0, 20) : msg.payload;
             const outDisplay = currentOutput.payload === null ? "null" : typeof currentOutput.payload === "number" ? currentOutput.payload.toFixed(2) : currentOutput.payload;
-            const statusText = `in: ${inDisplay}, out: ${outDisplay}, slot: ${currentOutput.diagnostics.activePriority || "none"}`;
+            const statusText = `out: ${outDisplay}, slot: ${currentOutput.diagnostics.activePriority || "none"}`;
             utils.setStatusChanged(node, statusText);
 
             if (done) done();

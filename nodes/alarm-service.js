@@ -48,7 +48,7 @@ module.exports = function(RED) {
 
                 // Send alarm message with status
                 const msg = {
-                    payload: eventData,
+                    alarm: eventData,
                     status: { state: "triggered", transition: eventData.transition },
                     activeAlarmCount: activeCount,
                     alarmKey: key
@@ -71,7 +71,7 @@ module.exports = function(RED) {
 
                     // Send clear message with status
                     const msg = {
-                        payload: eventData,
+                        alarm: eventData,
                         status: { state: "cleared", transition: eventData.transition },
                         activeAlarmCount: activeCount,
                         alarmKey: key
