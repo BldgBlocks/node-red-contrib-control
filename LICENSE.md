@@ -17,7 +17,7 @@ the functionality of the Software. Any license notice or attribution
 required by the License must also include this Commons Clause License
 Condition notice.
 
-**Software:** node-red-contrib-buildingblocks-control
+**Software:** node-red-contrib-control
 
 **License:** Apache 2.0
 
