@@ -154,7 +154,7 @@ module.exports = function(RED) {
                 }
                 const errorText = `Read failed for point #${node.pointId}: ${data.errorMessage || "Unknown error"}`;
                 utils.setStatusError(node, `Error: ${data.errorMessage || "Unknown error"}`);
-                node.error(errorText);  // Show in debug panel
+                //node.error(errorText);  // Show in debug panel
                 // Don't update cache on error, keep stale value
                 return;
             }
