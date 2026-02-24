@@ -40,7 +40,7 @@ Search for the package name and add to your project.
 ```
 # Navigate to Node-RED user directory (varies by installation)
 - $ cd ~/.node-red
-- $ npm install node-red-contrib-buildingblocks-control
+- $ npm install node-red-contrib-control
 # then restart node-red
 ```
 
