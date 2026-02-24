@@ -105,7 +105,7 @@ module.exports = function(RED) {
 
                 // Passthrough
                 const prefix = msg.activePriority === 'default' ? '' : 'P';
-                const statusText = `Passthrough: ${prefix}${msg.activePriority}:${msg.value}${msg.units}`;
+                const statusText = `Passthrough: ${prefix}${msg.activePriority}:${msg.value}${msg.units === null ? "" : ` ${msg.units}`}`;
                 utils.sendSuccess(node, msg, done, statusText, node.pointId, "ring");
 
             } catch (err) {

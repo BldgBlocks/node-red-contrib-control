@@ -29,6 +29,7 @@
                     <tr style="border-bottom:2px solid #ccc;text-align:left;">
                         <th style="padding:4px;width:28px;"><input type="checkbox" id="node-input-select-all" title="Select all"></th>
                         <th style="padding:4px;width:70px;">ID</th>
+                        <th style="padding:4px;width:30px;" title="Writable"><i class="fa fa-pencil"></i></th>
                         <th style="padding:4px;">Path</th>
                         <th style="padding:4px;width:30px;"></th>
                     </tr>
@@ -106,7 +107,7 @@
                 $selectAll.prop('checked', false);
 
                 if (!points.length) {
-                    $tbody.append('<tr><td colspan="4" style="padding:8px;color:#999;">No points defined (deploy first if newly added)</td></tr>');
+                    $tbody.append('<tr><td colspan="5" style="padding:8px;color:#999;">No points defined (deploy first if newly added)</td></tr>');
                     $status.text("");
                     return;
                 }
@@ -141,6 +142,13 @@
 
                     const $tdId = $('<td>').css({ padding: '3px 4px' }).append($idInput);
 
+                    // Writable checkbox
+                    const $wrCb = $('<input type="checkbox" class="point-writable">')
+                        .prop('checked', !!pt.writable)
+                        .attr('data-original-writable', pt.writable ? '1' : '0')
+                        .attr('title', 'Allow network writes to this point');
+                    const $tdWr = $('<td>').css({ padding: '3px 4px', textAlign: 'center' }).append($wrCb);
+
                     // Path display
                     const displayPath = pt.path && pt.path !== "not ready" ? pt.path : (pt.editorName || 'not deployed');
                     const $tdPath = $('<td>').css({ padding: '3px 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' })
@@ -157,7 +165,7 @@
                         });
                     const $tdBtn = $('<td>').css({ padding: '3px 4px' }).append($btn);
 
-                    $tr.append($tdCb, $tdId, $tdPath, $tdBtn);
+                    $tr.append($tdCb, $tdId, $tdWr, $tdPath, $tdBtn);
                     $tbody.append($tr);
                 });
 
@@ -267,11 +275,25 @@
                         changeCount++;
                     }
                 }
+
+                // Check writable change
+                const $wrCb = $(this).find('.point-writable');
+                const newWr = $wrCb.is(':checked');
+                const origWr = $wrCb.attr('data-original-writable') === '1';
+                if (newWr !== origWr) {
+                    const editorNode = RED.nodes.node(nid);
+                    if (editorNode) {
+                        editorNode.writable = newWr;
+                        editorNode.changed = true;
+                        editorNode.dirty = true;
+                        changeCount++;
+                    }
+                }
             });
 
             if (changeCount > 0) {
                 RED.nodes.dirty(true);
-                RED.notify(changeCount + " point ID" + (changeCount !== 1 ? "s" : "") + " updated. Deploy to apply.", "success");
+                RED.notify(changeCount + " change" + (changeCount !== 1 ? "s" : "") + " applied. Deploy to take effect.", "success");
             }
         }
     });

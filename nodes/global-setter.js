@@ -96,19 +96,21 @@ module.exports = function(RED) {
                 //   1. msg.priority (number 1-16 or "default") — explicit per-message override
                 //   2. msg.context  ("priority1"–"priority16" or "default") — tagged-input pattern (matches priority-block)
                 //   3. Configured writePriority (dropdown / msg / flow typed-input)
+                // Use local variable — never mutate node.writePriority so the config default is preserved across messages
+                let activePrioritySlot = null;
                 try {
-                    if (msg.hasOwnProperty("priority")) {
-                        // Source 1: msg.priority (direct number or "default")
+                    if (msg.hasOwnProperty("priority") && (typeof msg.priority === "number" || typeof msg.priority === "string")) {
+                        // Source 1: msg.priority (direct number or "default") — skip objects (e.g. priority array from state)
                         const mp = msg.priority;
                         if (mp === "default") {
-                            node.writePriority = "default";
+                            activePrioritySlot = "default";
                         } else {
                             const p = parseInt(mp, 10);
                             if (isNaN(p) || p < 1 || p > 16) {
                                 node.isBusy = false;
                                 return utils.sendError(node, msg, done, `Invalid msg.priority: ${mp}`);
                             }
-                            node.writePriority = String(p);
+                            activePrioritySlot = String(p);
                         }
                     } else if (msg.hasOwnProperty("context") && typeof msg.context === "string") {
                         // Source 2: msg.context tagged-input ("priority8", "default", etc.)
@@ -116,21 +118,20 @@ module.exports = function(RED) {
                         const ctx = msg.context;
                         const priorityMatch = /^priority([1-9]|1[0-6])$/.exec(ctx);
                         if (priorityMatch) {
-                            node.writePriority = priorityMatch[1];
+                            activePrioritySlot = priorityMatch[1];
                         } else if (ctx === "default") {
-                            node.writePriority = "default";
+                            activePrioritySlot = "default";
                         }
-                        // Other contexts (e.g. "reload") fall through — config stays as-is
-                    } else {
-                        // Source 3: Configured typed-input (dropdown, msg path, flow variable)
-                        const evaluations = [];
-                        evaluations.push(
-                            utils.requiresEvaluation(config.writePriorityType) 
-                                ? utils.evaluateNodeProperty(config.writePriority, config.writePriorityType, node, msg)
-                                : Promise.resolve(node.writePriority)
-                        );
-                        const results = await Promise.all(evaluations);   
-                        node.writePriority = results[0];
+                        // Other contexts (e.g. "reload") leave activePrioritySlot null → falls to config
+                    }
+
+                    // Source 3: Fall back to configured typed-input when no message override matched
+                    if (activePrioritySlot === null) {
+                        if (utils.requiresEvaluation(config.writePriorityType)) {
+                            activePrioritySlot = await utils.evaluateNodeProperty(config.writePriority, config.writePriorityType, node, msg);
+                        } else {
+                            activePrioritySlot = config.writePriority;
+                        }
                     }
                 } catch (err) {
                     throw new Error(`Property Eval Error: ${err.message}`);
@@ -168,15 +169,15 @@ module.exports = function(RED) {
                 }
 
                 // Update State
-                if (node.writePriority === 'default') {
+                if (activePrioritySlot === 'default') {
                     state.defaultValue = inputValue === null || inputValue === "null" ? node.defaultValue : inputValue;
                 } else {
-                    const priority = parseInt(node.writePriority, 10);
+                    const priority = parseInt(activePrioritySlot, 10);
                     if (isNaN(priority) || priority < 1 || priority > 16) {
-                        return utils.sendError(node, msg, done, `Invalid priority: ${node.writePriority}`);
+                        return utils.sendError(node, msg, done, `Invalid priority: ${activePrioritySlot}`);
                     }
                     if (inputValue !== undefined) {
-                        state.priority[node.writePriority] = inputValue;
+                        state.priority[activePrioritySlot] = inputValue;
                     }
                 }
                 
@@ -196,9 +197,9 @@ module.exports = function(RED) {
                     if (node.storeName !== 'default') {
                         await utils.setGlobalState(node, node.varName, 'default', state);
                     }
-                    prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
+                    prefix = `${activePrioritySlot === 'default' ? '' : 'P'}`;
                     const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
-                    const noChangeText = `no change: ${prefix}${node.writePriority}:${inputValue} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units || ''}`;
+                    const noChangeText = `no change: ${prefix}${activePrioritySlot}:${inputValue} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units || ''}`;
                     utils.setStatusUnchanged(node, noChangeText);
                     // Pass message through even if no context change
                     send({ ...state });
@@ -236,9 +237,9 @@ module.exports = function(RED) {
                     await utils.setGlobalState(node, node.varName, 'default', state);
                 }
 
-                prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
+                prefix = `${activePrioritySlot === 'default' ? '' : 'P'}`;
                 const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
-                const statusText = `write: ${prefix}${node.writePriority}:${inputValue}${state.units || ''} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units || ''}`;
+                const statusText = `write: ${prefix}${activePrioritySlot}:${inputValue}${state.units || ''} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units || ''}`;
 
                 RED.events.emit("bldgblocks:global:value-changed", {
                     key: node.varName,
