@@ -92,16 +92,46 @@ module.exports = function(RED) {
                 }
                 node.isBusy = true;
 
-                // Evaluate Dynamic Properties (Exact same logic as before)
+                // Resolve write priority — three sources, in order of precedence:
+                //   1. msg.priority (number 1-16 or "default") — explicit per-message override
+                //   2. msg.context  ("priority1"–"priority16" or "default") — tagged-input pattern (matches priority-block)
+                //   3. Configured writePriority (dropdown / msg / flow typed-input)
                 try {
-                    const evaluations = [];
-                    evaluations.push(
-                        utils.requiresEvaluation(config.writePriorityType) 
-                            ? utils.evaluateNodeProperty(config.writePriority, config.writePriorityType, node, msg)
-                            : Promise.resolve(node.writePriority)
-                    );
-                    const results = await Promise.all(evaluations);   
-                    node.writePriority = results[0];
+                    if (msg.hasOwnProperty("priority")) {
+                        // Source 1: msg.priority (direct number or "default")
+                        const mp = msg.priority;
+                        if (mp === "default") {
+                            node.writePriority = "default";
+                        } else {
+                            const p = parseInt(mp, 10);
+                            if (isNaN(p) || p < 1 || p > 16) {
+                                node.isBusy = false;
+                                return utils.sendError(node, msg, done, `Invalid msg.priority: ${mp}`);
+                            }
+                            node.writePriority = String(p);
+                        }
+                    } else if (msg.hasOwnProperty("context") && typeof msg.context === "string") {
+                        // Source 2: msg.context tagged-input ("priority8", "default", etc.)
+                        // "reload" is handled separately below — skip it here
+                        const ctx = msg.context;
+                        const priorityMatch = /^priority([1-9]|1[0-6])$/.exec(ctx);
+                        if (priorityMatch) {
+                            node.writePriority = priorityMatch[1];
+                        } else if (ctx === "default") {
+                            node.writePriority = "default";
+                        }
+                        // Other contexts (e.g. "reload") fall through — config stays as-is
+                    } else {
+                        // Source 3: Configured typed-input (dropdown, msg path, flow variable)
+                        const evaluations = [];
+                        evaluations.push(
+                            utils.requiresEvaluation(config.writePriorityType) 
+                                ? utils.evaluateNodeProperty(config.writePriority, config.writePriorityType, node, msg)
+                                : Promise.resolve(node.writePriority)
+                        );
+                        const results = await Promise.all(evaluations);   
+                        node.writePriority = results[0];
+                    }
                 } catch (err) {
                     throw new Error(`Property Eval Error: ${err.message}`);
                 } finally {
@@ -161,8 +191,14 @@ module.exports = function(RED) {
                 if (value === state.value && priority === state.activePriority) {
                     // Ensure payload stays in sync with value
                     state.payload = state.value;
+                    // Persist even when output unchanged — the priority array itself changed
+                    await utils.setGlobalState(node, node.varName, node.storeName, state);
+                    if (node.storeName !== 'default') {
+                        await utils.setGlobalState(node, node.varName, 'default', state);
+                    }
                     prefix = `${node.writePriority === 'default' ? '' : 'P'}`;
-                    const noChangeText = `no change: ${prefix}${node.writePriority}:${state.value}${state.units || ''}`;
+                    const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
+                    const noChangeText = `no change: ${prefix}${node.writePriority}:${inputValue} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units || ''}`;
                     utils.setStatusUnchanged(node, noChangeText);
                     // Pass message through even if no context change
                     send({ ...state });
@@ -231,4 +267,47 @@ module.exports = function(RED) {
         });
     }
     RED.nodes.registerType("global-setter", GlobalSetterNode);
+
+    // --- Admin endpoint: Clear all priority slots for a given setter node ---
+    RED.httpAdmin.post('/global-setter/:id/clear-priorities', RED.auth.needsPermission('global-setter.write'), async function(req, res) {
+        const targetNode = RED.nodes.getNode(req.params.id);
+        if (!targetNode) {
+            return res.status(404).json({ error: "Node not found" });
+        }
+        try {
+            let state = await utils.getGlobalState(targetNode, targetNode.varName, targetNode.storeName);
+            if (!state || typeof state !== 'object' || !state.priority) {
+                return res.status(200).json({ message: "No state to clear" });
+            }
+            // Clear all 16 priority slots
+            for (let i = 1; i <= 16; i++) {
+                state.priority[i] = null;
+            }
+            // Recalculate winner (will fall back to default)
+            const { value, priority } = utils.getHighestPriority(state);
+            state.payload = value;
+            state.value = value;
+            state.activePriority = priority;
+            state.metadata.lastSet = new Date().toISOString();
+            state.metadata.sourceId = targetNode.id;
+
+            await utils.setGlobalState(targetNode, targetNode.varName, targetNode.storeName, state);
+            if (targetNode.storeName !== 'default') {
+                await utils.setGlobalState(targetNode, targetNode.varName, 'default', state);
+            }
+
+            RED.events.emit("bldgblocks:global:value-changed", {
+                key: targetNode.varName,
+                store: targetNode.storeName,
+                data: state
+            });
+            utils.setStatusOK(targetNode, `cleared: default:${state.value}`);
+            targetNode.send({ ...state });
+
+            res.status(200).json({ message: "Priorities cleared", value: state.value, activePriority: state.activePriority });
+        } catch (err) {
+            targetNode.error(`Clear priorities error: ${err.message}`);
+            res.status(500).json({ error: err.message });
+        }
+    });
 }

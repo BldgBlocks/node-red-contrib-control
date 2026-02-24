@@ -83,7 +83,7 @@ module.exports = function(RED) {
 
     RED.httpAdmin.get('/network-point-registry/list/:registryId', RED.auth.needsPermission('network-point-registry.read'), function(req, res) {
         const reg = RED.nodes.getNode(req.params.registryId);
-        if (!reg) return res.status(404).json({error:'not found'});
+        if (!reg) return res.json([]);  // Not deployed yet — return empty list
 
         // Convert Map to array
         const arr = [];

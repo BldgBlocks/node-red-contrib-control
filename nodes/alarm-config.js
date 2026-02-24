@@ -8,45 +8,39 @@ module.exports = function(RED) {
         const utils = require('./utils')(RED);
         utils.registerRegistryNode(node);
         
-        // The Map: stores alarm metadata by name
-        // Format: { "alarmName": { nodeId: "abc.123", pointId: 101, severity: "high", status: "active", ... } }
+        // The Map: stores alarm metadata keyed by collector node ID (always unique)
+        // Format: { "nodeId": { name: "Alarm Name", severity: "high", status: "active", ... } }
         node.alarms = new Map();
 
-        // Register an alarm in the registry
-        node.register = function(alarmName, meta) {
-            if (!alarmName || typeof alarmName !== 'string') {
+        // Register an alarm in the registry (keyed by nodeId for uniqueness)
+        node.register = function(nodeId, meta) {
+            if (!nodeId || typeof nodeId !== 'string') {
                 return false;
             }
 
-            if (node.alarms.has(alarmName)) {
-                const existing = node.alarms.get(alarmName);
-                // Allow update if it's the same node
-                if (existing.nodeId !== meta.nodeId) {
-                    return false;
-                }
-                // Merge updates (preserving status if provided)
+            if (node.alarms.has(nodeId)) {
+                const existing = node.alarms.get(nodeId);
+                // Merge updates (preserving existing fields not in new meta)
                 meta = Object.assign({}, existing, meta);
             }
-            node.alarms.set(alarmName, meta);
+            node.alarms.set(nodeId, meta);
             return true;
         };
 
-        // Unregister an alarm
-        node.unregister = function(alarmName, nodeId) {
-            if (node.alarms.has(alarmName) && node.alarms.get(alarmName).nodeId === nodeId) {
-                node.alarms.delete(alarmName);
-            }
+        // Unregister an alarm by node ID
+        node.unregister = function(nodeId) {
+            node.alarms.delete(nodeId);
         };
 
-        // Lookup an alarm by name
-        node.lookup = function(alarmName) {
-            return node.alarms.get(alarmName);
+        // Lookup an alarm by node ID
+        node.lookup = function(nodeId) {
+            return node.alarms.get(nodeId);
         };
 
-        // Update alarm status
-        node.updateStatus = function(alarmName, status) {
-            if (node.alarms.has(alarmName)) {
-                const alarm = node.alarms.get(alarmName);
+        // Update alarm status by node ID
+        node.updateStatus = function(nodeId, status) {
+            if (node.alarms.has(nodeId)) {
+                const alarm = node.alarms.get(nodeId);
                 alarm.status = status;  // 'active' or 'cleared'
                 alarm.lastUpdate = new Date().toISOString();
                 return true;
@@ -57,8 +51,8 @@ module.exports = function(RED) {
         // Get all alarms
         node.getAll = function() {
             const arr = [];
-            for (const [name, meta] of node.alarms.entries()) {
-                arr.push({ name, ...meta });
+            for (const [nodeId, meta] of node.alarms.entries()) {
+                arr.push({ nodeId, ...meta });
             }
             return arr;
         };
@@ -73,7 +67,8 @@ module.exports = function(RED) {
         // Find the alarm-config node
         const configNode = RED.nodes.getNode(configId);
         if (!configNode) {
-            return res.status(404).json({ error: 'Configuration node not found' });
+            // Not deployed yet — return empty list so the editor can show a friendly message
+            return res.json([]);
         }
 
         // Get all alarms from this config
@@ -104,20 +99,24 @@ module.exports = function(RED) {
             return res.json({ status: result, warning: "Configuration not deployed" });
         }
 
-        // Check for the alarm
-        entry = configNode.lookup(alarmName);
+        // Check for the alarm — map is keyed by nodeId
+        entry = configNode.lookup(checkNodeId);
+
         if (entry) {
-            // Collision if alarm exists AND belongs to a different node
-            if (entry.nodeId !== checkNodeId) {
+            result = "assigned";
+        } else {
+            // Check if any other node has the same alarm name (name collision check)
+            const allAlarms = configNode.getAll();
+            const nameMatch = allAlarms.find(a => a.name === alarmName && a.nodeId !== checkNodeId);
+            if (nameMatch) {
                 collision = true;
+                entry = nameMatch;
             }
         }
 
         if (collision) {
             result = "collision";
-        } else if (!collision && entry) {
-            result = "assigned";
-        } else {
+        } else if (!entry) {
             result = "available";
         }
 

@@ -93,7 +93,7 @@
     }
   },
   "author": "buildingblocks",
-  "license": "Apache-2.0",
+  "license": "Apache-2.0 WITH Commons-Clause",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/BldgBlocks/node-red-contrib-control.git"

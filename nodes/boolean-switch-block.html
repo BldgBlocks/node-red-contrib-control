@@ -4,6 +4,10 @@
         <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
+    <div class="form-row">
+        <label for="node-input-state" title="Initial switch state"><i class="fa fa-toggle-on"></i> State</label>
+        <input type="checkbox" id="node-input-state" style="width: auto;">
+    </div>
 </script>
 
 <!-- JavaScript Section -->
@@ -29,30 +33,39 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="boolean-switch-block">
-Routes input flows to one of three outputs based on a boolean switch state.
+A boolean gate that routes messages based on a `true`/`false` switch state.
 
 ### Inputs
-: context (string) : Configuration commands (`toggle`, `switch`, `inTrue`, `inFalse`).
-: payload (any) : Flow data for `"inTrue"` or `"inFalse"`.
+: context (string) : Message tag: `"in"`, `"inTrue"`, `"inFalse"`, `"toggle"`, or `"switch"`.
+: payload (any) : Flow data for `"in"` / `"inTrue"` / `"inFalse"`; boolean for `"switch"`.
+
+#### Contexts
+- **`"in"`** — Routes `msg` to `outTrue` when state is `true`, or `outFalse` when state is `false`. Always flows through.
+- **`"inTrue"`** — Passes `msg` to `outTrue` only when state is `true`. Blocked with warning when `false`.
+- **`"inFalse"`** — Passes `msg` to `outFalse` only when state is `false`. Blocked with warning when `true`.
+- **`"toggle"`** — Flips the switch state and emits new state on `outControl`.
+- **`"switch"`** — Sets the switch state to `!!msg.payload` and emits on `outControl`.
 
 ### Outputs
-: outTrue (msg) : Receives `msg` with `context "inTrue"` when switch is `true`.
-: outFalse (msg) : Receives `msg` with `context "inFalse"` when switch is `false`.
-: outControl (msg) : `msg.payload` set to switch state on toggle.
+: outTrue (msg) : Receives `msg` when state is `true` (via `"in"` or `"inTrue"`).
+: outFalse (msg) : Receives `msg` when state is `false` (via `"in"` or `"inFalse"`).
+: outControl (msg) : Emits `{ payload: <boolean> }` on `"toggle"` or `"switch"` only.
 
 ### Details
-Routes input messages to one of three outputs based on a boolean switch state (`true` or `false`).
+This node acts as a boolean gate/router.
 
-Messages with `msg.context = "inTrue"` are sent to `outTrue` when `state = true`, and messages with `msg.context = "inFalse"` are sent to `outFalse` when `state = false`.
+Use `"in"` to auto-route messages to the correct output based on state — messages always flow through.
+Use `"inTrue"`/`"inFalse"` for conditional gating — messages are blocked (with yellow warning) when state doesn't match.
 
-State can be controlled directly with the `"switch"` property given a `msg.payload` boolean value.
+State can be controlled with `"toggle"` (flip) or `"switch"` (set explicitly via payload).
+The `outControl` port fires only on state commands, not on routed data messages.
 
 ### Status
-- Green (dot): Configuration update
-- Blue (dot): State changed
-- Blue (ring): State unchanged
-- Red (ring): Error
-- Yellow (ring): Warning
+- **Green (dot)**: Message routed successfully
+- **Blue (dot)**: State changed (`toggle` / `switch`)
+- **Blue (ring)**: State unchanged (`switch` with same value)
+- **Yellow (ring)**: Message blocked (`inTrue` when false, `inFalse` when true) or unknown context
+- **Red (ring)**: Error (missing context, invalid message)
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

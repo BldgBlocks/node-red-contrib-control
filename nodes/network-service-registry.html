@@ -8,18 +8,37 @@
         <p>This node maintains the mapping between Network Point IDs (integers) and Global Variables.</p>
     </div>
 
-    <div class="form-row">
+    <div class="form-row" style="margin-bottom:4px;">
         <label><i class="fa fa-list-ul"></i> Points</label>
+        <div style="display:inline-block; vertical-align:top;">
+            <button type="button" id="node-input-renumber-btn" class="editor-button editor-button-small" title="Renumber selected points sequentially">
+                <i class="fa fa-sort-numeric-asc"></i> Renumber...
+            </button>
+        </div>
+    </div>
+    <div class="form-row">
         <div id="node-input-point-list-div"
              style="
                  border:1px solid #ccc;
-                 height:200px;          /* set a fixed height */
-                 overflow-y:auto;       /* enable vertical scrolling */
+                 height:300px;
+                 overflow-y:auto;
                  padding:5px;
                  box-sizing:border-box;">
-            <!-- The list will be injected by the JavaScript below -->
-            <ul id="node-input-point-list" style="margin:0;padding-left:1.2em;"></ul>
+            <table id="node-input-point-table" style="width:100%;border-collapse:collapse;font-size:0.9em;">
+                <thead>
+                    <tr style="border-bottom:2px solid #ccc;text-align:left;">
+                        <th style="padding:4px;width:28px;"><input type="checkbox" id="node-input-select-all" title="Select all"></th>
+                        <th style="padding:4px;width:70px;">ID</th>
+                        <th style="padding:4px;">Path</th>
+                        <th style="padding:4px;width:30px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="node-input-point-list"></tbody>
+            </table>
         </div>
+    </div>
+    <div class="form-row">
+        <span id="node-input-point-status" style="font-size:0.85em;color:#666;"></span>
     </div>
 </script>
 
@@ -33,44 +52,227 @@
             return this.name || "Point Registry";
         },
         oneditprepare: function() {
-            const node = this;
-            const $list = $("#node-input-point-list");
+            const configNode = this;
+            const $tbody = $("#node-input-point-list");
+            const $status = $("#node-input-point-status");
+            const $selectAll = $("#node-input-select-all");
 
+            // Track pending changes: { editorNodeId: newPointId }
+            const pendingChanges = {};
+
+            // ============================================================
+            // Load deployed points + merge in any editor-only register nodes
+            // ============================================================
             function loadPoints() {
-                $.getJSON(`/network-point-registry/list/${node.id}`, function(data) {
-                    $list.empty();
-                    if (!data.length) return $list.append('<li>No points defined</li>');
-
-                    
-                data.sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
-
-                data.forEach(pt => {
-                    const li = $('<li>').css({ display:'flex', alignItems:'center' });
-
-                    // Text part: ID + path
-                    const txt = $('<span>')
-                        .text(`ID ${pt.id}: ${pt.path ?? 'not set'}`)
-                        .css({ flexGrow:1 });          // push button to the right
-
-                    // Button part
-                    const btn = $('<button type="button" class="editor-button">')
-                        .attr('title','Find node')
-                        .html('<i class="fa fa-search"></i>')
-                        .on('click', function (e) {
-                            e.stopPropagation();
-
-                            RED.view.reveal(pt.nodeId);
-                        });
-
-                    li.append(txt, btn);
-                    $list.append(li);
+                // Gather all register nodes in the editor that reference this registry
+                const editorNodes = {};
+                RED.nodes.eachNode(function(n) {
+                    if ((n.type === "network-point-register" || n.type === "network-register") && n.registry === configNode.id) {
+                        editorNodes[n.id] = {
+                            nodeId: n.id,
+                            id: parseInt(n.pointId),
+                            path: null,      // will be filled from deployed data if available
+                            store: null,
+                            writable: !!n.writable,
+                            editorName: n.name || ""
+                        };
+                    }
                 });
+
+                $.getJSON(`network-point-registry/list/${configNode.id}`, function(deployedData) {
+                    // Merge deployed data into editor nodes (deployed has runtime path/store)
+                    deployedData.forEach(function(pt) {
+                        if (editorNodes[pt.nodeId]) {
+                            editorNodes[pt.nodeId].path = pt.path;
+                            editorNodes[pt.nodeId].store = pt.store;
+                        } else {
+                            // Deployed but not in editor (unusual — maybe just deleted)
+                            editorNodes[pt.nodeId] = pt;
+                        }
+                    });
+
+                    renderTable(Object.values(editorNodes));
                 }).fail(function() {
-                    $list.html('<li style="color:red;">Could not load points</li>');
+                    // Fallback: render from editor nodes only
+                    renderTable(Object.values(editorNodes));
                 });
             }
 
+            // ============================================================
+            // Render the editable table
+            // ============================================================
+            function renderTable(points) {
+                $tbody.empty();
+                $selectAll.prop('checked', false);
+
+                if (!points.length) {
+                    $tbody.append('<tr><td colspan="4" style="padding:8px;color:#999;">No points defined (deploy first if newly added)</td></tr>');
+                    $status.text("");
+                    return;
+                }
+
+                points.sort((a, b) => (a.id || 0) - (b.id || 0));
+
+                points.forEach(function(pt) {
+                    const $tr = $('<tr>').css({ borderBottom: '1px solid #eee' }).attr('data-node-id', pt.nodeId);
+
+                    // Checkbox
+                    const $cb = $('<input type="checkbox" class="point-select">');
+                    const $tdCb = $('<td>').css({ padding: '3px 4px' }).append($cb);
+
+                    // Editable ID input
+                    const $idInput = $('<input type="number" class="point-id-input">')
+                        .val(pt.id)
+                        .attr('data-original-id', pt.id)
+                        .css({ width: '55px', padding: '2px 4px', textAlign: 'right' });
+
+                    $idInput.on('change input', function() {
+                        const nid = pt.nodeId;
+                        const newVal = parseInt($(this).val());
+                        const origVal = parseInt($(this).attr('data-original-id'));
+
+                        if (!isNaN(newVal) && newVal !== origVal) {
+                            pendingChanges[nid] = newVal;
+                        } else {
+                            delete pendingChanges[nid];
+                        }
+                        validateIds();
+                    });
+
+                    const $tdId = $('<td>').css({ padding: '3px 4px' }).append($idInput);
+
+                    // Path display
+                    const displayPath = pt.path && pt.path !== "not ready" ? pt.path : (pt.editorName || 'not deployed');
+                    const $tdPath = $('<td>').css({ padding: '3px 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' })
+                        .attr('title', displayPath)
+                        .text(displayPath);
+
+                    // Reveal button
+                    const $btn = $('<button type="button" class="editor-button editor-button-small">')
+                        .attr('title', 'Find node on canvas')
+                        .html('<i class="fa fa-search"></i>')
+                        .on('click', function(e) {
+                            e.stopPropagation();
+                            RED.view.reveal(pt.nodeId);
+                        });
+                    const $tdBtn = $('<td>').css({ padding: '3px 4px' }).append($btn);
+
+                    $tr.append($tdCb, $tdId, $tdPath, $tdBtn);
+                    $tbody.append($tr);
+                });
+
+                $status.text(points.length + " point" + (points.length !== 1 ? "s" : ""));
+                validateIds();
+            }
+
+            // ============================================================
+            // Validate all IDs — highlight duplicates
+            // ============================================================
+            function validateIds() {
+                const idCounts = {};
+                $tbody.find('.point-id-input').each(function() {
+                    const val = parseInt($(this).val());
+                    if (!isNaN(val)) {
+                        idCounts[val] = (idCounts[val] || 0) + 1;
+                    }
+                });
+
+                $tbody.find('.point-id-input').each(function() {
+                    const val = parseInt($(this).val());
+                    const orig = parseInt($(this).attr('data-original-id'));
+                    const isDup = !isNaN(val) && idCounts[val] > 1;
+                    const isChanged = !isNaN(val) && val !== orig;
+
+                    $(this).css({
+                        border: isDup ? '2px solid #d32f2f' : (isChanged ? '2px solid #1976d2' : ''),
+                        backgroundColor: isDup ? '#f8a0a0' : (isChanged ? '#a0c8f0' : ''),
+                        color: isDup ? '#7a0000' : (isChanged ? '#003060' : '')
+                    });
+                });
+            }
+
+            // ============================================================
+            // Select All checkbox
+            // ============================================================
+            $selectAll.on('change', function() {
+                const checked = $(this).is(':checked');
+                $tbody.find('.point-select').prop('checked', checked);
+            });
+
+            // ============================================================
+            // Renumber button
+            // ============================================================
+            $("#node-input-renumber-btn").on('click', function() {
+                const $checked = $tbody.find('.point-select:checked');
+                if ($checked.length === 0) {
+                    RED.notify("Select points to renumber using the checkboxes.", "warning");
+                    return;
+                }
+
+                // Prompt for starting number
+                const startStr = prompt("Enter starting ID number for " + $checked.length + " selected point(s):", "1");
+                if (startStr === null) return;
+
+                const startId = parseInt(startStr);
+                if (isNaN(startId) || startId < 0) {
+                    RED.notify("Invalid starting ID.", "error");
+                    return;
+                }
+
+                // Renumber selected rows in current table order (top to bottom)
+                let nextId = startId;
+                $checked.each(function() {
+                    const $row = $(this).closest('tr');
+                    const $input = $row.find('.point-id-input');
+                    const nid = $row.attr('data-node-id');
+                    const origVal = parseInt($input.attr('data-original-id'));
+
+                    $input.val(nextId);
+
+                    if (nextId !== origVal) {
+                        pendingChanges[nid] = nextId;
+                    } else {
+                        delete pendingChanges[nid];
+                    }
+                    nextId++;
+                });
+
+                validateIds();
+            });
+
+            // ============================================================
+            // Load on open
+            // ============================================================
             loadPoints();
+        },
+
+        oneditsave: function() {
+            // Apply pending ID changes to editor nodes
+            const $tbody = $("#node-input-point-list");
+            let changeCount = 0;
+
+            $tbody.find('tr[data-node-id]').each(function() {
+                const nid = $(this).attr('data-node-id');
+                const $input = $(this).find('.point-id-input');
+                const newVal = parseInt($input.val());
+                const origVal = parseInt($input.attr('data-original-id'));
+
+                if (!isNaN(newVal) && newVal !== origVal) {
+                    // Update the editor node config
+                    const editorNode = RED.nodes.node(nid);
+                    if (editorNode) {
+                        editorNode.pointId = newVal;
+                        editorNode.changed = true;
+                        editorNode.dirty = true;
+                        changeCount++;
+                    }
+                }
+            });
+
+            if (changeCount > 0) {
+                RED.nodes.dirty(true);
+                RED.notify(changeCount + " point ID" + (changeCount !== 1 ? "s" : "") + " updated. Deploy to apply.", "success");
+            }
         }
     });
 </script>
@@ -82,6 +284,13 @@ Map Point IDs to global variables.
 Maintains the mapping between integer Point IDs and global variable paths. This registry is used by network-read, network-write, and network-register nodes to decouple access by ID from variable path implementation details.
 
 Create a single registry for your network of nodes and reference it from each network-register node.
+
+### Bulk ID Editing
+The config panel lets you edit Point IDs directly in the table:
+
+1. **Inline editing**: Change any ID by typing in its input field. Changed IDs highlight blue; conflicts highlight red.
+2. **Renumber**: Select points with checkboxes, click **Renumber...**, enter a starting ID — selected points get sequential IDs in table order.
+3. **Deploy**: Click Done, then Deploy to apply changes. The register nodes update automatically.
 
 **API for Developers:**
 * `register(id, meta)`: Claim an ID.

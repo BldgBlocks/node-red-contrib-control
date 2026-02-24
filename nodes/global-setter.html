@@ -25,6 +25,15 @@
         <input type="hidden" id="node-input-defaultValueType">
     </div>
 
+    <hr>
+
+    <div class="form-row">
+        <label>&nbsp;</label>
+        <button type="button" id="node-btn-clear-priorities" class="editor-button" style="width: calc(70% - 3px);" title="Clear all 16 priority slots on the live node (does not affect the default value)">
+            <i class="fa fa-eraser"></i> Clear All Priorities
+        </button>
+    </div>
+
     <div class="form-tips">
         <b>Note:</b> This node writes to the selected <b>Priority</b>, manually, by msg or flow. The actual Global Variable value will be the highest active priority.
     </div>
@@ -97,6 +106,30 @@
                 }, "msg", "flow"],
                 typeField: "#node-input-writePriorityType"
             }).typedInput("type", node.writePriorityType).typedInput("value", node.writePriority);
+
+            // Clear Priorities button — calls the admin endpoint on the live runtime node
+            $("#node-btn-clear-priorities").on("click", function() {
+                const btn = $(this);
+                if (!node.id) {
+                    RED.notify("Node must be deployed before clearing priorities.", "warning");
+                    return;
+                }
+                btn.prop("disabled", true).find("i").removeClass("fa-eraser").addClass("fa-spinner fa-spin");
+                $.ajax({
+                    url: "global-setter/" + node.id + "/clear-priorities",
+                    type: "POST",
+                    success: function(data) {
+                        RED.notify("Priorities cleared — active: " + (data.activePriority || "default") + ":" + data.value, "success");
+                    },
+                    error: function(jqXHR) {
+                        const errMsg = jqXHR.responseJSON ? jqXHR.responseJSON.error : "Unknown error";
+                        RED.notify("Failed to clear priorities: " + errMsg, "error");
+                    },
+                    complete: function() {
+                        btn.prop("disabled", false).find("i").removeClass("fa-spinner fa-spin").addClass("fa-eraser");
+                    }
+                });
+            });
         }
     });
 </script>
@@ -108,6 +141,8 @@ Manage a global variable in a repeatable way.
 ### Inputs 
 : payload (any) : Input payload is passed through unchanged.
 : property (string) : The input property where the value is taken from.
+: priority (number|string) : _Optional_. Overrides the configured Priority at runtime. Accepts `1`–`16` or `"default"`. For example, `msg.priority = 8` writes to priority slot 8.
+: context (string) : _Optional_. Tagged-input priority routing (matches priority-block conventions). Accepts `"priority1"`–`"priority16"`, `"default"`, or `"reload"`. When both `msg.priority` and `msg.context` are present, `msg.priority` takes precedence.
 : units (string) : The units associated with the value, if any. Also supports nested units at `msg.<inputProperty>.units`.
 
 ### Outputs
@@ -119,6 +154,8 @@ Global variables are meant to be retrieved in other places, this necessarily mea
 This node allows you to set a global variable in one place, and retrieve it elsewhere using the `global-getter` node while supporting rename and deletion.
 
 When this node is deleted or the flow is redeployed, it will automatically remove (prune) the variable from the selected Context Store.
+
+**Clear All Priorities** button (in editor): Resets all 16 priority slots to `null` on the live running node. The default value is preserved. The active value recalculates to the highest remaining priority (or falls back to default). The node must be deployed first.
 
 ### Status
 - Green (dot): Configuration update

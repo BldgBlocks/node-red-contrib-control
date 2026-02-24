@@ -126,7 +126,7 @@
                 });
 
                 // Also check deployed registry for any points not visible in editor
-                $.getJSON(`/network-point-registry/list/${registry}`, function (data) {
+                $.getJSON(`network-point-registry/list/${registry}`, function (data) {
                     const maxDeployedId = data.reduce((max, pt) => Math.max(max, pt.id), 0);
                     const next = Math.max(maxEditorId, maxDeployedId) + 1;
                     idInput.val(next);

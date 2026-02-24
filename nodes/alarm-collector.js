@@ -46,6 +46,20 @@ module.exports = function(RED) {
         node.conditionMet = false;
         node.valueChangedListener = null;
 
+        // Register with alarm-config at startup so the registry knows about this collector
+        if (node.alarmConfig) {
+            node.alarmConfig.register(node.id, {
+                name: node.name,
+                severity: node.priority,
+                status: 'cleared',
+                title: node.title,
+                message: node.message,
+                topic: node.topic,
+                value: null,
+                timestamp: new Date().toISOString()
+            });
+        }
+
         utils.setStatusOK(node, `idle`);
 
         // ====================================================================
@@ -180,15 +194,14 @@ module.exports = function(RED) {
 
             // Register/update alarm in registry
             if (node.alarmConfig) {
-                const alarmName = node.name;
-                node.alarmConfig.register(alarmName, {
-                    nodeId: node.id,
-                    pointId: node.currentValue,
+                node.alarmConfig.register(node.id, {
+                    name: node.name,
                     severity: node.priority,
                     status: node.alarmState ? 'active' : 'cleared',
                     title: node.title,
                     message: node.message,
                     topic: node.topic,
+                    value: node.currentValue,
                     timestamp: new Date().toISOString()
                 });
             }
@@ -288,7 +301,7 @@ module.exports = function(RED) {
 
             // Unregister alarm from registry
             if (node.alarmConfig) {
-                node.alarmConfig.unregister(node.name, node.id);
+                node.alarmConfig.unregister(node.id);
             }
 
             // Remove global value-changed listener

@@ -36,10 +36,10 @@
             const $list = $("#node-input-alarm-list");
 
             function loadAlarms() {
-                $.getJSON(`/alarm-config/list/${node.id}`, function(data) {
+                $.getJSON(`alarm-config/list/${node.id}`, function(data) {
                     $list.empty();
                     if (!data.length) {
-                        return $list.append('<li style="color:#999;">No alarms registered</li>');
+                        return $list.append('<li style="color:#999;">No alarms registered (deploy first if newly added)</li>');
                     }
 
                     // Data already sorted by server
@@ -63,9 +63,10 @@
                                 width: '16px'
                             });
 
-                        // Alarm info (name, severity, point)
+                        // Alarm info (name, severity, topic)
+                        const valuePart = alarm.value != null ? ` val:${alarm.value}` : '';
                         const infoText = $('<span>')
-                            .html(`<strong>${alarm.name}</strong> <span style="color:#666;font-size:0.9em;">[${alarm.severity}] #${alarm.pointId}</span>`)
+                            .html(`<strong>${alarm.name}</strong> <span style="color:#666;font-size:0.9em;">[${alarm.severity}] ${alarm.topic}${valuePart}</span>`)
                             .css({ flexGrow: 1 });
 
                         // Reveal button (find node on canvas)
@@ -80,8 +81,12 @@
                         li.append(statusDot, infoText, revealBtn);
                         $list.append(li);
                     });
-                }).fail(function() {
-                    $list.html('<li style="color:red;">Could not load alarms</li>');
+                }).fail(function(jqXHR) {
+                    if (jqXHR.status === 401 || jqXHR.status === 403) {
+                        $list.html('<li style="color:red;">Permission denied (alarm-config.read)</li>');
+                    } else {
+                        $list.html('<li style="color:red;">Could not load alarms (HTTP ' + jqXHR.status + ')</li>');
+                    }
                 });
             }
 

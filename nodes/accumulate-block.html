@@ -61,9 +61,9 @@ Counts consecutive inputs from a configured property based on the selected mode,
 
 ### Details
 Counts inputs according to the selected mode, reading from the configured **Input Property** (default: `msg.payload`):
-- **Accumulate True**: counts consecutive `true` values (resets on `false` or explicit reset)
-- **Accumulate False**: counts consecutive `false` values (resets on `true` or explicit reset)
-- **Accumulate Flows**: counts all valid input messages (resets only on explicit reset)
+- **Accumulate True** counts consecutive `true` values (resets on `false` or explicit reset)
+- **Accumulate False** counts consecutive `false` values (resets on `true` or explicit reset)
+- **Accumulate Flows** counts all valid input messages (resets only on explicit reset)
 
 Reset via `msg.context = "reset"` with `msg.payload = true`.
 

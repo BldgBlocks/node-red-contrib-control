@@ -5,8 +5,8 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        // Initialize state from config
-        node.state = config.state;
+        // Initialize state from config (coerce to boolean)
+        node.state = !!config.state;
 
         // Set initial status
         utils.setStatusOK(node, `state: ${node.state}`);
@@ -30,31 +30,41 @@ module.exports = function(RED) {
 
             // Handle context commands
             switch (msg.context) {
-                case "toggle":
+                case "toggle": {
                     node.state = !node.state;
                     utils.setStatusChanged(node, `state: ${node.state}`);
                     send([null, null, { payload: node.state }]);
                     break;
-                case "switch":
-                    node.state = !!msg.payload;
-                    utils.setStatusChanged(node, `state: ${node.state}`);
+                }
+
+                case "switch": {
+                    const newState = !!msg.payload;
+                    if (newState === node.state) {
+                        utils.setStatusUnchanged(node, `state: ${node.state}`);
+                    } else {
+                        node.state = newState;
+                        utils.setStatusChanged(node, `state: ${node.state}`);
+                    }
                     send([null, null, { payload: node.state }]);
                     break;
+                }
                 case "inTrue":
                     if (node.state) {
-                        utils.setStatusOK(node, `out: ${msg.payload}`);
-                        send([msg, null, { payload: node.state }]);
+                        utils.setStatusOK(node, `outTrue: ${msg.payload}`);
+                        send([msg, null, null]);
                     }
                     break;
+
                 case "inFalse":
                     if (!node.state) {
-                        utils.setStatusOK(node, `out: ${msg.payload}`);
-                        send([null, msg, { payload: node.state }]);
+                        utils.setStatusOK(node, `outFalse: ${msg.payload}`);
+                        send([null, msg, null]);
                     }
                     break;
+
                 default:
-                    utils.setStatusWarn(node, "unknown context");
-                    if (done) done("Unknown context");
+                    utils.setStatusWarn(node, `unknown context: ${msg.context}`);
+                    if (done) done("Unknown context: " + msg.context);
                     return;
             }
             if (done) done();
