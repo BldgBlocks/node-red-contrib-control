@@ -93,14 +93,24 @@ module.exports = function(RED) {
         let value = state.defaultValue;
         let priority = 'default';
 
+        // Check priorities 1-16 first (highest)
         for (let i = 1; i <= 16; i++) {
             // Check strictly for undefined/null, allow 0 or false
             if (state.priority[i] !== undefined && state.priority[i] !== null) {
                 value = state.priority[i];
                 priority = String(i);
-                break;
+                return { value, priority };
             }
         }
+
+        // Fall through to fallback slot if no priority is set
+        if (state.fallback !== undefined && state.fallback !== null) {
+            value = state.fallback;
+            priority = 'fallback';
+            return { value, priority };
+        }
+
+        // Finally fall back to default
         return { value, priority };
     }
 

@@ -84,7 +84,7 @@ module.exports = function(RED) {
             }
 
             msg.payload = result;
-            utils.setStatusOK(node, `in: ${inputValue.toFixed(3)}, out: ${result}`);
+            utils.setStatusOK(node, `${result}`);
             send(msg);
             if (done) done();
         });

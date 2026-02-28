@@ -38,7 +38,7 @@ module.exports = function(RED) {
                 
                 const payloadPreview = input !== null ? (typeof input === "number" ? input.toFixed(2) : JSON.stringify(input).slice(0, 20)) : "none";
 
-                utils.setStatusOK(node, `in: ${payloadPreview} unit: ${node.unit !== "" ? node.unit : "none"}`);
+                utils.setStatusOK(node, `${node.unit !== "" ? node.unit : "none"}`);
 
                 msg.units = node.unit;
                 send(msg);

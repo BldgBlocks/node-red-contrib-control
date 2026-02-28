@@ -43,16 +43,12 @@ module.exports = function(RED) {
                     }
                 }
 
-                // Update Priority Logic
-                if (msg.priority === 'default') {
-                    state.defaultValue = newValue ?? state.defaultValue;
-                } else {
-                    const priority = parseInt(msg.priority, 10);
-                    if (isNaN(priority) || priority < 1 || priority > 16) {
-                        return utils.sendError(node, msg, done, `Invalid Priority: ${msg.priority}`, msg.pointId);
-                    }
-                    state.priority[msg.priority] = newValue;
+                // Update Priority Logic (only allow priorities 1-16, no default)
+                const priority = parseInt(msg.priority, 10);
+                if (isNaN(priority) || priority < 1 || priority > 16) {
+                    return utils.sendError(node, msg, done, `Invalid Priority: ${msg.priority} (must be 1-16)`, msg.pointId);
                 }
+                state.priority[msg.priority] = newValue;
 
                 // Calculate Winner
                 const result = utils.getHighestPriority(state);
@@ -63,8 +59,8 @@ module.exports = function(RED) {
                 // Save (Async) & Emit
                 await utils.setGlobalState(node, path, store, state);
 
-                const prefixReq = msg.priority === 'default' ? '' : 'P';
-                const prefixAct = state.activePriority === 'default' ? '' : 'P';
+                const prefixReq = 'P';
+                const prefixAct = state.activePriority === 'default' ? '' : (state.activePriority === 'fallback' ? 'F' : 'P');
                 const statusMsg = `Wrote: ${prefixReq}${msg.priority}:${newValue} > Active: ${prefixAct}${state.activePriority}:${state.value}`;
 
                 msg = { ...state, status: null }; 

@@ -180,7 +180,7 @@ module.exports = function(RED) {
                 { payload: newState === "below" }
             ];
 
-            utils.setStatusChanged(node, `in: ${inputValue.toFixed(2)}, state: ${newState}`);
+            utils.setStatusChanged(node, `${inputValue.toFixed(2)} -> ${newState}`);
 
             node.state = newState;
             send(output);

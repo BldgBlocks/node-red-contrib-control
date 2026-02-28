@@ -103,10 +103,10 @@ module.exports = function(RED) {
             }
 
             if (isTransition) {
-                utils.setStatusChanged(node, `in: ${currentValue}, out: true`);
+                utils.setStatusChanged(node, `true`);
                 send({ payload: true });
             } else {
-                utils.setStatusUnchanged(node, `in: ${currentValue}, out: none`);
+                utils.setStatusUnchanged(node, `none`);
             }
 
             node.lastValue = currentValue;

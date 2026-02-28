@@ -24,6 +24,7 @@ module.exports = function(RED) {
                 value: node.defaultValue,
                 defaultValue: node.defaultValue,
                 activePriority: "default",
+                fallback: null,
                 units: null,
                 priority: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null, 8: null, 9: null, 10: null, 11: null, 12: null, 13: null, 14: null, 15: null, 16: null },
                 metadata: {
@@ -93,44 +94,63 @@ module.exports = function(RED) {
                 node.isBusy = true;
 
                 // Resolve write priority — three sources, in order of precedence:
-                //   1. msg.priority (number 1-16 or "default") — explicit per-message override
-                //   2. msg.context  ("priority1"–"priority16" or "default") — tagged-input pattern (matches priority-block)
+                //   1. msg.priority (number 1-16) — explicit per-message override
+                //   2. msg.context  ("priority1"–"priority16", "fallback", "reload") — tagged-input pattern
                 //   3. Configured writePriority (dropdown / msg / flow typed-input)
                 // Use local variable — never mutate node.writePriority so the config default is preserved across messages
                 let activePrioritySlot = null;
+                let isFallbackWrite = false;
+                
                 try {
-                    if (msg.hasOwnProperty("priority") && (typeof msg.priority === "number" || typeof msg.priority === "string")) {
-                        // Source 1: msg.priority (direct number or "default") — skip objects (e.g. priority array from state)
-                        const mp = msg.priority;
-                        if (mp === "default") {
-                            activePrioritySlot = "default";
-                        } else {
-                            const p = parseInt(mp, 10);
-                            if (isNaN(p) || p < 1 || p > 16) {
-                                node.isBusy = false;
-                                return utils.sendError(node, msg, done, `Invalid msg.priority: ${mp}`);
-                            }
-                            activePrioritySlot = String(p);
-                        }
-                    } else if (msg.hasOwnProperty("context") && typeof msg.context === "string") {
-                        // Source 2: msg.context tagged-input ("priority8", "default", etc.)
-                        // "reload" is handled separately below — skip it here
+                    if (msg.hasOwnProperty("context") && typeof msg.context === "string") {
+                        // Check for special contexts first
                         const ctx = msg.context;
-                        const priorityMatch = /^priority([1-9]|1[0-6])$/.exec(ctx);
-                        if (priorityMatch) {
-                            activePrioritySlot = priorityMatch[1];
-                        } else if (ctx === "default") {
-                            activePrioritySlot = "default";
+                        if (ctx === "fallback") {
+                            isFallbackWrite = true;
+                        } else if (ctx === "reload") {
+                            // Handled separately below
+                            activePrioritySlot = "reload";
+                        } else {
+                            // Check for priority context
+                            const priorityMatch = /^priority([1-9]|1[0-6])$/.exec(ctx);
+                            if (priorityMatch) {
+                                activePrioritySlot = priorityMatch[1];
+                            }
+                            // Unknown contexts leave activePrioritySlot null → falls to config
                         }
-                        // Other contexts (e.g. "reload") leave activePrioritySlot null → falls to config
+                    }
+                    
+                    if (msg.hasOwnProperty("priority") && (typeof msg.priority === "number" || typeof msg.priority === "string")) {
+                        // Source 1: msg.priority (direct number 1-16) — skip objects (e.g. priority array from state)
+                        const mp = msg.priority;
+                        const p = parseInt(mp, 10);
+                        if (isNaN(p) || p < 1 || p > 16) {
+                            node.isBusy = false;
+                            return utils.sendError(node, msg, done, `Invalid msg.priority: ${mp} (must be 1-16)`);
+                        }
+                        activePrioritySlot = String(p);
+                        isFallbackWrite = false; // msg.priority overrides fallback context
                     }
 
-                    // Source 3: Fall back to configured typed-input when no message override matched
-                    if (activePrioritySlot === null) {
+                    // Source 3: Fall back to configured writePriority only if no message override matched
+                    if (!isFallbackWrite && activePrioritySlot === null) {
+                        let configuredSlot;
                         if (utils.requiresEvaluation(config.writePriorityType)) {
-                            activePrioritySlot = await utils.evaluateNodeProperty(config.writePriority, config.writePriorityType, node, msg);
+                            configuredSlot = await utils.evaluateNodeProperty(config.writePriority, config.writePriorityType, node, msg);
                         } else {
-                            activePrioritySlot = config.writePriority;
+                            configuredSlot = config.writePriority;
+                        }
+                        // Allow "fallback" as a configured value
+                        if (configuredSlot === "fallback") {
+                            isFallbackWrite = true;
+                        } else {
+                            // Validate configured priority (must be 1-16)
+                            const cp = parseInt(configuredSlot, 10);
+                            if (isNaN(cp) || cp < 1 || cp > 16) {
+                                node.isBusy = false;
+                                return utils.sendError(node, msg, done, `Invalid configured writePriority: ${configuredSlot} (must be 1-16 or fallback)`);
+                            }
+                            activePrioritySlot = String(cp);
                         }
                     }
                 } catch (err) {
@@ -147,12 +167,12 @@ module.exports = function(RED) {
                 }
 
                 // Handle Reload
-                if (msg.context === "reload") {
+                if (activePrioritySlot === "reload") {
                     RED.events.emit("bldgblocks:global:value-changed", { key: node.varName, store: node.storeName, data: state });
                     await utils.setGlobalState(node, node.varName, node.storeName, state);
                     
-                    prefix = state.activePriority === 'default' ? '' : 'P';
-                    const statusText = `reload: ${prefix}${state.activePriority}:${state.value}${state.units || ''}`;
+                    const activeLabel = state.activePriority === 'default' ? 'default' : (state.activePriority === 'fallback' ? 'fallback' : `P${state.activePriority}`);
+                    const statusText = `reload: ${activeLabel}:${state.value}${state.units || ''}`;
                     
                     return utils.sendSuccess(node, { ...state }, done, statusText, null, "dot");
                 }
@@ -168,9 +188,9 @@ module.exports = function(RED) {
                     return utils.sendError(node, msg, done, `msg.${node.inputProperty} not found or invalid property path`);
                 }
 
-                // Update State
-                if (activePrioritySlot === 'default') {
-                    state.defaultValue = inputValue === null || inputValue === "null" ? node.defaultValue : inputValue;
+                // Update State: either fallback or priority slot
+                if (isFallbackWrite) {
+                    state.fallback = inputValue === null || inputValue === "null" ? null : inputValue;
                 } else {
                     const priority = parseInt(activePrioritySlot, 10);
                     if (isNaN(priority) || priority < 1 || priority > 16) {
@@ -180,26 +200,22 @@ module.exports = function(RED) {
                         state.priority[activePrioritySlot] = inputValue;
                     }
                 }
-                
-                if (state.defaultValue === null || state.defaultValue === "null" || state.defaultValue === undefined) {
-                    state.defaultValue = node.defaultValue;
-                }
 
-                // Calculate Winner
+                // Calculate Winner (includes priorities 1-16, then fallback, then default)
                 const { value, priority } = utils.getHighestPriority(state);
 
                 // Check for change
                 if (value === state.value && priority === state.activePriority) {
                     // Ensure payload stays in sync with value
                     state.payload = state.value;
-                    // Persist even when output unchanged — the priority array itself changed
+                    // Persist even when output unchanged — the priority/fallback array itself changed
                     await utils.setGlobalState(node, node.varName, node.storeName, state);
                     if (node.storeName !== 'default') {
                         await utils.setGlobalState(node, node.varName, 'default', state);
                     }
-                    prefix = `${activePrioritySlot === 'default' ? '' : 'P'}`;
-                    const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
-                    const noChangeText = `no change: ${prefix}${activePrioritySlot}:${inputValue} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units || ''}`;
+                    const writeSlotLabel = isFallbackWrite ? 'fallback' : `P${activePrioritySlot}`;
+                    const activeLabel = state.activePriority === 'default' ? 'default' : (state.activePriority === 'fallback' ? 'fallback' : `P${state.activePriority}`);
+                    const noChangeText = `no change: ${writeSlotLabel}:${inputValue} > active: ${activeLabel}:${state.value}${state.units || ''}`;
                     utils.setStatusUnchanged(node, noChangeText);
                     // Pass message through even if no context change
                     send({ ...state });
@@ -237,9 +253,9 @@ module.exports = function(RED) {
                     await utils.setGlobalState(node, node.varName, 'default', state);
                 }
 
-                prefix = `${activePrioritySlot === 'default' ? '' : 'P'}`;
-                const statePrefix = `${state.activePriority === 'default' ? '' : 'P'}`;
-                const statusText = `write: ${prefix}${activePrioritySlot}:${inputValue}${state.units || ''} > active: ${statePrefix}${state.activePriority}:${state.value}${state.units || ''}`;
+                const writeSlotLabel = isFallbackWrite ? 'fallback' : `P${activePrioritySlot}`;
+                const activeLabel = state.activePriority === 'default' ? 'default' : (state.activePriority === 'fallback' ? 'fallback' : `P${state.activePriority}`);
+                const statusText = `write: ${writeSlotLabel}:${inputValue}${state.units || ''} > active: ${activeLabel}:${state.value}${state.units || ''}`;
 
                 RED.events.emit("bldgblocks:global:value-changed", {
                     key: node.varName,
@@ -302,7 +318,8 @@ module.exports = function(RED) {
                 store: targetNode.storeName,
                 data: state
             });
-            utils.setStatusOK(targetNode, `cleared: default:${state.value}`);
+            const activeLabel = state.activePriority === 'default' ? 'default' : (state.activePriority === 'fallback' ? 'fallback' : `P${state.activePriority}`);
+            utils.setStatusOK(targetNode, `cleared: active: ${activeLabel}:${state.value}`);
             targetNode.send({ ...state });
 
             res.status(200).json({ message: "Priorities cleared", value: state.value, activePriority: state.activePriority });

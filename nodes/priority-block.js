@@ -199,16 +199,16 @@ module.exports = function(RED) {
                     }
                 }
 
-                // Fall back to default or fallback
+                // Fall through to fallback, then default (matching global-setter hierarchy)
                 if (selectedValue === null) {
-                    if (defaultValue !== null) {
-                        selectedValue = defaultValue;
-                        activePriority = "default";
-                        selectedMessage = messages.default;
-                    } else if (fallbackValue !== null) {
+                    if (fallbackValue !== null) {
                         selectedValue = fallbackValue;
                         activePriority = "fallback";
                         selectedMessage = messages.fallback;
+                    } else if (defaultValue !== null) {
+                        selectedValue = defaultValue;
+                        activePriority = "default";
+                        selectedMessage = messages.default;
                     }
                 }
 

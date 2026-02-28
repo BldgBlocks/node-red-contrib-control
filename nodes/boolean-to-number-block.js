@@ -31,11 +31,11 @@ module.exports = function(RED) {
             const inputDisplay = inputValue === null ? "null" : String(inputValue);
             if (inputValue === null) {
                 msg.payload = node.nullToZero ? 0 : -1;
-                utils.setStatusChanged(node, `in: ${inputDisplay}, out: ${msg.payload}`);
+                utils.setStatusChanged(node, `${inputDisplay} -> ${msg.payload}`);
                 send(msg);
             } else if (typeof inputValue === "boolean") {
                 msg.payload = inputValue ? 1 : 0;
-                utils.setStatusChanged(node, `in: ${inputDisplay}, out: ${msg.payload}`);
+                utils.setStatusChanged(node, `${inputDisplay} -> ${msg.payload}`);
                 send(msg);
             } else {
                 utils.setStatusError(node, "invalid input type");

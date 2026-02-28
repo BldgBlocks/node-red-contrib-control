@@ -301,6 +301,34 @@ describe("tstat-block", function() {
             const flow = tstatFlow(SINGLE_DEFAULTS);
 
             helper.load(tstatNode, flow, function() {
+                        it("should show hysteresis status in cooling mode", function(done) {
+                            // setpoint=70, diff=2 → on threshold = 71, off threshold = 71 (anticipator=1 for clear separation)
+                            const flow = tstatFlow({ ...SINGLE_DEFAULTS, isHeating: false, anticipator: 1 });
+                            helper.load(tstatNode, flow, function() {
+                                const n1 = helper.getNode("n1");
+                                const outAbove = helper.getNode("out2");
+                                const st = trackStatus(n1);
+                                // Cross on threshold
+                                sendPayload(n1, 72); // above 71, should activate call
+                                waitForMessage(outAbove).then(msg1 => {
+                                    assert.strictEqual(msg1.payload, true);
+                                    assert.ok(st.last.text.includes("(on)"), `status should show (on), got: ${st.last.text}`);
+                                    // Now drop just below onThreshold but above offThreshold (hysteresis)
+                                    sendPayload(n1, 71); // at threshold, should still be holding
+                                    waitForMessage(outAbove).then(msg2 => {
+                                        assert.strictEqual(msg2.payload, true);
+                                        assert.ok(st.last.text.includes("holding"), `status should show holding, got: ${st.last.text}`);
+                                        // Now drop below offThreshold
+                                        sendPayload(n1, 70.8); // below offThreshold, should deactivate call
+                                        waitForMessage(outAbove).then(msg3 => {
+                                            assert.strictEqual(msg3.payload, false);
+                                            assert.ok(st.last.text.includes("(off)"), `status should show (off), got: ${st.last.text}`);
+                                            done();
+                                        }).catch(done);
+                                    }).catch(done);
+                                }).catch(done);
+                            });
+                        });
                 const n1 = helper.getNode("n1");
                 const outIsHeating = helper.getNode("out");
 

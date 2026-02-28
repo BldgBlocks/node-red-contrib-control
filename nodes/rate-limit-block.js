@@ -35,7 +35,7 @@ module.exports = function(RED) {
         }
 
         // Set initial status
-        utils.setStatusOK(node, `mode: ${node.mode}, out: ${node.currentValue.toFixed(2)}`);
+        utils.setStatusOK(node, `${node.currentValue.toFixed(2)}`);
 
         let updateTimer = null;
 
@@ -58,7 +58,7 @@ module.exports = function(RED) {
                 node.lastUpdate = now;
                 const msg = RED.util.cloneMessage(node.lastInputMsg);
                 msg.payload = node.currentValue;
-                utils.setStatusOK(node, `mode: rate-limit, out: ${node.currentValue.toFixed(2)}`);
+                utils.setStatusOK(node, `${node.currentValue.toFixed(2)}`);
                 node.send(msg);
             }
         }
@@ -151,7 +151,7 @@ module.exports = function(RED) {
 
             if (node.mode === "rate-limit") {
                 node.targetValue = inputValue;
-                utils.setStatusOK(node, `mode: rate-limit, target: ${node.targetValue.toFixed(2)}`);
+                utils.setStatusOK(node, `target: ${node.targetValue.toFixed(2)}`);
                 updateRateLimitOutput();
                 startTimer();
             } else if (node.mode === "threshold") {
@@ -159,15 +159,15 @@ module.exports = function(RED) {
                 if (diff > node.threshold) {
                     msg.payload = inputValue;
                     node.currentValue = inputValue;
-                    utils.setStatusChanged(node, `mode: threshold, out: ${node.currentValue.toFixed(2)}`);
+                    utils.setStatusChanged(node, `${node.currentValue.toFixed(2)}`);
                     send(msg);
                 } else {
-                    utils.setStatusUnchanged(node, `mode: threshold, out: ${node.currentValue.toFixed(2)}`);
+                    utils.setStatusUnchanged(node, `${node.currentValue.toFixed(2)}`);
                 }
             } else if (node.mode === "full-value") {
                 node.currentValue = inputValue;
                 msg.payload = inputValue;
-                utils.setStatusChanged(node, `mode: full-value, out: ${node.currentValue.toFixed(2)}`);
+                utils.setStatusChanged(node, `${node.currentValue.toFixed(2)}`);
                 send(msg);
             }
 

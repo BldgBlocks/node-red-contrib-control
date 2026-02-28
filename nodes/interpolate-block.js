@@ -110,8 +110,8 @@ module.exports = function(RED) {
             // Check if output value has changed
             const isUnchanged = outputValue === node.lastOutput;
             const statusShape = isUnchanged ? "ring" : "dot";
-            utils.setStatusOK(node, `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`);
-            if (statusShape === "ring") utils.setStatusUnchanged(node, `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`);
+            utils.setStatusOK(node, `${outputValue.toFixed(2)}`);
+            if (statusShape === "ring") utils.setStatusUnchanged(node, `${outputValue.toFixed(2)}`);
 
             if (!isUnchanged) {
                 node.lastOutput = outputValue;

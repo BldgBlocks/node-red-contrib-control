@@ -44,10 +44,10 @@ module.exports = function(RED) {
                     return;
                 }
                 outputValue = -inputValue;
-                statusText = `in: ${inputValue.toFixed(2)}, out: ${outputValue.toFixed(2)}`;
+                statusText = `${inputValue.toFixed(2)} -> ${outputValue.toFixed(2)}`;
             } else if (typeof inputValue === "boolean") {
                 outputValue = !inputValue;
-                statusText = `in: ${inputValue}, out: ${outputValue}`;
+                statusText = `${inputValue} -> ${outputValue}`;
             } else {
                 utils.setStatusError(node, "Unsupported type");
                 if (done) done();

@@ -352,13 +352,31 @@ module.exports = function(RED) {
 
             const temp = node.lastTemperature !== null ? node.lastTemperature.toFixed(1) : "?";
             const { heating, cooling } = getThresholds();
-            // Show the threshold that explains the current mode:
-            //   heating → show cooling threshold (we're heating because temp < cooling threshold)
-            //   cooling → show heating threshold (we're cooling because temp > heating threshold)
-            const threshold = isHeating
-                ? `<${cooling.toFixed(1)}`
-                : `>${heating.toFixed(1)}`;
-            let text = `${temp}° ${threshold} [${node.operationMode}] ${node.currentMode}`;
+            let thresholdText, hysteresisText;
+            if (isHeating) {
+                thresholdText = `<${cooling.toFixed(1)}`;
+                if (node.lastTemperature !== null && node.lastTemperature < cooling) {
+                    hysteresisText = " (on)";
+                } else if (node.lastTemperature !== null && node.lastTemperature >= heating && node.lastTemperature < cooling) {
+                    hysteresisText = ` (holding, swap at >${heating.toFixed(1)})`;
+                } else if (node.lastTemperature !== null && node.lastTemperature >= cooling) {
+                    hysteresisText = " (off)";
+                } else {
+                    hysteresisText = "";
+                }
+            } else {
+                thresholdText = `>${heating.toFixed(1)}`;
+                if (node.lastTemperature !== null && node.lastTemperature > heating) {
+                    hysteresisText = " (on)";
+                } else if (node.lastTemperature !== null && node.lastTemperature <= cooling && node.lastTemperature > heating) {
+                    hysteresisText = ` (holding, swap at <${cooling.toFixed(1)})`;
+                } else if (node.lastTemperature !== null && node.lastTemperature <= heating) {
+                    hysteresisText = " (off)";
+                } else {
+                    hysteresisText = "";
+                }
+            }
+            let text = `${temp}° ${thresholdText} [${node.operationMode}] ${node.currentMode}${hysteresisText}`;
 
             if (pendingMode && conditionStartTime) {
                 const remaining = Math.max(0, node.swapTime - (now - conditionStartTime));

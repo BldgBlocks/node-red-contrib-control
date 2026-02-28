@@ -122,7 +122,7 @@ module.exports = function(RED) {
             node.lastInput = inputValue;
             const out = calculate(inputValue, node.inMin, node.inMax, node.outMin, node.outMax, node.clamp);
             msg.payload = out;
-            utils.setStatusOK(node, `in: ${inputValue.toFixed(2)}, out: ${out.toFixed(2)}`);
+            utils.setStatusOK(node, `${out.toFixed(2)}`);
             send(msg);
 
             if (done) done();

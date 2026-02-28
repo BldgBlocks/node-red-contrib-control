@@ -104,8 +104,17 @@ module.exports = function(RED) {
                 RED.events.emit("bldgblocks:network:point-update", pointUpdateData);
 
                 // Passthrough
-                const prefix = msg.activePriority === 'default' ? '' : 'P';
-                const statusText = `Passthrough: ${prefix}${msg.activePriority}:${msg.value}${msg.units === null ? "" : ` ${msg.units}`}`;
+                let statusLabel;
+                if (msg.activePriority === 'default') {
+                    statusLabel = 'default';
+                } else if (msg.activePriority === 'fallback') {
+                    statusLabel = 'fallback';
+                } else if (typeof msg.activePriority === 'number' || /^\d+$/.test(msg.activePriority)) {
+                    statusLabel = `P:${msg.activePriority}`;
+                } else {
+                    statusLabel = String(msg.activePriority);
+                }
+                const statusText = `Passthrough: ${statusLabel}:${msg.value}${msg.units === null ? "" : ` ${msg.units}`}`;
                 utils.sendSuccess(node, msg, done, statusText, node.pointId, "ring");
 
             } catch (err) {

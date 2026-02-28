@@ -324,7 +324,31 @@ module.exports = function(RED) {
                 ? `<${onThreshold.toFixed(1)}`
                 : `>${onThreshold.toFixed(1)}`;
             const suffix = !node.startupComplete ? " [startup]" : "";
-            const text = `${input.toFixed(1)}° ${threshold} [${mode}] call:${call}${suffix}`;
+            let thresholdText, hysteresisText;
+            if (node.isHeating) {
+                thresholdText = `<${onThreshold.toFixed(1)}`;
+                if (outputBelow && input > onThreshold && input <= offThreshold) {
+                    hysteresisText = ` (holding, off at >${offThreshold.toFixed(1)})`;
+                } else if (outputBelow && input < onThreshold) {
+                    hysteresisText = " (on)";
+                } else if (!outputBelow && input > offThreshold) {
+                    hysteresisText = " (off)";
+                } else {
+                    hysteresisText = "";
+                }
+            } else {
+                thresholdText = `>${onThreshold.toFixed(1)}`;
+                if (outputAbove && input < onThreshold && input >= offThreshold) {
+                    hysteresisText = ` (holding, off at <${offThreshold.toFixed(1)})`;
+                } else if (outputAbove && input > onThreshold) {
+                    hysteresisText = " (on)";
+                } else if (!outputAbove && input < offThreshold) {
+                    hysteresisText = " (off)";
+                } else {
+                    hysteresisText = "";
+                }
+            }
+            const text = `${input.toFixed(1)}° ${thresholdText} [${mode}] call:${call}${hysteresisText}${suffix}`;
 
             if (outputAbove === lastAbove && outputBelow === lastBelow) {
                 utils.setStatusUnchanged(node, text);

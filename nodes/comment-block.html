@@ -12,8 +12,14 @@
         <select id="node-input-statusDisplay">
             <option value="default">Comment to status (Default)</option>
             <option value="name">Name to status</option>
+            <option value="property">Message property to status</option>
             <option value="none">No status</option>
         </select>
+    </div>
+    <div class="form-row" id="row-statusProperty" style="display:none;">
+        <label for="node-input-statusProperty" title="Message property or JSONata expression to display in status"><i class="fa fa-code"></i> Property</label>
+        <input type="text" id="node-input-statusProperty" placeholder="payload" style="width:70%;">
+        <input type="hidden" id="node-input-statusPropertyType">
     </div>
 </script>
 
@@ -24,7 +30,9 @@
         defaults: {
             name: { value: "comment" },
             comment: { value: "No comment", validate: function(v) { return v.length < 100 } },
-            statusDisplay: { value: "default" }
+            statusDisplay: { value: "default" },
+            statusProperty: { value: "payload" },
+            statusPropertyType: { value: "msg" }
         },
         inputs: 1,
         outputs: 1,
@@ -35,9 +43,31 @@
         label: function() {
             return this.name || this.comment || "comment";
         },
+        oneditprepare: function() {
+            var node = this;
+
+            $("#node-input-statusProperty").typedInput({
+                default: "msg",
+                types: ["msg", "jsonata"],
+                typeField: "#node-input-statusPropertyType"
+            }).typedInput("type", node.statusPropertyType || "msg")
+              .typedInput("value", node.statusProperty || "payload");
+
+            function togglePropertyRow() {
+                if ($("#node-input-statusDisplay").val() === "property") {
+                    $("#row-statusProperty").show();
+                } else {
+                    $("#row-statusProperty").hide();
+                }
+            }
+
+            $("#node-input-statusDisplay").on("change", togglePropertyRow);
+            togglePropertyRow();
+        },
         oneditsave: function() {
             // Update status immediately
             const node = RED.nodes.getNode(this.id);
+            if (!node) return;
             let status = {};
             switch (node.statusDisplay) {
                 case "default":
@@ -46,18 +76,20 @@
                 case "name":
                     status = { fill: "green", shape: "dot", text: node.name || "comment" };
                     break;
+                case "property":
+                    status = { fill: "green", shape: "dot", text: "waiting for input" };
+                    break;
                 case "none":
                     break;
                 default:
             }
-
             node.status(status);
         }
     });
 </script>
 
 <script type="text/markdown" data-help-name="comment-block">
-Displays a configurable comment, node name, or no status persistently and on input.
+Displays a configurable comment, node name, message property, or no status persistently and on input.
 
 ### Inputs
 : payload (any) : Passthrough.
@@ -66,16 +98,23 @@ Displays a configurable comment, node name, or no status persistently and on inp
 : payload (any) : Passthrough.
 
 ### Details
-Displays a status (comment, node name, or none) on node creation, editor saves, and input messages.
+Displays a status (comment, node name, message property, or none) on node creation, editor saves, and input messages.
 
-Used for flow annotations or debugging without requiring input to trigger status.
+Wire this node inline to observe values flowing through without interrupting the message chain.
+
+**Status Display modes:**
+- **Comment to status (Default)**: Shows the configured comment text.
+- **Name to status**: Shows the node's name.
+- **Message property to status**: Evaluates a `msg` property path (e.g., `payload`, `value`, `activePriority`) or a JSONata expression on each input and displays the result.
+- **No status**: Hides the status indicator.
+
+When using **Message property** mode, the status updates on every input message. If the property is not found, a yellow warning is shown.
 
 ### Status
-- Green (dot): Configuration update
-- Blue (dot): State changed
-- Blue (ring): State unchanged
+- Green (dot): Static display (comment/name)
+- Blue (dot): Property value displayed
+- Yellow (ring): Property not found
 - Red (ring): Error
-- Yellow (ring): Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

@@ -287,7 +287,7 @@ module.exports = function(RED) {
             const outDisplay = output % 1 === 0 ? output : output.toFixed(2);
 
             // Update status and send output
-            utils.setStatusOK(node, `${inDisplay} ${inUnit} → ${outDisplay} ${outUnit}`);
+            utils.setStatusOK(node, `${outDisplay} ${outUnit}`);
 
             msg.payload = output;
             send(msg);

@@ -12,8 +12,8 @@
         <input type="text" id="node-input-property" style="width:70%;">
     </div>
     <div class="form-row">
-        <label for="node-input-writePriority" title="Priority is evaluated for final value when using global-setter/getter nodes."><i class="fa fa-sort-numeric-asc"></i> Priority</label>
-        <input type="text" id="node-input-writePriority" placeholder="single">
+        <label for="node-input-writePriority" title="Network priority slot (1-16) for this message. Network writes from external control systems use these slots."><i class="fa fa-sort-numeric-asc"></i> Network Priority</label>
+        <input type="text" id="node-input-writePriority" placeholder="16">
         <input type="hidden" id="node-input-writePriorityType">
     </div>
     
@@ -29,13 +29,13 @@
 
     <div class="form-row">
         <label>&nbsp;</label>
-        <button type="button" id="node-btn-clear-priorities" class="editor-button" style="width: calc(70% - 3px);" title="Clear all 16 priority slots on the live node (does not affect the default value)">
-            <i class="fa fa-eraser"></i> Clear All Priorities
+        <button type="button" id="node-btn-clear-priorities" class="editor-button" style="width: calc(70% - 3px);" title="Clear all 16 network priority slots on the live node (does not affect the default or fallback values)">
+            <i class="fa fa-eraser"></i> Clear Network Priorities
         </button>
     </div>
 
     <div class="form-tips">
-        <b>Note:</b> This node writes to the selected <b>Priority</b>, manually, by msg or flow. The actual Global Variable value will be the highest active priority.
+        <b>Note:</b> This node writes to the <b>Network Priority</b> slot (1-16), manually, by msg or flow. The actual value is determined by the highest active source: Priorities 1-16 → Fallback → Default.
     </div>
 </script>
 
@@ -49,7 +49,7 @@
             property: { value: "payload", required: true },
             defaultValue: { value: "", required: true },
             defaultValueType: { value: "num", required: true },
-            writePriority: { value: "default", required: true },
+            writePriority: { value: "fallback", required: true },
             writePriorityType: { value: "dropdown" }
         },
         inputs: 1,
@@ -101,7 +101,7 @@
                         { value: "14", label: "14"},
                         { value: "15", label: "15"},
                         { value: "16", label: "16 (Network Logic)"},
-                        { value: "default", label: "default (fallback)"},
+                        { value: "fallback", label: "fallback (Internal Logic)"},
                     ]
                 }, "msg", "flow"],
                 typeField: "#node-input-writePriorityType"
@@ -141,12 +141,12 @@ Manage a global variable in a repeatable way.
 ### Inputs 
 : payload (any) : Input payload is passed through unchanged.
 : property (string) : The input property where the value is taken from.
-: priority (number|string) : _Optional_. Overrides the configured Priority at runtime. Accepts `1`–`16` or `"default"`. For example, `msg.priority = 8` writes to priority slot 8.
-: context (string) : _Optional_. Tagged-input priority routing (matches priority-block conventions). Accepts `"priority1"`–`"priority16"`, `"default"`, or `"reload"`. When both `msg.priority` and `msg.context` are present, `msg.priority` takes precedence.
+: priority (number|string) : _Optional_. Overrides the configured Network Priority at runtime. Accepts `1`–`16`. For example, `msg.priority = 8` writes to priority slot 8.
+: context (string) : _Optional_. Tagged-input routing. Accepts `"fallback"` (writes to the fallback slot) or `"priority1"`–`"priority16"` (writes to network priority slots), or `"reload"` (reload state without writing). When both `msg.priority` and `msg.context` are present, `msg.priority` takes precedence.
 : units (string) : The units associated with the value, if any. Also supports nested units at `msg.<inputProperty>.units`.
 
 ### Outputs
-: payload (any) : Original payload.
+: payload (any) : Original payload plus full state object (value, activePriority, all priority slots, fallback, metadata).
 
 ### Details
 Global variables are meant to be retrieved in other places, this necessarily means managing the same string in multiple places. 
@@ -155,7 +155,12 @@ This node allows you to set a global variable in one place, and retrieve it else
 
 When this node is deleted or the flow is redeployed, it will automatically remove (prune) the variable from the selected Context Store.
 
-**Clear All Priorities** button (in editor): Resets all 16 priority slots to `null` on the live running node. The default value is preserved. The active value recalculates to the highest remaining priority (or falls back to default). The node must be deployed first.
+**Priority Hierarchy**: The active value is determined by the highest active source:
+1. **Network Priorities (1-16)**: Used by external automation systems (e.g., BACnet, network service). Priority 16 is typical for network logic, 1 for life safety.
+2. **Fallback**: A dynamic input slot updated via `{context: "fallback", payload: value}`. Useful for internal logic to write a secondary value (e.g., persistent context setpoints).
+3. **Default**: A static configuration value. Always used as the ultimate fallback when all other sources are null/empty.
+
+**Clear Network Priorities** button (in editor): Resets all 16 priority slots to `null` on the live running node. The fallback and default values are preserved. The active value recalculates based on the hierarchy. The node must be deployed first.
 
 ### Status
 - Green (dot): Configuration update
@@ -163,6 +168,8 @@ When this node is deleted or the flow is redeployed, it will automatically remov
 - Blue (ring): State unchanged
 - Red (ring): Error
 - Yellow (ring): Warning
+
+Status prefix: Empty = default active, `F` = fallback active, `P` = network priority active (e.g., `P3` = priority 3).
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)  
