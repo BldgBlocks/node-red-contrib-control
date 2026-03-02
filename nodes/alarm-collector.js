@@ -145,6 +145,32 @@ module.exports = function(RED) {
                     node.alarmState = false;
                     emitAlarmEvent("true → false");
                 }
+
+            } else if (!conditionNowMet && !node.conditionMet && node.alarmState === true) {
+                // Condition was already cleared on a prior update but alarm is
+                // still active (magnitude hysteresis kept it open).  Re-evaluate
+                // magnitude hysteresis on every subsequent update so the alarm
+                // can clear once the value moves outside the hysteresis band.
+                let shouldClear = true;
+                if (node.inputMode === "value") {
+                    if (node.compareMode === "either" || node.compareMode === "high-only") {
+                        const clearThreshold = node.highThreshold - node.hysteresisMagnitude;
+                        if (numericValue > clearThreshold) {
+                            shouldClear = false;
+                        }
+                    }
+                    if (node.compareMode === "either" || node.compareMode === "low-only") {
+                        const clearThreshold = node.lowThreshold + node.hysteresisMagnitude;
+                        if (numericValue < clearThreshold) {
+                            shouldClear = false;
+                        }
+                    }
+                }
+
+                if (shouldClear) {
+                    node.alarmState = false;
+                    emitAlarmEvent("true → false");
+                }
             }
 
             // Update status display
