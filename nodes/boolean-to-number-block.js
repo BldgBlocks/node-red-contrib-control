@@ -37,6 +37,10 @@ module.exports = function(RED) {
                 msg.payload = inputValue ? 1 : 0;
                 utils.setStatusChanged(node, `${inputDisplay} -> ${msg.payload}`);
                 send(msg);
+            } else if (typeof inputValue === "number" && (inputValue === 0 || inputValue === 1)) {
+                msg.payload = inputValue === 1;
+                utils.setStatusChanged(node, `${inputDisplay} -> ${msg.payload}`);
+                send(msg);
             } else {
                 utils.setStatusError(node, "invalid input type");
             }

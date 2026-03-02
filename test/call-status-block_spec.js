@@ -526,6 +526,7 @@ describe("call-status-block", function() {
             helper.load(callStatusNode, flow, async function() {
                 const n1 = helper.getNode("n1");
                 const out = helper.getNode("out");
+                n1.startupTime = 0;  // bypass startup grace for test
 
                 try {
                     // Send status=true without ever activating call
@@ -570,6 +571,37 @@ describe("call-status-block", function() {
                     const msg = await p2;
 
                     assert.strictEqual(msg.status.alarm, false, "should not alarm when statusWithoutCall disabled");
+                    done();
+                } catch(e) { done(e); }
+            });
+        });
+
+        it("should suppress status-without-call alarm during startup grace period", function(done) {
+            const flow = buildFlow("call-status-block", {
+                ...DEFAULTS,
+                clearDelay: "0"
+            });
+
+            helper.load(callStatusNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+                // Do NOT backdate startupTime — grace is active
+
+                try {
+                    // Send status=true without call immediately after startup
+                    const p1 = waitForMessage(out);
+                    n1.receive({ payload: false, status: true });
+                    await p1;
+
+                    // Wait past the 100ms hysteresis
+                    await wait(200);
+
+                    // Re-send and check — should NOT be in alarm
+                    const p2 = waitForMessage(out);
+                    n1.receive({ payload: false, status: true });
+                    const msg = await p2;
+
+                    assert.strictEqual(msg.status.alarm, false, "should not alarm during startup grace");
                     done();
                 } catch(e) { done(e); }
             });
@@ -1161,6 +1193,7 @@ describe("call-status-block", function() {
             helper.load(callStatusNode, flow, async function() {
                 const n1 = helper.getNode("n1");
                 const out = helper.getNode("out");
+                n1.startupTime = 0;  // bypass startup grace for test
 
                 try {
                     // Status=true without call → triggers alarm (100ms hysteresis)

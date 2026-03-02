@@ -38,13 +38,14 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="boolean-to-number-block">
-Converts a boolean or null input from a configured property to a numeric output.
+Converts between boolean and numeric representations. Booleans are converted to `0`/`1`;
+numeric `0`/`1` values are converted back to `false`/`true`. Also handles `null`.
 
 ### Inputs
-: input-property (boolean | null) : Value to convert, read from the configured Input Property.
+: input-property (boolean | number | null) : Value to convert, read from the configured Input Property.
 
 ### Outputs
-: payload (number) : Converted value: `null` to `0` (if `nullToZero` is true) or `-1`, `false` to `0`, `true` to `1`.
+: payload (number | boolean) : Converted value — booleans become `0`/`1`, numbers `0`/`1` become `false`/`true`, `null` becomes `0` or `-1`.
 
 ### Properties
 : name (string) : Display name in editor.
@@ -52,9 +53,17 @@ Converts a boolean or null input from a configured property to a numeric output.
 : nullToZero (boolean) : When checked, `null` maps to `0`; when unchecked, `null` maps to `-1`.
 
 ### Details
-Converts boolean or null input (read from the configured **Input Property**, default: `msg.payload`) to a number:
+Automatically converts in both directions (read from the configured **Input Property**, default: `msg.payload`):
+
+**Boolean → Number:**
 - `true` → `1`
 - `false` → `0`
+
+**Number → Boolean:**
+- `1` → `true`
+- `0` → `false`
+
+**Null handling:**
 - `null` → `0` (if **Null Mapping** is checked) or `-1` (if unchecked)
 
 Output is always written to `msg.payload`. All other input message properties are passed through unchanged.

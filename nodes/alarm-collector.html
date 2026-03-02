@@ -131,7 +131,7 @@
             priority: { value: "high" },
             topic: { value: "Alarms_Default" },
             title: { value: "Alarm" },
-            message: { value: "Condition triggered" },
+            message: { value: "Condition active" },
             messageType: { value: "str" },
             tags: { value: "" },
             units: { value: "°F" }
@@ -206,7 +206,7 @@
                     "msg"
                 ],
                 typeField: "#node-input-messageType"
-            }).typedInput("type", node.messageType || "str").typedInput("value", node.message || "Condition triggered");
+            }).typedInput("type", node.messageType || "str").typedInput("value", node.message || "Condition active");
 
             // Show/hide sections based on inputMode
             const updateDisplay = () => {

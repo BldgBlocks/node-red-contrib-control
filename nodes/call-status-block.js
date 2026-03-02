@@ -69,6 +69,11 @@ module.exports = function(RED) {
         node.clearTimer = null;           // Timer to clear state after call ends
         node.debounceTimer = null;        // Debounce status flicker
 
+        // Startup grace — suppress "status without call" until both inputs
+        // have had time to arrive after a (re)deploy.
+        const STARTUP_GRACE_MS = Math.max(node.config.clearDelay, 10) * 1000;
+        node.startupTime = Date.now();
+
         // ====================================================================
         // State machine
         // ====================================================================
@@ -341,7 +346,9 @@ module.exports = function(RED) {
             }
 
             // If status active without call and no clearTimer running → unexpected
-            if (!node.requestedState && newStatus && !node.clearTimer && node.config.statusWithoutCall) {
+            // Skip during startup grace period — call state may not have arrived yet
+            const sinceStartup = Date.now() - node.startupTime;
+            if (!node.requestedState && newStatus && !node.clearTimer && node.config.statusWithoutCall && sinceStartup > STARTUP_GRACE_MS) {
                 node.statusLostTimer = setTimeout(() => {
                     node.statusLostTimer = null;
                     if (node.actualState && !node.requestedState) {

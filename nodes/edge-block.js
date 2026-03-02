@@ -104,7 +104,8 @@ module.exports = function(RED) {
 
             if (isTransition) {
                 utils.setStatusChanged(node, `true`);
-                send({ payload: true });
+                msg.edge = true;
+                send(msg);
             } else {
                 utils.setStatusUnchanged(node, `none`);
             }

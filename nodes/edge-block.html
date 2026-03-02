@@ -31,7 +31,7 @@
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["transition"],
-        icon: "font-awesome/fa-exchange",
+        icon: "font-awesome/fa-bolt",
         paletteLabel: "edge",
         label: function() {
             return this.name || "edge";
@@ -49,7 +49,9 @@ Detects boolean state transitions (true-to-false or false-to-true).
 : payload (string | boolean) : Transition type (`"true-to-false"`, `"false-to-true"`) for `"algorithm"`, true for `"reset"`.
 
 ### Outputs
-: payload (boolean) : `true` when the specified transition occurs; `false` otherwise.
+: *entire message* : The original input message is forwarded **only** when the specified transition occurs. No output otherwise.
+: edge (boolean) : `true` is added to the message to flag that a transition was detected.
+: payload : Preserved from the input message (unchanged).
 
 ### Properties
 : name (string) : Display name in editor.
@@ -58,8 +60,9 @@ Detects boolean state transitions (true-to-false or false-to-true).
 
 ### Details
 Detects transitions in boolean input (read from the configured **Input Property**, default: `msg.payload`) based on the configured `algorithm`.
-Outputs `msg.payload` as true only when the specified transition occurs (true-to-false or false-to-true).
+Forwards the **entire original message** only when the specified transition occurs (true-to-false or false-to-true), with `msg.edge = true` added.
 No output on first input after reset, if no transition occurs, or for non-boolean inputs.
+Because the full message passes through, this node can be used inline to conditionally gate messages based on boolean state changes while preserving all upstream properties.
 
 Configuration via `msg.context`:
 - `"algorithm"`: Sets transition type, no output.

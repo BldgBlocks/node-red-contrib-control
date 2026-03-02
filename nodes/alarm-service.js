@@ -49,7 +49,7 @@ module.exports = function(RED) {
                 // Send alarm message with status
                 const msg = {
                     alarm: eventData,
-                    status: { state: "triggered", transition: eventData.transition },
+                    status: { state: "active", transition: eventData.transition },
                     activeAlarmCount: activeCount,
                     alarmKey: key
                 };
