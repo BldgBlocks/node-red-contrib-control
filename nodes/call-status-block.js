@@ -69,11 +69,6 @@ module.exports = function(RED) {
         node.clearTimer = null;           // Timer to clear state after call ends
         node.debounceTimer = null;        // Debounce status flicker
 
-        // Startup grace — suppress "status without call" until both inputs
-        // have had time to arrive after a (re)deploy.
-        const STARTUP_GRACE_MS = Math.max(node.config.clearDelay, 10) * 1000;
-        node.startupTime = Date.now();
-
         // ====================================================================
         // State machine
         // ====================================================================
@@ -272,9 +267,17 @@ module.exports = function(RED) {
                 }
             } else {
                 // === Call deactivated ===
+                // Clear run-related timers and alarms — they are no longer
+                // relevant once the call is off.
                 if (node.initialStatusTimer) { clearTimeout(node.initialStatusTimer); node.initialStatusTimer = null; }
                 if (node.heartbeatTimer) { clearTimeout(node.heartbeatTimer); node.heartbeatTimer = null; }
                 if (node.statusLostTimer) { clearTimeout(node.statusLostTimer); node.statusLostTimer = null; }
+                if (node.debounceTimer) { clearTimeout(node.debounceTimer); node.debounceTimer = null; }
+
+                // Clear any "during run" alarm (e.g. status lost) — no longer
+                // meaningful now that the call itself is off.
+                node.alarm = false;
+                node.alarmMessage = "";
 
                 // Monitor that status goes inactive
                 if (node.actualState) {
@@ -323,16 +326,33 @@ module.exports = function(RED) {
             }
 
             // If call active and status went false → status lost alarm
-            if (node.requestedState && !newStatus && node.config.runLostStatus) {
+            // CRITICAL: Only alarm if we've already received at least one status=true
+            // response. And use the configured heartbeat/status timeout as the delay —
+            // a brief status dropout should NOT alarm faster than the configured
+            // tolerance window. If heartbeat was running, cancel it (we know status
+            // is false now) and let the statusLostTimer take over with the same delay.
+            if (node.requestedState && !newStatus && node.config.runLostStatus && !node.neverReceivedStatus) {
+                // Cancel heartbeat — status is explicitly false, no point monitoring freshness
+                if (node.heartbeatTimer) {
+                    clearTimeout(node.heartbeatTimer);
+                    node.heartbeatTimer = null;
+                }
+
+                // Use heartbeatTimeout as the delay if configured, otherwise statusTimeout.
+                // These are the user's configured tolerance windows for status gaps.
+                const lostDelay = node.config.heartbeatTimeout > 0
+                    ? node.config.heartbeatTimeout * 1000
+                    : (node.config.statusTimeout > 0 ? node.config.statusTimeout * 1000 : 5000);
+
                 node.statusLostTimer = setTimeout(() => {
                     node.statusLostTimer = null;
-                    if (node.requestedState && !node.actualState) {
+                    if (node.requestedState && !node.actualState && !node.neverReceivedStatus) {
                         node.alarm = true;
                         node.alarmMessage = node.config.runLostStatusMessage;
                         send(buildOutput());
                         updateNodeStatus();
                     }
-                }, 100);  // 100ms hysteresis
+                }, lostDelay);
             }
 
             // If call inactive and status goes false → all clear
@@ -346,9 +366,8 @@ module.exports = function(RED) {
             }
 
             // If status active without call and no clearTimer running → unexpected
-            // Skip during startup grace period — call state may not have arrived yet
-            const sinceStartup = Date.now() - node.startupTime;
-            if (!node.requestedState && newStatus && !node.clearTimer && node.config.statusWithoutCall && sinceStartup > STARTUP_GRACE_MS) {
+            // Skip if clearTimer is active — we're still in grace period after call deactivated
+            if (!node.requestedState && newStatus && !node.clearTimer && node.config.statusWithoutCall) {
                 node.statusLostTimer = setTimeout(() => {
                     node.statusLostTimer = null;
                     if (node.actualState && !node.requestedState) {

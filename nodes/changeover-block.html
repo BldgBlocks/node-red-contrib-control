@@ -9,12 +9,12 @@
     </div>
     <div class="form-row">
         <label for="node-input-algorithm" title="Control algorithm type"><i class="fa fa-cog"></i> Algorithm</label>
-        <input type="text" id="node-input-algorithm" class="node-input-typed" placeholder="single">
+        <input type="text" id="node-input-algorithm" placeholder="single">
         <input type="hidden" id="node-input-algorithmType">
     </div>
     <div class="form-row single-only">
         <label for="node-input-setpoint" title="Target temperature setpoint (number from num, msg, flow, or global)"><i class="fa fa-thermometer-half"></i> Setpoint</label>
-        <input type="text" id="node-input-setpoint" class="node-input-typed" placeholder="70">
+        <input type="text" id="node-input-setpoint" placeholder="70">
         <input type="hidden" id="node-input-setpointType">
     </div>
     <div class="form-row single-only">
@@ -29,12 +29,12 @@
     </div>
     <div class="form-row split-only" style="display: none;">
         <label for="node-input-heatingSetpoint" title="Heating setpoint for split algorithm (number from num, msg, flow, or global)"><i class="fa fa-thermometer-empty"></i> Heating Setpoint</label>
-        <input type="text" id="node-input-heatingSetpoint" class="node-input-typed" placeholder="68">
+        <input type="text" id="node-input-heatingSetpoint" placeholder="68">
         <input type="hidden" id="node-input-heatingSetpointType">
     </div>
     <div class="form-row split-only" style="display: none;">
         <label for="node-input-coolingSetpoint" title="Cooling setpoint for split algorithm (number from num, msg, flow, or global)"><i class="fa fa-thermometer-full"></i> Cooling Setpoint</label>
-        <input type="text" id="node-input-coolingSetpoint" class="node-input-typed" placeholder="74">
+        <input type="text" id="node-input-coolingSetpoint" placeholder="74">
         <input type="hidden" id="node-input-coolingSetpointType">
     </div>
     <div class="form-row split-only" style="display: none;">
@@ -66,7 +66,7 @@
 
     <div class="form-row">
         <label for="node-input-swapTime" title="Minimum time before mode change (seconds, minimum 60, from num, msg, flow, or global)"><i class="fa fa-clock-o"></i> Swap Time</label>
-        <input type="text" id="node-input-swapTime" class="node-input-typed" placeholder="300">
+        <input type="text" id="node-input-swapTime" placeholder="300">
         <input type="hidden" id="node-input-swapTimeType">
     </div>
     <div class="form-row">
@@ -107,6 +107,7 @@
             setpoint: { value: "70" },
             setpointType: { value: "num" },
             deadband: { value: "2" },
+            deadbandType: { value: "num" },
             heatingSetpoint: { value: "68" },
             heatingSetpointType: { value: "num" },
             coolingSetpoint: { value: "74" },
@@ -116,6 +117,7 @@
             heatingOn: { value: "66" },
             heatingOnType: { value: "num" },
             extent: { value: "1" },
+            extentType: { value: "num" },
             swapTime: { value: "300" },
             swapTimeType: { value: "num" },
             minTempSetpoint: { value: "55" },
@@ -156,7 +158,7 @@
                         ]
                     }, "msg", "flow", "global"],
                     typeField: "#node-input-operationModeType"
-                }).typedInput("type", node.operationModeType).typedInput("value", node.operationMode);
+                });
                 
                 $("#node-input-algorithm").typedInput({
                     default: "dropdown",
@@ -169,87 +171,91 @@
                         ]
                     }, "msg", "flow", "global"],
                     typeField: "#node-input-algorithmType"
-                }).typedInput("type", node.algorithmType).typedInput("value", node.algorithm);
+                });
 
                 $("#node-input-setpoint").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-setpointType"
-                }).typedInput("type", node.setpointType || "num").typedInput("value", node.setpoint);
+                });
 
                 $("#node-input-heatingSetpoint").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-heatingSetpointType"
-                }).typedInput("type", node.heatingSetpointType || "num").typedInput("value", node.heatingSetpoint);
+                });
 
                 $("#node-input-coolingSetpoint").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-coolingSetpointType"
-                }).typedInput("type", node.coolingSetpointType || "num").typedInput("value", node.coolingSetpoint);
+                });
 
                 $("#node-input-heatingOn").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-heatingOnType"
-                }).typedInput("type", node.heatingOnType || "num").typedInput("value", node.heatingOn);
+                });
 
                 $("#node-input-coolingOn").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-coolingOnType"
-                }).typedInput("type", node.coolingOnType || "num").typedInput("value", node.coolingOn);
+                });
 
                 $("#node-input-swapTime").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-swapTimeType"
-                }).typedInput("type", node.swapTimeType || "num").typedInput("value", node.swapTime);
+                });
 
                 $("#node-input-deadband").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-deadbandType"
-                }).typedInput("type", node.deadbandType || "num").typedInput("value", node.deadband);
+                });
 
                 $("#node-input-extent").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-extentType"
-                }).typedInput("type", node.extentType || "num").typedInput("value", node.extent);
+                });
 
                 $("#node-input-minTempSetpoint").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-minTempSetpointType"
-                }).typedInput("type", node.minTempSetpointType || "num").typedInput("value", node.minTempSetpoint);
+                });
 
                 $("#node-input-maxTempSetpoint").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-maxTempSetpointType"
-                }).typedInput("type", node.maxTempSetpointType || "num").typedInput("value", node.maxTempSetpoint);
+                });
 
                 // Toggle fields based on algorithm
                 function toggleFields() {
-                    if ($algorithm.val() === "single") {
+                    const type = $("#node-input-algorithm").typedInput("type");
+                    if (type !== "dropdown") {
+                        // Dynamic source — hide all, resolved at runtime
+                        $singleFields.hide();
+                        $splitFields.hide();
+                        $specifiedFields.hide();
+                        return;
+                    }
+                    const algorithm = $("#node-input-algorithm").typedInput("value");
+                    if (algorithm === "single") {
                         $singleFields.show();
                         $splitFields.hide();
                         $specifiedFields.hide();
-                    } else if ($algorithm.val() === "split") {
+                    } else if (algorithm === "split") {
                         $singleFields.hide();
                         $splitFields.show();
                         $specifiedFields.hide();
-                    } else if ($algorithm.val() === "specified") {
+                    } else if (algorithm === "specified") {
                         $singleFields.hide();
                         $splitFields.hide();
                         $specifiedFields.show();
-                    } else {
-                        $algorithm.val("single");
-                        $singleFields.show();
-                        $splitFields.hide();
-                        $specifiedFields.hide();
                     }
                 }
 

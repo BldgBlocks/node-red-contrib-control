@@ -406,6 +406,81 @@ describe("tstat-block", function() {
                 }).catch(done);
             });
         });
+
+        it("should not accumulate call state during startup (no false cooling call)", function(done) {
+            // Scenario: mode switches to cooling during startup, temp is above
+            // cooling on-threshold. Internal above must NOT latch so that when
+            // startup ends and temp has settled below threshold, no call fires.
+            this.timeout(8000);
+            const flow = tstatFlow({
+                ...SINGLE_DEFAULTS,
+                isHeating: false, isHeatingType: "bool",   // cooling mode
+                setpoint: "73", setpointType: "num",
+                diff: "2", diffType: "num",                  // on-threshold = 74
+                startupDelay: 1,                              // 1 second startup
+            });
+
+            helper.load(tstatNode, flow, async function() {
+                try {
+                    const n1 = helper.getNode("n1");
+                    const outAbove = helper.getNode("out2");
+
+                    // During startup: send temp ABOVE the on-threshold (74.5 > 74)
+                    // This should NOT latch above=true internally.
+                    let p = waitForMessage(outAbove);
+                    sendPayload(n1, 74.5);
+                    let msg = await p;
+                    assert.strictEqual(msg.payload, false, "above must be suppressed during startup");
+
+                    // Wait for startup to complete
+                    await wait(1500);
+
+                    // After startup: temp has settled to 73 (below on-threshold of 74)
+                    // Must NOT call for cooling.
+                    p = waitForMessage(outAbove);
+                    sendPayload(n1, 73);
+                    msg = await p;
+                    assert.strictEqual(msg.payload, false,
+                        "no cooling call when temp is below threshold after startup");
+                    done();
+                } catch(e) { done(e); }
+            });
+        });
+
+        it("should allow cooling call after startup when temp is genuinely above threshold", function(done) {
+            this.timeout(8000);
+            const flow = tstatFlow({
+                ...SINGLE_DEFAULTS,
+                isHeating: false, isHeatingType: "bool",
+                setpoint: "73", setpointType: "num",
+                diff: "2", diffType: "num",                  // on-threshold = 74
+                startupDelay: 1,
+            });
+
+            helper.load(tstatNode, flow, async function() {
+                try {
+                    const n1 = helper.getNode("n1");
+                    const outAbove = helper.getNode("out2");
+
+                    // During startup: send temp above threshold (shouldn't latch)
+                    let p = waitForMessage(outAbove);
+                    sendPayload(n1, 75);
+                    let msg = await p;
+                    assert.strictEqual(msg.payload, false, "suppressed during startup");
+
+                    // Wait for startup to complete
+                    await wait(1500);
+
+                    // After startup: temp is still above — cooling IS warranted
+                    p = waitForMessage(outAbove);
+                    sendPayload(n1, 75);
+                    msg = await p;
+                    assert.strictEqual(msg.payload, true,
+                        "cooling call should fire when temp genuinely above threshold");
+                    done();
+                } catch(e) { done(e); }
+            });
+        });
     });
 
     // ========================================================================

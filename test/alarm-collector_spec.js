@@ -200,9 +200,13 @@ describe("alarm-collector", function () {
             await sendAndSettle(n1, 49);
             assert.strictEqual(n1.alarmState, true, "should stay active at 49");
 
-            // Drop to 47 - below clearThreshold (48), alarm should clear
+            // Drop to 47 - below clearThreshold (48), clearing timer starts
             await sendAndSettle(n1, 47);
-            assert.strictEqual(n1.alarmState, false, "should clear at 47");
+            assert.strictEqual(n1.alarmState, true, "alarm still active (clearing timer pending)");
+
+            // Wait for clearing hysteresis timer
+            await wait(80);
+            assert.strictEqual(n1.alarmState, false, "should clear at 47 after hysteresis time");
 
             assert.strictEqual(capture.events.length, 2);
             assert.strictEqual(capture.events[1].state, false);
@@ -213,12 +217,11 @@ describe("alarm-collector", function () {
     });
 
     // ========================================================================
-    // BUG REGRESSION: magnitude hysteresis re-evaluation on subsequent updates
-    // Previously, if conditionMet was already false, subsequent values that
-    // crossed the hysteresis band never cleared the alarm.
+    // Magnitude hysteresis (Schmitt trigger): gradual descent through band
+    // Value must exit the magnitude band AND persist for hysteresisTime.
     // ========================================================================
     it("should clear alarm on LATER update that exits hysteresis band (regression)", function (done) {
-        // highThreshold=50, hysteresisMagnitude=2 → clearThreshold=48
+        // highThreshold=50, hysteresisMagnitude=2 → Schmitt effectiveHigh=48 when active
         const flow = buildAlarmFlow({ hysteresisTime: "50", hysteresisMagnitude: "2" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
@@ -229,18 +232,21 @@ describe("alarm-collector", function () {
             await wait(80);
             assert.strictEqual(n1.alarmState, true);
 
-            // Step 1: Drop to 49 — conditionMet flips false, but magnitude keeps alarm open
+            // Step 1: Drop to 49 — still in Schmitt band (49 > 48)
             await sendAndSettle(n1, 49);
-            assert.strictEqual(n1.conditionMet, false);
-            assert.strictEqual(n1.alarmState, true, "magnitude hysteresis keeps alarm open at 49");
+            assert.strictEqual(n1.conditionMet, true, "49 is still within Schmitt band");
+            assert.strictEqual(n1.alarmState, true, "alarm stays open at 49");
 
-            // Step 2: Drop to 48.5 — conditionMet is already false, still in band
+            // Step 2: Drop to 48.5 — still in Schmitt band (48.5 > 48)
             await sendAndSettle(n1, 48.5);
             assert.strictEqual(n1.alarmState, true, "still in hysteresis band at 48.5");
 
-            // Step 3: Drop to 47 — conditionMet already false, SHOULD clear now
+            // Step 3: Drop to 47 — exits Schmitt band (47 > 48 = false), clearing timer starts
             await sendAndSettle(n1, 47);
-            assert.strictEqual(n1.alarmState, false, "alarm must clear at 47 (below clearThreshold 48)");
+            assert.strictEqual(n1.alarmState, true, "clearing timer pending");
+
+            await wait(80);
+            assert.strictEqual(n1.alarmState, false, "alarm must clear at 47 after hysteresis time");
 
             assert.strictEqual(capture.events.length, 2, "should have activation + clearing events");
             capture.cleanup();
@@ -268,18 +274,19 @@ describe("alarm-collector", function () {
             await wait(80);
             assert.strictEqual(n1.alarmState, true, "alarm active after hysteresis");
 
-            // Value gradually drops
-            await sendAndSettle(n1, 50);  // At threshold (not above) → condition false
-            // Value still > clearThreshold (48), magnitude hysteresis keeps alarm open
-            assert.strictEqual(n1.alarmState, true, "still in hysteresis band at 50");
+            // Value gradually drops — Schmitt effectiveHigh = 50 - 2 = 48
+            await sendAndSettle(n1, 50);  // 50 > 48 → still in Schmitt band
+            assert.strictEqual(n1.alarmState, true, "still in Schmitt band at 50");
 
-            await sendAndSettle(n1, 49);  // Below threshold, but > clearThreshold (48)
-            assert.strictEqual(n1.alarmState, true, "still in hysteresis band at 49");
+            await sendAndSettle(n1, 49);  // 49 > 48 → still in Schmitt band
+            assert.strictEqual(n1.alarmState, true, "still in Schmitt band at 49");
 
-            // At exactly 48: clearThreshold = 48, check is numericValue > 48 → false
-            // So shouldClear = true → alarm clears
+            // At exactly 48: 48 > 48 = false → exits Schmitt band, clearing timer starts
             await sendAndSettle(n1, 48);
-            assert.strictEqual(n1.alarmState, false, "alarm clears at 48 (boundary)");
+            assert.strictEqual(n1.alarmState, true, "clearing timer pending");
+
+            await wait(80);
+            assert.strictEqual(n1.alarmState, false, "alarm clears at 48 after hysteresis time");
 
             capture.cleanup();
             done();
@@ -311,12 +318,15 @@ describe("alarm-collector", function () {
             await wait(80);
             assert.strictEqual(n1.alarmState, true, "alarm active for low threshold");
 
-            // Rise to 11 — above threshold but within hysteresis band (10 + 2 = 12)
+            // Rise to 11 — above threshold but within Schmitt band (effectiveLow = 10 + 2 = 12)
             await sendAndSettle(n1, 11);
-            assert.strictEqual(n1.alarmState, true, "within low hysteresis band");
+            assert.strictEqual(n1.alarmState, true, "within low Schmitt band");
 
-            // Rise to 13 — above hysteresis band (12), alarm should clear
+            // Rise to 13 — above Schmitt band (13 < 12 = false), clearing timer starts
             await sendAndSettle(n1, 13);
+            assert.strictEqual(n1.alarmState, true, "clearing timer pending");
+
+            await wait(80);
             assert.strictEqual(n1.alarmState, false, "alarm cleared above hysteresis band");
 
             assert.strictEqual(capture.events.length, 2);
@@ -349,11 +359,13 @@ describe("alarm-collector", function () {
             await wait(80);
             assert.strictEqual(n1.alarmState, true, "alarm active for high breach");
 
-            // Clear completely (value 40: above low threshold, below high clear threshold 48)
-            // either mode checks both: 40 > 48 = false (high OK), 40 < 12 = false (low OK)
-            // shouldClear = true
+            // Clear completely (value 40: Schmitt effectiveHigh=48, effectiveLow=12)
+            // 40 > 48 = false, 40 < 12 = false → condition false → clearing timer starts
             await sendAndSettle(n1, 40);
-            assert.strictEqual(n1.alarmState, false, "alarm cleared");
+            assert.strictEqual(n1.alarmState, true, "clearing timer pending");
+
+            await wait(80);
+            assert.strictEqual(n1.alarmState, false, "alarm cleared after hysteresis time");
 
             capture.cleanup();
             done();
@@ -380,6 +392,9 @@ describe("alarm-collector", function () {
             assert.strictEqual(n1.alarmState, true, "alarm active on true");
 
             await sendAndSettle(n1, false);
+            assert.strictEqual(n1.alarmState, true, "clearing timer pending");
+
+            await wait(80);
             assert.strictEqual(n1.alarmState, false, "alarm cleared on false");
 
             assert.strictEqual(capture.events.length, 2);
@@ -405,6 +420,9 @@ describe("alarm-collector", function () {
             assert.strictEqual(n1.alarmState, true, "alarm active on false");
 
             await sendAndSettle(n1, true);
+            assert.strictEqual(n1.alarmState, true, "clearing timer pending");
+
+            await wait(80);
             assert.strictEqual(n1.alarmState, false, "alarm cleared on true");
 
             capture.cleanup();
@@ -465,8 +483,9 @@ describe("alarm-collector", function () {
             entry = ac.lookup("n1");
             assert.strictEqual(entry.status, "active", "registry should show active");
 
-            // Clear alarm (40 is well below clearThreshold 48)
+            // Clear alarm (40 is well below Schmitt band)
             await sendAndSettle(n1, 40);
+            await wait(80);
             entry = ac.lookup("n1");
             assert.strictEqual(entry.status, "cleared", "registry should show cleared");
 
@@ -582,6 +601,75 @@ describe("alarm-collector", function () {
     });
 
     // ========================================================================
+    // REGRESSION: brief dip below threshold should NOT cause clear + re-alarm.
+    // Previously, clearing was instant so a momentary dip would generate a
+    // clear event followed by a new activation after hysteresisTime — producing
+    // duplicate alarms for the same sustained condition.
+    // ========================================================================
+    it("should not re-alarm when value briefly dips below threshold", function (done) {
+        const flow = buildAlarmFlow({ hysteresisTime: "150", hysteresisMagnitude: "0" });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
+            const n1 = helper.getNode("n1");
+            const capture = captureAlarmEvents(helper._RED);
+
+            // Activate alarm: value exceeds threshold for full hysteresisTime
+            await sendAndSettle(n1, 55);
+            await wait(200);
+            assert.strictEqual(n1.alarmState, true, "alarm active");
+            assert.strictEqual(capture.events.length, 1);
+
+            // Brief dip below threshold (clearing timer starts but hasn't fired)
+            await sendAndSettle(n1, 45);
+            assert.strictEqual(n1.alarmState, true, "alarm still active — clearing timer pending");
+
+            // Value returns above threshold before clearing timer fires
+            await wait(50);
+            await sendAndSettle(n1, 55);
+            assert.strictEqual(n1.alarmState, true, "alarm stays active — clearing timer cancelled");
+
+            // Wait long enough for any phantom timer to fire
+            await wait(200);
+            assert.strictEqual(n1.alarmState, true, "alarm remains active");
+
+            // Only the original activation event — no clear/re-alarm chatter
+            assert.strictEqual(capture.events.length, 1, "exactly one event (no chatter)");
+            capture.cleanup();
+            done();
+        });
+    });
+
+    // ========================================================================
+    // Clearing time hysteresis: condition must be false for full duration
+    // ========================================================================
+    it("should not clear alarm until condition is false for full hysteresisTime", function (done) {
+        const flow = buildAlarmFlow({ hysteresisTime: "150" });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
+            const n1 = helper.getNode("n1");
+            const capture = captureAlarmEvents(helper._RED);
+
+            // Activate alarm
+            await sendAndSettle(n1, 55);
+            await wait(200);
+            assert.strictEqual(n1.alarmState, true);
+
+            // Drop below threshold — clearing timer starts
+            await sendAndSettle(n1, 40);
+
+            // Check partway through — should still be active
+            await wait(50);
+            assert.strictEqual(n1.alarmState, true, "still active during clearing hysteresis");
+
+            // Wait for clearing timer to complete
+            await wait(150);
+            assert.strictEqual(n1.alarmState, false, "cleared after full hysteresis time");
+
+            assert.strictEqual(capture.events.length, 2);
+            capture.cleanup();
+            done();
+        });
+    });
+
+    // ========================================================================
     // Low-only: magnitude hysteresis re-evaluation on subsequent updates
     // ========================================================================
     it("should re-evaluate low threshold magnitude hysteresis on subsequent updates", function (done) {
@@ -600,17 +688,20 @@ describe("alarm-collector", function () {
             await wait(80);
             assert.strictEqual(n1.alarmState, true);
 
-            // Rise to 11 — above threshold but below clearThreshold (10 + 2 = 12)
+            // Rise to 11 — above threshold but within Schmitt band (effectiveLow = 12)
             await sendAndSettle(n1, 11);
-            assert.strictEqual(n1.alarmState, true, "within low hysteresis band at 11");
+            assert.strictEqual(n1.alarmState, true, "within low Schmitt band at 11");
 
-            // Rise to 11.5 — still within band (< 12)
+            // Rise to 11.5 — still within band (11.5 < 12 = true)
             await sendAndSettle(n1, 11.5);
             assert.strictEqual(n1.alarmState, true, "still within band at 11.5");
 
-            // Rise to 13 — above clear threshold (12), should clear via third branch
+            // Rise to 13 — exits Schmitt band (13 < 12 = false), clearing timer starts
             await sendAndSettle(n1, 13);
-            assert.strictEqual(n1.alarmState, false, "should clear at 13 via re-evaluation");
+            assert.strictEqual(n1.alarmState, true, "clearing timer pending");
+
+            await wait(80);
+            assert.strictEqual(n1.alarmState, false, "should clear at 13 after hysteresis time");
 
             capture.cleanup();
             done();
@@ -670,12 +761,15 @@ describe("alarm-collector", function () {
             await wait(80);
             assert.strictEqual(n1.alarmState, true);
 
-            // Drop to 49.8 — below threshold 50, but above clearThreshold (50 - 0.5 = 49.5)
+            // Drop to 49.8 — below strict threshold 50, but in Schmitt band (effectiveHigh = 49.5)
             await sendAndSettle(n1, 49.8);
             assert.strictEqual(n1.alarmState, true, "should stay active in narrow band");
 
-            // Drop to 49 — below clearThreshold (49.5), should clear
+            // Drop to 49 — exits Schmitt band (49 > 49.5 = false), clearing timer starts
             await sendAndSettle(n1, 49);
+            assert.strictEqual(n1.alarmState, true, "clearing timer pending");
+
+            await wait(80);
             assert.strictEqual(n1.alarmState, false, "should clear below narrow band");
 
             assert.strictEqual(capture.events.length, 2);
@@ -698,8 +792,9 @@ describe("alarm-collector", function () {
             await wait(80);
             assert.strictEqual(n1.alarmState, true, "phase 1: alarm active");
 
-            // Phase 2: Clear
+            // Phase 2: Clear (wait for clearing hysteresis)
             await sendAndSettle(n1, 40);
+            await wait(80);
             assert.strictEqual(n1.alarmState, false, "phase 2: alarm cleared");
 
             // Phase 3: Reactivate
@@ -707,8 +802,9 @@ describe("alarm-collector", function () {
             await wait(80);
             assert.strictEqual(n1.alarmState, true, "phase 3: alarm reactivated");
 
-            // Phase 4: Clear again
+            // Phase 4: Clear again (wait for clearing hysteresis)
             await sendAndSettle(n1, 30);
+            await wait(80);
             assert.strictEqual(n1.alarmState, false, "phase 4: alarm cleared again");
 
             assert.strictEqual(capture.events.length, 4, "4 state transitions");

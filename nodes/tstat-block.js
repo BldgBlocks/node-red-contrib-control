@@ -287,6 +287,13 @@ module.exports = function(RED) {
             // ----------------------------------------------------------------
             // 6. Startup suppression
             // ----------------------------------------------------------------
+            // Prevent call state from accumulating during startup.
+            // Without this, above/below can latch ON while output is
+            // suppressed, then emit a false call the moment startup ends.
+            if (!node.startupComplete) {
+                above = false;
+                below = false;
+            }
             const outputAbove = node.startupComplete ? above : false;
             const outputBelow = node.startupComplete ? below : false;
 

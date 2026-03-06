@@ -328,6 +328,7 @@ module.exports = function(RED) {
             msg.status = {
                 mode: node.currentMode,
                 operationMode: node.operationMode,
+                algorithm: node.algorithm,
                 isHeating,
                 heatingSetpoint: effectiveHeating,
                 coolingSetpoint: effectiveCooling,

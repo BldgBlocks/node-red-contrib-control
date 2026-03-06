@@ -255,6 +255,7 @@ describe("call-status-block", function() {
             const flow = buildFlow("call-status-block", {
                 ...DEFAULTS,
                 statusTimeout: "2",
+                heartbeatTimeout: "0.3",  // statusLostTimer uses this as delay
                 runLostStatus: true
             });
 
@@ -275,8 +276,8 @@ describe("call-status-block", function() {
                     await p2;
                     await wait(50);
 
-                    // Wait for hysteresis alarm (100ms)
-                    const p3 = waitForMessage(out, 1000);
+                    // Wait for statusLost alarm (300ms heartbeat-based delay)
+                    const p3 = waitForMessage(out, 2000);
                     const msg = await p3;
 
                     assert.strictEqual(msg.status.alarm, true);
@@ -576,32 +577,32 @@ describe("call-status-block", function() {
             });
         });
 
-        it("should suppress status-without-call alarm during startup grace period", function(done) {
+        it("should protect against status-without-call when clearTimer is active", function(done) {
             const flow = buildFlow("call-status-block", {
                 ...DEFAULTS,
-                clearDelay: "0"
+                clearDelay: "1"
             });
 
             helper.load(callStatusNode, flow, async function() {
                 const n1 = helper.getNode("n1");
                 const out = helper.getNode("out");
-                // Do NOT backdate startupTime — grace is active
 
                 try {
-                    // Send status=true without call immediately after startup
+                    // 1. Activate call and get status response
                     const p1 = waitForMessage(out);
-                    n1.receive({ payload: false, status: true });
-                    await p1;
+                    n1.receive({ payload: true, status: true });
+                    let msg = await p1;
+                    assert.strictEqual(msg.status.alarm, false);
 
-                    // Wait past the 100ms hysteresis
-                    await wait(200);
-
-                    // Re-send and check — should NOT be in alarm
+                    // 2. Deactivate call (starts clearTimer with 1s delay)
                     const p2 = waitForMessage(out);
                     n1.receive({ payload: false, status: true });
-                    const msg = await p2;
+                    msg = await p2;
 
-                    assert.strictEqual(msg.status.alarm, false, "should not alarm during startup grace");
+                    // CRITICAL: While clearTimer is active, status=true doesn't alarm even
+                    // though call=false. The clearTimer provides grace-period protection via
+                    // the !node.clearTimer check in the alarm condition.
+                    assert.strictEqual(msg.status.alarm, false, "clearTimer naturally protects against false alarms");
                     done();
                 } catch(e) { done(e); }
             });
@@ -1143,6 +1144,7 @@ describe("call-status-block", function() {
             const flow = buildFlow("call-status-block", {
                 ...DEFAULTS,
                 statusTimeout: "2",
+                heartbeatTimeout: "0.3",  // statusLostTimer uses this as delay
                 runLostStatus: true
             });
 
@@ -1157,11 +1159,11 @@ describe("call-status-block", function() {
                     await p1;
                     await wait(50);
 
-                    // Status goes false → triggers status lost alarm (100ms hysteresis)
+                    // Status goes false → triggers status lost alarm (300ms heartbeat-based delay)
                     const p2 = waitForMessage(out);
                     n1.receive({ payload: true, status: false });
                     await p2;
-                    await wait(150);  // wait for hysteresis timer
+                    await wait(400);  // wait for heartbeat-based delay
 
                     // Verify alarm is active
                     const p3 = waitForMessage(out);
@@ -1252,6 +1254,141 @@ describe("call-status-block", function() {
 
                     assert.strictEqual(recovered.status.alarm, false, "alarm should be cleared");
                     assert.strictEqual(recovered.diagnostics.state, "RUNNING");
+                    done();
+                } catch(e) { done(e); }
+            });
+        });
+    });
+
+    // ========================================================================
+    // Call deactivation timing — alarm should not persist or fire after
+    // the call goes off, even with pending debounce/statusLost timers.
+    // ========================================================================
+    describe("call deactivation clears run alarms", function() {
+
+        it("should clear status-lost alarm immediately when call deactivates", function(done) {
+            // Scenario: status drops → alarm fires → then call drops.
+            // The alarm should clear on call deactivation, not linger for clearDelay.
+            const flow = buildFlow("call-status-block", {
+                ...DEFAULTS,
+                statusTimeout: "2",
+                heartbeatTimeout: "0.3",  // statusLostTimer uses this as delay
+                clearDelay: "2",      // long enough to observe the bug
+                debounce: "0",
+                runLostStatus: true
+            });
+
+            helper.load(callStatusNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+
+                try {
+                    // Get to RUNNING state
+                    const p1 = waitForMessage(out);
+                    n1.receive({ payload: true, status: true });
+                    await p1;
+                    await wait(50);
+
+                    // Status drops → status lost alarm fires (after 300ms heartbeat-based delay)
+                    n1.receive({ payload: true, status: false });
+                    await wait(400);
+                    assert.strictEqual(n1.alarm, true, "status-lost alarm should be active");
+
+                    // Now call deactivates — alarm should clear immediately
+                    const p2 = waitForMessage(out);
+                    n1.receive({ payload: false, status: false });
+                    const msg = await p2;
+
+                    assert.strictEqual(msg.status.alarm, false,
+                        "alarm should clear on call deactivation, not wait for clearDelay");
+                    done();
+                } catch(e) { done(e); }
+            });
+        });
+
+        it("should not alarm if status drops just before call in same message window (debounce race)", function(done) {
+            // Scenario: with debounce, status=false arrives right before call=false.
+            // The debounce timer should be cancelled by call deactivation.
+            const flow = buildFlow("call-status-block", {
+                ...DEFAULTS,
+                statusTimeout: "2",
+                clearDelay: "0.5",
+                debounce: "100",
+                runLostStatus: true
+            });
+
+            helper.load(callStatusNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+
+                try {
+                    // Get to RUNNING state
+                    const p1 = waitForMessage(out);
+                    n1.receive({ payload: true, status: true });
+                    await p1;
+                    await wait(50);
+
+                    // Status drops — debounce timer starts (100ms)
+                    n1.receive({ payload: true, status: false });
+
+                    // Before debounce completes, call drops too (50ms later)
+                    await wait(50);
+                    const p2 = waitForMessage(out);
+                    n1.receive({ payload: false, status: false });
+                    const msg = await p2;
+
+                    assert.strictEqual(msg.status.alarm, false,
+                        "alarm should not fire — call deactivation cancels pending debounce");
+
+                    // Wait past what would have been the statusLost timer
+                    await wait(300);
+                    assert.strictEqual(n1.alarm, false,
+                        "no phantom alarm from stale timers");
+
+                    done();
+                } catch(e) { done(e); }
+            });
+        });
+
+        it("should not alarm during normal shutdown (call off, status lingers)", function(done) {
+            // User scenario: equipment told to stop, status takes time to clear.
+            // No alarm should fire at any point during normal shutdown.
+            const flow = buildFlow("call-status-block", {
+                ...DEFAULTS,
+                statusTimeout: "2",
+                clearDelay: "0.5",
+                debounce: "100",
+                runLostStatus: true
+            });
+
+            helper.load(callStatusNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+
+                // Passive listener — capture all messages
+                const allMsgs = [];
+                out.on("input", (msg) => allMsgs.push(msg));
+
+                try {
+                    // Get to RUNNING state
+                    n1.receive({ payload: true, status: true });
+                    await wait(50);
+
+                    // Call drops, status still true (equipment winding down)
+                    n1.receive({ payload: false, status: true });
+                    await wait(50);
+
+                    // Status eventually drops
+                    n1.receive({ payload: false, status: false });
+
+                    // Wait for debounce + any hysteresis timers + clearDelay
+                    await wait(800);
+
+                    // Verify NO alarm was ever emitted
+                    const alarmed = allMsgs.filter(m => m.status && m.status.alarm === true);
+                    assert.strictEqual(alarmed.length, 0,
+                        "no alarm should fire during normal shutdown sequence");
+
                     done();
                 } catch(e) { done(e); }
             });

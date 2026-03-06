@@ -6,6 +6,7 @@ module.exports = function(RED) {
         const node = this;
 
         node.contextPropertyName = config.contextPropertyName || "in1";
+        node.inputProperty = config.inputProperty || "payload";
         node.removeLabel = config.removeLabel || false;
 
         utils.setStatusOK(node, node.removeLabel ? "remove" : `set -> ${node.contextPropertyName}`);
@@ -23,10 +24,10 @@ module.exports = function(RED) {
             // Set or remove context property
             if (node.removeLabel) {
                 delete msg.context;
-                utils.setStatusChanged(node, `${msg.payload} -> removed`);
+                utils.setStatusChanged(node, `${msg[node.inputProperty]} -> removed`);
             } else {
                 msg.context = node.contextPropertyName;
-                utils.setStatusChanged(node, `${msg.payload} -> ${node.contextPropertyName}`);
+                utils.setStatusChanged(node, `${msg[node.inputProperty]} -> ${node.contextPropertyName}`);
             }
 
             send(msg);

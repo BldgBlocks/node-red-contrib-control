@@ -129,76 +129,84 @@
                         ]
                     }, "msg", "flow", "global"],
                     typeField: "#node-input-algorithmType"
-                }).typedInput("type", node.algorithmType).typedInput("value", node.algorithm);
+                });
 
                 $("#node-input-setpoint").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-setpointType"
-                }).typedInput("type", node.setpointType || "num").typedInput("value", node.setpoint);
+                });
 
                 $("#node-input-heatingSetpoint").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-heatingSetpointType"
-                }).typedInput("type", node.heatingSetpointType || "num").typedInput("value", node.heatingSetpoint);
+                });
 
                 $("#node-input-coolingSetpoint").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-coolingSetpointType"
-                }).typedInput("type", node.coolingSetpointType || "num").typedInput("value", node.coolingSetpoint);
+                });
 
                 $("#node-input-coolingOn").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-coolingOnType"
-                }).typedInput("type", node.coolingOnType || "num").typedInput("value", node.coolingOn);
+                });
 
                 $("#node-input-coolingOff").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-coolingOffType"
-                }).typedInput("type", node.coolingOffType || "num").typedInput("value", node.coolingOff);
+                });
 
                 $("#node-input-heatingOff").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-heatingOffType"
-                }).typedInput("type", node.heatingOffType || "num").typedInput("value", node.heatingOff);
+                });
 
                 $("#node-input-heatingOn").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-heatingOnType"
-                }).typedInput("type", node.heatingOnType || "num").typedInput("value", node.heatingOn);
+                });
 
                 $("#node-input-diff").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-diffType"
-                }).typedInput("type", node.diffType || "num").typedInput("value", node.diff);
+                });
                 
                 $("#node-input-anticipator").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-anticipatorType"
-                }).typedInput("type", node.anticipatorType || "num").typedInput("value", node.anticipator);
+                });
 
                 $("#node-input-ignoreAnticipatorCycles").typedInput({
                     default: "num",
                     types: ["num", "msg", "flow", "global"],
                     typeField: "#node-input-ignoreAnticipatorCyclesType"
-                }).typedInput("type", node.ignoreAnticipatorCyclesType || "num").typedInput("value", node.ignoreAnticipatorCycles);
+                });
 
                 $("#node-input-isHeating").typedInput({
                     default: "bool",
                     types: ["bool", "msg", "flow", "global"],
                     typeField: "#node-input-isHeatingType"
-                }).typedInput("type", node.isHeatingType || "bool").typedInput("value", node.isHeating);
+                });
 
                 function toggleFields() {
-                    const algorithm = $algorithm.val();
+                    const type = $("#node-input-algorithm").typedInput("type");
+                    if (type !== "dropdown") {
+                        // Dynamic source — hide all, resolved at runtime
+                        $singleFields.hide();
+                        $splitFields.hide();
+                        $specifiedFields.hide();
+                        return;
+                    }
+                    const algorithm = $("#node-input-algorithm").typedInput("value");
                     if (algorithm === "single") {
                         $singleFields.show();
                         $splitFields.hide();

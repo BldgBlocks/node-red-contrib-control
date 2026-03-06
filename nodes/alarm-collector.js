@@ -66,110 +66,65 @@ module.exports = function(RED) {
         // Helper: Evaluate alarm condition and emit event if state changed
         // ====================================================================
         function evaluateAndEmit(inputValue) {
-            // Evaluate alarm condition based on input mode
             let conditionNowMet = false;
             let numericValue = null;
 
             if (node.inputMode === "boolean") {
-                // Boolean mode: compare directly with alarmWhenTrue
                 conditionNowMet = (inputValue === node.alarmWhenTrue);
                 node.currentValue = inputValue;
             } else {
-                // Value mode: parse as numeric and check thresholds
                 numericValue = inputValue;
                 if (typeof inputValue === 'object' && inputValue !== null && inputValue.value !== undefined) {
                     numericValue = inputValue.value;
                 }
                 numericValue = parseFloat(numericValue);
-                
+
                 if (isNaN(numericValue)) {
                     utils.setStatusError(node, "Invalid numeric input");
                     return;
                 }
-                
+
                 node.currentValue = numericValue;
 
-                // Check thresholds
+                // Schmitt-trigger thresholds: when alarm is already active, use
+                // the magnitude-adjusted band so the value must move decisively
+                // past the threshold before the alarm will consider clearing.
+                const effectiveHigh = node.alarmState
+                    ? (node.highThreshold - node.hysteresisMagnitude)
+                    : node.highThreshold;
+                const effectiveLow = node.alarmState
+                    ? (node.lowThreshold + node.hysteresisMagnitude)
+                    : node.lowThreshold;
+
                 if (node.compareMode === "either") {
-                    conditionNowMet = (numericValue > node.highThreshold) || (numericValue < node.lowThreshold);
+                    conditionNowMet = (numericValue > effectiveHigh) || (numericValue < effectiveLow);
                 } else if (node.compareMode === "high-only") {
-                    conditionNowMet = (numericValue > node.highThreshold);
+                    conditionNowMet = numericValue > effectiveHigh;
                 } else if (node.compareMode === "low-only") {
-                    conditionNowMet = (numericValue < node.lowThreshold);
+                    conditionNowMet = numericValue < effectiveLow;
                 }
             }
 
-            // Time-based hysteresis logic
-            if (conditionNowMet && !node.conditionMet) {
-                // Condition just became true - start hysteresis timer
-                node.conditionMet = true;
-                
-                if (node.hysteresisTimer) clearTimeout(node.hysteresisTimer);
+            // Single debounce timer: when the condition transitions, wait
+            // hysteresisTime before committing the change to alarmState.
+            // This filters noise in both the activation and clearing directions.
+            if (conditionNowMet !== node.conditionMet) {
+                node.conditionMet = conditionNowMet;
 
-                node.hysteresisTimer = setTimeout(() => {
-                    if (node.conditionMet && node.alarmState === false) {
-                        // Condition stayed true for hysteresisTime ms
-                        node.alarmState = true;
-                        emitAlarmEvent("false → true");
-                    }
-                    node.hysteresisTimer = null;
-                }, node.hysteresisTime);
-
-            } else if (!conditionNowMet && node.conditionMet) {
-                // Condition just became false - cancel pending timer
-                node.conditionMet = false;
-                
                 if (node.hysteresisTimer) {
                     clearTimeout(node.hysteresisTimer);
                     node.hysteresisTimer = null;
                 }
 
-                // Check magnitude hysteresis before clearing
-                let shouldClear = true;
-                if (node.inputMode === "value" && node.alarmState === true) {
-                    if (node.compareMode === "either" || node.compareMode === "high-only") {
-                        const clearThreshold = node.highThreshold - node.hysteresisMagnitude;
-                        if (numericValue > clearThreshold) {
-                            shouldClear = false;
+                // Start timer only when condition disagrees with alarm state
+                if (conditionNowMet !== node.alarmState) {
+                    node.hysteresisTimer = setTimeout(() => {
+                        if (node.conditionMet !== node.alarmState) {
+                            node.alarmState = node.conditionMet;
+                            emitAlarmEvent(node.alarmState ? "false → true" : "true → false");
                         }
-                    }
-                    if (node.compareMode === "either" || node.compareMode === "low-only") {
-                        const clearThreshold = node.lowThreshold + node.hysteresisMagnitude;
-                        if (numericValue < clearThreshold) {
-                            shouldClear = false;
-                        }
-                    }
-                }
-
-                if (shouldClear && node.alarmState === true) {
-                    node.alarmState = false;
-                    emitAlarmEvent("true → false");
-                }
-
-            } else if (!conditionNowMet && !node.conditionMet && node.alarmState === true) {
-                // Condition was already cleared on a prior update but alarm is
-                // still active (magnitude hysteresis kept it open).  Re-evaluate
-                // magnitude hysteresis on every subsequent update so the alarm
-                // can clear once the value moves outside the hysteresis band.
-                let shouldClear = true;
-                if (node.inputMode === "value") {
-                    if (node.compareMode === "either" || node.compareMode === "high-only") {
-                        const clearThreshold = node.highThreshold - node.hysteresisMagnitude;
-                        if (numericValue > clearThreshold) {
-                            shouldClear = false;
-                        }
-                    }
-                    if (node.compareMode === "either" || node.compareMode === "low-only") {
-                        const clearThreshold = node.lowThreshold + node.hysteresisMagnitude;
-                        if (numericValue < clearThreshold) {
-                            shouldClear = false;
-                        }
-                    }
-                }
-
-                if (shouldClear) {
-                    node.alarmState = false;
-                    emitAlarmEvent("true → false");
+                        node.hysteresisTimer = null;
+                    }, node.hysteresisTime);
                 }
             }
 
@@ -181,9 +136,11 @@ module.exports = function(RED) {
                 statusText = `${numericValue.toFixed(2)} ${node.units}`;
             }
 
-            if (node.alarmState) {
+            if (node.alarmState && node.hysteresisTimer) {
+                utils.setStatusWarn(node, statusText + " [ALARM clearing...]");
+            } else if (node.alarmState) {
                 utils.setStatusError(node, statusText + " [ALARM]");
-            } else if (node.conditionMet) {
+            } else if (node.hysteresisTimer) {
                 utils.setStatusWarn(node, statusText + " (hysteresis)");
             } else {
                 utils.setStatusOK(node, statusText);

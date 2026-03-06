@@ -212,6 +212,62 @@ describe("changeover-block", function() {
         });
     });
 
+    describe("msg-typed algorithm", function() {
+
+        it("should respect msg.algorithm = 'split' and use split setpoints", function(done) {
+            const flow = buildFlow("changeover-block", {
+                ...SINGLE_DEFAULTS,
+                algorithm: "algorithm", algorithmType: "msg",
+                heatingSetpoint: "68", heatingSetpointType: "num",
+                coolingSetpoint: "74", coolingSetpointType: "num",
+                extent: "1", extentType: "num",
+            });
+
+            helper.load(changeoverNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+
+                try {
+                    // Send temperature above cooling threshold (coolingSetpoint + extent = 75)
+                    const promise = waitForMessage(out);
+                    n1.receive({ payload: 76, algorithm: "split" });
+                    const msg = await promise;
+
+                    assert.strictEqual(msg.payload, 76, "payload should be temperature");
+                    assert.strictEqual(msg.isHeating, false, "should output isHeating=false for cooling");
+                    assert.strictEqual(msg.status.algorithm, "split");
+                    done();
+                } catch(e) { done(e); }
+            });
+        });
+
+        it("should respect msg.algorithm = 'specified' and use heatingOn/coolingOn", function(done) {
+            const flow = buildFlow("changeover-block", {
+                ...SINGLE_DEFAULTS,
+                algorithm: "algorithm", algorithmType: "msg",
+                heatingOn: "66", heatingOnType: "num",
+                coolingOn: "76", coolingOnType: "num",
+            });
+
+            helper.load(changeoverNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+
+                try {
+                    // Send temperature above coolingOn (76)
+                    const promise = waitForMessage(out);
+                    n1.receive({ payload: 80, algorithm: "specified" });
+                    const msg = await promise;
+
+                    assert.strictEqual(msg.payload, 80, "payload should be temperature");
+                    assert.strictEqual(msg.isHeating, false, "should output isHeating=false for cooling");
+                    assert.strictEqual(msg.status.algorithm, "specified");
+                    done();
+                } catch(e) { done(e); }
+            });
+        });
+    });
+
     // ========================================================================
     // Auto mode: single setpoint algorithm
     // ========================================================================

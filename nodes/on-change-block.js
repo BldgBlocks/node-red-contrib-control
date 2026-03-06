@@ -90,14 +90,7 @@ module.exports = function(RED) {
                 // Ignore unknown context
             }
 
-            // Validate input payload
-            if (!msg.hasOwnProperty("payload")) {
-                utils.setStatusError(node, "missing payload");
-                send(msg);
-                if (done) done();
-                return;
-            }
-
+            // Get input value from configured property
             let inputValue;
             try {
                 inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
