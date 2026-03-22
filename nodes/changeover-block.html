@@ -237,10 +237,10 @@
                 function toggleFields() {
                     const type = $("#node-input-algorithm").typedInput("type");
                     if (type !== "dropdown") {
-                        // Dynamic source — hide all, resolved at runtime
-                        $singleFields.hide();
-                        $splitFields.hide();
-                        $specifiedFields.hide();
+                        // Dynamic source — show all, resolved at runtime
+                        $singleFields.show();
+                        $splitFields.show();
+                        $specifiedFields.show();
                         return;
                     }
                     const algorithm = $("#node-input-algorithm").typedInput("value");

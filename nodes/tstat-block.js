@@ -325,37 +325,22 @@ module.exports = function(RED) {
             // ----------------------------------------------------------------
             // 8. Status display
             // ----------------------------------------------------------------
-            const mode = node.isHeating ? "heat" : "cool";
-            const call = node.isHeating ? outputBelow : outputAbove;
-            const threshold = node.isHeating
-                ? `<${onThreshold.toFixed(1)}`
-                : `>${onThreshold.toFixed(1)}`;
-            const suffix = !node.startupComplete ? " [startup]" : "";
-            let thresholdText, hysteresisText;
-            if (node.isHeating) {
-                thresholdText = `<${onThreshold.toFixed(1)}`;
-                if (outputBelow && input > onThreshold && input <= offThreshold) {
-                    hysteresisText = ` (holding, off at >${offThreshold.toFixed(1)})`;
-                } else if (outputBelow && input < onThreshold) {
-                    hysteresisText = " (on)";
-                } else if (!outputBelow && input > offThreshold) {
-                    hysteresisText = " (off)";
-                } else {
-                    hysteresisText = "";
-                }
-            } else {
-                thresholdText = `>${onThreshold.toFixed(1)}`;
-                if (outputAbove && input < onThreshold && input >= offThreshold) {
-                    hysteresisText = ` (holding, off at <${offThreshold.toFixed(1)})`;
-                } else if (outputAbove && input > onThreshold) {
-                    hysteresisText = " (on)";
-                } else if (!outputAbove && input < offThreshold) {
-                    hysteresisText = " (off)";
-                } else {
-                    hysteresisText = "";
-                }
+            const mode = node.isHeating ? "Heat" : "Cool";
+            
+            let heatSp, coolSp;
+            if (node.algorithm === "single") {
+                heatSp = node.setpoint;
+                coolSp = node.setpoint;
+            } else if (node.algorithm === "split") {
+                heatSp = node.heatingSetpoint;
+                coolSp = node.coolingSetpoint;
+            } else if (node.algorithm === "specified") {
+                heatSp = node.heatingOn;
+                coolSp = node.coolingOn;
             }
-            const text = `${input.toFixed(1)}° ${thresholdText} [${mode}] call:${call}${hysteresisText}${suffix}`;
+
+            const suffix = !node.startupComplete ? " [startup]" : "";
+            const text = `Mode: ${mode} · Space: ${input.toFixed(1)} · Heat: ${heatSp.toFixed(1)} · Cool: ${coolSp.toFixed(1)}${suffix}`;
 
             if (outputAbove === lastAbove && outputBelow === lastBelow) {
                 utils.setStatusUnchanged(node, text);
