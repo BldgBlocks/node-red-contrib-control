@@ -75,14 +75,14 @@ Filters or drops messages from a configured property based on the selected mode.
 ### Properties
 : name (string) : Display name in editor.
 : mode (string) : Gate behavior. Default `"on-change"`.
-: inputProperty (string) : Message property to monitor for changes (default: `payload`). Supports nested properties (e.g., `data.value`).
+: inputProperty (string) : Message property to monitor for changes (default `payload`). Supports nested properties (e.g., `data.value`).
 : period (number) : Filter period in milliseconds (≥ 0). Default 0.
 : periodType (string) : Source of period (`"num"`, `"msg"`, `"flow"`, `"global"`). Default `"num"`.
 
 ### Details
 Uses a simple gate. Messages are either sent immediately or dropped. There is no delayed output and no queued replay.
 
-Modes:
+Modes
 - `On Change` sends only when the input value differs from the last sent value. If `period > 0`, the gate closes after a send and drops messages until the period ends. When the gate reopens, the value must still be different from the last sent value before another message is sent.
 - `Rate Limit` sends the first message when the gate is open, then closes the gate for `period` and drops all messages during that time. When the gate reopens, the next message is sent even if the value is unchanged.
 - `Pass Through` sends every message and ignores the filter period.
@@ -91,12 +91,14 @@ Supports complex payloads (objects, arrays) via deep comparison.
 
 Configuration via `msg.context = "period"` with numeric `msg.payload`, or `msg.context = "mode"` with a valid mode string, updates runtime behavior without producing output.
 
+Status text uses the compact format `<mode>: <state>`, for example `rate-limit: open` or `on-change: unchanged`.
+
 ### Status
-- Green (dot): Configuration update
-- Blue (dot): Message sent
-- Blue (ring): Unchanged, dropped, or gate open
-- Red (ring): Error
-- Yellow (ring): Warning
+- Green (dot) Configuration update
+- Blue (dot) Message sent
+- Blue (ring) Unchanged, dropped, or gate open
+- Red (ring) Error
+- Yellow (ring) Warning
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

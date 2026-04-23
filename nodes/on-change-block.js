@@ -44,6 +44,10 @@ module.exports = function(RED) {
         }
     }
 
+    function modeStatus(node, state) {
+        return `${node.mode}: ${state}`;
+    }
+
     function OnChangeBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -75,7 +79,7 @@ module.exports = function(RED) {
                 // Check busy lock
                 if (node.isBusy) {
                     // Update status to let user know they are pushing too fast
-                    utils.setStatusBusy(node, "busy - dropped msg");
+                    utils.setStatusBusy(node, modeStatus(node, "busy"));
                     if (done) done(); 
                     return;
                 }
@@ -130,7 +134,7 @@ module.exports = function(RED) {
                     node.period = newPeriod;
                     node.periodType = "num";
                     if (node.period === 0) clearGate(node);
-                    utils.setStatusOK(node, `period: ${node.period.toFixed(0)} ms`);
+                    utils.setStatusOK(node, modeStatus(node, `${node.period.toFixed(0)}ms`));
                     if (done) done();
                     return;
                 }
@@ -143,7 +147,7 @@ module.exports = function(RED) {
                     node.mode = msg.payload;
                     node.lastValue = null;
                     clearGate(node);
-                    utils.setStatusOK(node, `mode: ${node.mode}`);
+                    utils.setStatusOK(node, modeStatus(node, "set"));
                     if (done) done();
                     return;
                 }
@@ -167,13 +171,13 @@ module.exports = function(RED) {
             const currentValue = inputValue;
 
             if (node.mode !== "pass-through" && node.blockTimer) {
-                utils.setStatusUnchanged(node, `dropped: ${previewValue(currentValue)}`);
+                utils.setStatusUnchanged(node, modeStatus(node, "closed"));
                 if (done) done();
                 return;
             }
 
             if (node.mode === "on-change" && isEqual(currentValue, node.lastValue)) {
-                utils.setStatusUnchanged(node, `unchanged: ${previewValue(currentValue)}`);
+                utils.setStatusUnchanged(node, modeStatus(node, "unchanged"));
                 if (done) done();
                 return;
             }
@@ -183,14 +187,14 @@ module.exports = function(RED) {
             utils.setStatusChanged(
                 node,
                 node.period > 0 && node.mode !== "pass-through"
-                    ? `sent: ${previewValue(currentValue)} | gate: closed`
-                    : `sent: ${previewValue(currentValue)}`,
+                    ? modeStatus(node, "closed")
+                    : modeStatus(node, "sent"),
             );
 
             if (node.period > 0 && node.mode !== "pass-through") {
                 node.blockTimer = setTimeout(() => {
                     node.blockTimer = null;
-                    utils.setStatusUnchanged(node, `gate: open | mode: ${node.mode}`);
+                    utils.setStatusUnchanged(node, modeStatus(node, "open"));
                 }, node.period);
             }
 
