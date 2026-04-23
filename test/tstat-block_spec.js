@@ -535,7 +535,7 @@ describe("tstat-block", function() {
     // ========================================================================
     describe("status display", function() {
 
-        it("should show concise status with temp, mode, setpoint, and call", function(done) {
+        it("should show concise status with mode and effective thresholds", function(done) {
             const flow = tstatFlow(SINGLE_DEFAULTS);
 
             helper.load(tstatNode, flow, function() {
@@ -548,10 +548,11 @@ describe("tstat-block", function() {
 
                 promise.then(msg => {
                     assert.ok(st.last, "status should be set");
-                    assert.ok(st.last.text.includes("68.0"), `should show temp, got: ${st.last.text}`);
-                    assert.ok(st.last.text.includes("<69.0"), `should show threshold, got: ${st.last.text}`);
-                    assert.ok(st.last.text.includes("[heat]"), `should show mode, got: ${st.last.text}`);
-                    assert.ok(st.last.text.includes("call:true"), `should show call, got: ${st.last.text}`);
+                    assert.ok(st.last.text.startsWith("H 68.0"), `should show mode and temp, got: ${st.last.text}`);
+                    assert.ok(st.last.text.includes("h+69.0"), `should show heat on threshold, got: ${st.last.text}`);
+                    assert.ok(st.last.text.includes("h-69.5"), `should show heat off threshold, got: ${st.last.text}`);
+                    assert.ok(st.last.text.includes("c+71.0"), `should show cool on threshold, got: ${st.last.text}`);
+                    assert.ok(st.last.text.includes("c-70.5"), `should show cool off threshold, got: ${st.last.text}`);
                     done();
                 }).catch(done);
             });

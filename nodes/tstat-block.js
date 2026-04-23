@@ -99,6 +99,35 @@ module.exports = function(RED) {
                 .catch(() => fallback);
         }
 
+        function computeThresholds(anticipatorValue) {
+            if (node.algorithm === "single") {
+                const delta = node.diff / 2;
+                return {
+                    heatOn: node.setpoint - delta,
+                    heatOff: node.setpoint - anticipatorValue,
+                    coolOn: node.setpoint + delta,
+                    coolOff: node.setpoint + anticipatorValue
+                };
+            }
+
+            if (node.algorithm === "split") {
+                const delta = node.diff / 2;
+                return {
+                    heatOn: node.heatingSetpoint - delta,
+                    heatOff: node.heatingSetpoint - anticipatorValue,
+                    coolOn: node.coolingSetpoint + delta,
+                    coolOff: node.coolingSetpoint + anticipatorValue
+                };
+            }
+
+            return {
+                heatOn: node.heatingOn,
+                heatOff: node.heatingOff - anticipatorValue,
+                coolOn: node.coolingOn,
+                coolOff: node.coolingOff + anticipatorValue
+            };
+        }
+
         // ====================================================================
         // Main input handler
         // ====================================================================
@@ -209,16 +238,16 @@ module.exports = function(RED) {
             // ----------------------------------------------------------------
             // 5. Thermostat logic — compute above/below calls
             // ----------------------------------------------------------------
+            const effectiveThresholds = computeThresholds(effectiveAnticipator);
             let activeSetpoint = 0;
             let onThreshold = 0;
             let offThreshold = 0;
 
             if (node.algorithm === "single") {
-                const delta = node.diff / 2;
                 activeSetpoint = node.setpoint;
 
                 if (node.isHeating) {
-                    onThreshold = node.setpoint - delta;
+                    onThreshold = effectiveThresholds.heatOn;
                     offThreshold = node.setpoint - effectiveAnticipator;
                     if (input < onThreshold) {
                         below = true;
@@ -227,7 +256,7 @@ module.exports = function(RED) {
                     }
                     above = false;
                 } else {
-                    onThreshold = node.setpoint + delta;
+                    onThreshold = effectiveThresholds.coolOn;
                     offThreshold = node.setpoint + effectiveAnticipator;
                     if (input > onThreshold) {
                         above = true;
@@ -238,9 +267,8 @@ module.exports = function(RED) {
                 }
             } else if (node.algorithm === "split") {
                 if (node.isHeating) {
-                    const delta = node.diff / 2;
                     activeSetpoint = node.heatingSetpoint;
-                    onThreshold = node.heatingSetpoint - delta;
+                    onThreshold = effectiveThresholds.heatOn;
                     offThreshold = node.heatingSetpoint - effectiveAnticipator;
                     if (input < onThreshold) {
                         below = true;
@@ -249,9 +277,8 @@ module.exports = function(RED) {
                     }
                     above = false;
                 } else {
-                    const delta = node.diff / 2;
                     activeSetpoint = node.coolingSetpoint;
-                    onThreshold = node.coolingSetpoint + delta;
+                    onThreshold = effectiveThresholds.coolOn;
                     offThreshold = node.coolingSetpoint + effectiveAnticipator;
                     if (input > onThreshold) {
                         above = true;
@@ -312,6 +339,10 @@ module.exports = function(RED) {
                 diff: node.diff,
                 anticipator: node.anticipator,
                 effectiveAnticipator,
+                heatOn: effectiveThresholds.heatOn,
+                heatOff: effectiveThresholds.heatOff,
+                coolOn: effectiveThresholds.coolOn,
+                coolOff: effectiveThresholds.coolOff,
                 modeChanged,
                 cyclesSinceModeChange
             };
@@ -325,22 +356,12 @@ module.exports = function(RED) {
             // ----------------------------------------------------------------
             // 8. Status display
             // ----------------------------------------------------------------
-            const mode = node.isHeating ? "Heat" : "Cool";
-            
-            let heatSp, coolSp;
-            if (node.algorithm === "single") {
-                heatSp = node.setpoint;
-                coolSp = node.setpoint;
-            } else if (node.algorithm === "split") {
-                heatSp = node.heatingSetpoint;
-                coolSp = node.coolingSetpoint;
-            } else if (node.algorithm === "specified") {
-                heatSp = node.heatingOn;
-                coolSp = node.coolingOn;
-            }
-
+            const mode = node.isHeating ? "H" : "C";
+            const fmt = (value) => value.toFixed(1);
+            const heatOff = statusInfo.heatOff;
+            const coolOff = statusInfo.coolOff;
             const suffix = !node.startupComplete ? " [startup]" : "";
-            const text = `Mode: ${mode} · Space: ${input.toFixed(1)} · Heat: ${heatSp.toFixed(1)} · Cool: ${coolSp.toFixed(1)}${suffix}`;
+            const text = `${mode} ${fmt(input)} h+${fmt(statusInfo.heatOn)} h-${fmt(heatOff)} c+${fmt(statusInfo.coolOn)} c-${fmt(coolOff)}${suffix}`;
 
             if (outputAbove === lastAbove && outputBelow === lastBelow) {
                 utils.setStatusUnchanged(node, text);
