@@ -149,22 +149,6 @@
         label: function() {
             return this.name || "changeover";
         },
-        button: {
-            enabled: function() {
-                return !this.changed;
-            },
-            onclick: function() {
-                const label = this.name || "changeover";
-                triggerChangeoverBypass(this.id)
-                    .done(function(data) {
-                        RED.notify(`${label}: ${data.message}`, "success");
-                    })
-                    .fail(function(jqXHR) {
-                        const response = jqXHR.responseJSON || {};
-                        RED.notify(response.error || "Unable to bypass timer", "error");
-                    });
-            }
-        },
         oneditprepare: function() {
             const node = this;
             const $algorithm = $("#node-input-algorithm");
