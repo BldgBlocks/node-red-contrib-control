@@ -1,6 +1,49 @@
 module.exports = function(RED) {
     const utils = require("./utils")(RED);
 
+    const VALID_MODES = ["on-change", "rate-limit", "pass-through"];
+
+    function num(value, fallback) {
+        const parsed = parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function normalizeMode(value) {
+        return VALID_MODES.includes(value) ? value : "on-change";
+    }
+
+    function clearGate(node) {
+        if (node.blockTimer) {
+            clearTimeout(node.blockTimer);
+            node.blockTimer = null;
+        }
+    }
+
+    function isEqual(a, b) {
+        if (a === b) return true;
+        if (typeof a !== typeof b) return false;
+        if (Array.isArray(a) && Array.isArray(b)) {
+            if (a.length !== b.length) return false;
+            return a.every((item, index) => isEqual(item, b[index]));
+        }
+        if (typeof a === "object" && a !== null && b !== null) {
+            const keysA = Object.keys(a);
+            const keysB = Object.keys(b);
+            if (keysA.length !== keysB.length) return false;
+            return keysA.every(key => isEqual(a[key], b[key]));
+        }
+        return false;
+    }
+
+    function previewValue(value) {
+        try {
+            const text = typeof value === "string" ? value : JSON.stringify(value);
+            return (text === undefined ? String(value) : text).slice(0, 20);
+        } catch (err) {
+            return String(value).slice(0, 20);
+        }
+    }
+
     function OnChangeBlockNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -9,10 +52,12 @@ module.exports = function(RED) {
         // Initialize runtime state
         // Initialize state
         node.name = config.name;
+        node.mode = normalizeMode(config.mode);
         node.inputProperty = config.inputProperty || "payload";
         node.lastValue = null;
         node.blockTimer = null;
-        node.period = parseFloat(config.period);
+        node.periodType = config.periodType || "num";
+        node.period = num(config.period, 0);
 
         node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -42,8 +87,8 @@ module.exports = function(RED) {
                 const evaluations = [];                    
                 
                 evaluations.push(
-                    utils.requiresEvaluation(config.periodType) 
-                        ? utils.evaluateNodeProperty(config.period, config.periodType, node, msg)
+                    utils.requiresEvaluation(node.periodType) 
+                        ? utils.evaluateNodeProperty(config.period, node.periodType, node, msg)
                             .then(val => parseFloat(val))
                         : Promise.resolve(node.period),
                 );
@@ -54,6 +99,7 @@ module.exports = function(RED) {
                 if (!isNaN(results[0])) node.period = results[0];       
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
+                utils.setStatusError(node, "error evaluating period");
                 if (done) done();
                 return;
             } finally {
@@ -63,7 +109,7 @@ module.exports = function(RED) {
 
             // Acceptable fallbacks
             if (isNaN(node.period) || node.period < 0) {
-                node.period = config.period;
+                node.period = num(config.period, 0);
                 utils.setStatusError(node, "invalid period, using 0");
             }
 
@@ -83,7 +129,21 @@ module.exports = function(RED) {
                     }
                     node.period = newPeriod;
                     node.periodType = "num";
+                    if (node.period === 0) clearGate(node);
                     utils.setStatusOK(node, `period: ${node.period.toFixed(0)} ms`);
+                    if (done) done();
+                    return;
+                }
+                if (msg.context === "mode") {
+                    if (typeof msg.payload !== "string" || !VALID_MODES.includes(msg.payload)) {
+                        utils.setStatusError(node, "invalid mode");
+                        if (done) done();
+                        return;
+                    }
+                    node.mode = msg.payload;
+                    node.lastValue = null;
+                    clearGate(node);
+                    utils.setStatusOK(node, `mode: ${node.mode}`);
                     if (done) done();
                     return;
                 }
@@ -106,48 +166,31 @@ module.exports = function(RED) {
 
             const currentValue = inputValue;
 
-            // Deep comparison function
-            function isEqual(a, b) {
-                if (a === b) return true;
-                if (typeof a !== typeof b) return false;
-                if (Array.isArray(a) && Array.isArray(b)) {
-                    if (a.length !== b.length) return false;
-                    return a.every((item, i) => isEqual(item, b[i]));
-                }
-                if (typeof a === "object" && a !== null && b !== null) {
-                    const keysA = Object.keys(a);
-                    const keysB = Object.keys(b);
-                    if (keysA.length !== keysB.length) return false;
-                    return keysA.every(key => isEqual(a[key], b[key]));
-                }
-                return false;
-            }
-
-            // Block if in filter period
-            if (node.blockTimer) {
-                const filteredText = `filtered: ${JSON.stringify(currentValue).slice(0, 20)} |`;
-                utils.setStatusUnchanged(node, filteredText);
+            if (node.mode !== "pass-through" && node.blockTimer) {
+                utils.setStatusUnchanged(node, `dropped: ${previewValue(currentValue)}`);
                 if (done) done();
                 return;
             }
 
-            // period === 0 means only ever on change, not equal outside of filter period sends an update message
-            if (isEqual(currentValue, node.lastValue)) {
-                if (node.period === 0) {
-                    if (done) done();
-                    return;
-                }
+            if (node.mode === "on-change" && isEqual(currentValue, node.lastValue)) {
+                utils.setStatusUnchanged(node, `unchanged: ${previewValue(currentValue)}`);
+                if (done) done();
+                return;
             }
 
-            node.lastValue = currentValue;
+            if (node.mode === "on-change") node.lastValue = currentValue;
             send(msg);
+            utils.setStatusChanged(
+                node,
+                node.period > 0 && node.mode !== "pass-through"
+                    ? `sent: ${previewValue(currentValue)} | gate: closed`
+                    : `sent: ${previewValue(currentValue)}`,
+            );
 
-            // Start filter period if applicable
-            if (node.period > 0) {
+            if (node.period > 0 && node.mode !== "pass-through") {
                 node.blockTimer = setTimeout(() => {
                     node.blockTimer = null;
-                    const endFilterText = `filtered: ${JSON.stringify(currentValue).slice(0, 20)}`;
-                    utils.setStatusUnchanged(node, endFilterText);
+                    utils.setStatusUnchanged(node, `gate: open | mode: ${node.mode}`);
                 }, node.period);
             }
 
@@ -155,10 +198,7 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
-            if (node.blockTimer) {
-                clearTimeout(node.blockTimer);
-                node.blockTimer = null;
-            }
+            clearGate(node);
             done();
         });
     }

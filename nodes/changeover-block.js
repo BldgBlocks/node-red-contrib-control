@@ -22,6 +22,7 @@ module.exports = function(RED) {
 
     const VALID_MODES = ["auto", "heat", "cool"];
     const VALID_ALGORITHMS = ["single", "split", "specified"];
+    const BYPASS_TIMER_CONTEXT = "bypass timer";
     const MIN_SWAP_TIME = 60; // seconds
 
     function ChangeoverBlockNode(config) {
@@ -82,6 +83,41 @@ module.exports = function(RED) {
                 .catch(() => fallback);
         }
 
+        function triggerBypass(commandMsg) {
+            if (!initComplete) {
+                utils.setStatusWarn(node, "bypass ignored during init");
+                return { ok: false, statusCode: 409, message: "Bypass unavailable during init window" };
+            }
+            if (node.operationMode !== "auto") {
+                utils.setStatusWarn(node, `bypass ignored in ${node.operationMode} mode`);
+                return { ok: false, statusCode: 409, message: `Bypass only applies in auto mode; current mode is ${node.operationMode}` };
+            }
+            if (!pendingMode) {
+                utils.setStatusWarn(node, "bypass ignored - no pending mode change");
+                return { ok: false, statusCode: 409, message: "No pending mode change to bypass" };
+            }
+
+            node.currentMode = pendingMode;
+            node.lastModeChange = Date.now() / 1000;
+            conditionStartTime = null;
+            pendingMode = null;
+
+            const outputMsg = commandMsg || {};
+            node.send(buildOutputs(outputMsg));
+            updateStatus();
+
+            return {
+                ok: true,
+                statusCode: 200,
+                message: "Swap timer bypassed",
+                mode: node.currentMode,
+                isHeating: node.currentMode === "heating",
+                temperature: node.lastTemperature
+            };
+        }
+
+        node.triggerBypass = triggerBypass;
+
         // ====================================================================
         // Main input handler
         // ====================================================================
@@ -90,6 +126,12 @@ module.exports = function(RED) {
 
             if (!msg) {
                 utils.setStatusError(node, "invalid message");
+                if (done) done();
+                return;
+            }
+
+            if (msg.context === BYPASS_TIMER_CONTEXT) {
+                triggerBypass(msg);
                 if (done) done();
                 return;
             }
@@ -395,9 +437,35 @@ module.exports = function(RED) {
         // Cleanup
         // ====================================================================
         node.on("close", function(done) {
+            node.triggerBypass = null;
             done();
         });
     }
 
     RED.nodes.registerType("changeover-block", ChangeoverBlockNode);
+
+    RED.httpAdmin.post('/changeover-block/:id/bypass-timer', RED.auth.needsPermission('changeover-block.write'), function(req, res) {
+        const targetNode = RED.nodes.getNode(req.params.id);
+        if (!targetNode || typeof targetNode.triggerBypass !== "function") {
+            return res.status(404).json({ error: "Node not found" });
+        }
+
+        const result = targetNode.triggerBypass({
+            topic: "changeover-bypass",
+            context: BYPASS_TIMER_CONTEXT,
+            payload: true,
+            _source: "editor"
+        });
+
+        if (!result.ok) {
+            return res.status(result.statusCode || 409).json({ error: result.message });
+        }
+
+        return res.status(200).json({
+            message: result.message,
+            mode: result.mode,
+            isHeating: result.isHeating,
+            temperature: result.temperature
+        });
+    });
 };

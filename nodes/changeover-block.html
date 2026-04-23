@@ -93,9 +93,21 @@
         <input type="text" id="node-input-operationMode" placeholder="auto">
         <input type="hidden" id="node-input-operationModeType">
     </div>
+    <div class="form-row">
+        <label title="Runtime actions for the deployed node"><i class="fa fa-bolt"></i> Actions</label>
+        <button type="button" id="node-input-bypass-timer" class="red-ui-button" style="width: auto;">Bypass Pending Timer</button>
+        <span style="margin-left: 8px; color: #666;">Applies to the deployed node instance.</span>
+    </div>
 </script>
 
 <script type="text/javascript">
+    function triggerChangeoverBypass(nodeId) {
+        return $.ajax({
+            url: "changeover-block/" + nodeId + "/bypass-timer",
+            type: "POST"
+        });
+    }
+
     RED.nodes.registerType("changeover-block", {
         category: "bldgblocks control",
         color: "#301934",
@@ -137,12 +149,29 @@
         label: function() {
             return this.name || "changeover";
         },
+        button: {
+            enabled: function() {
+                return !this.changed;
+            },
+            onclick: function() {
+                const label = this.name || "changeover";
+                triggerChangeoverBypass(this.id)
+                    .done(function(data) {
+                        RED.notify(`${label}: ${data.message}`, "success");
+                    })
+                    .fail(function(jqXHR) {
+                        const response = jqXHR.responseJSON || {};
+                        RED.notify(response.error || "Unable to bypass timer", "error");
+                    });
+            }
+        },
         oneditprepare: function() {
             const node = this;
             const $algorithm = $("#node-input-algorithm");
             const $singleFields = $(".single-only");
             const $splitFields = $(".split-only");
             const $specifiedFields = $(".specified-only");
+            const $bypassButton = $("#node-input-bypass-timer");
 
             try {
                 // Initialize typed inputs
@@ -261,6 +290,17 @@
 
                 $algorithm.on("change", toggleFields);
                 toggleFields();
+
+                $bypassButton.on("click", function() {
+                    triggerChangeoverBypass(node.id)
+                        .done(function(data) {
+                            RED.notify(data.message, "success");
+                        })
+                        .fail(function(jqXHR) {
+                            const response = jqXHR.responseJSON || {};
+                            RED.notify(response.error || "Unable to bypass timer", "error");
+                        });
+                });
                 
             } catch (err) {
                 console.error("Error in oneditprepare:", err);
@@ -274,11 +314,12 @@ Manages HVAC mode switching between heating and cooling based on temperature inp
 
 ### Inputs
 : payload (number) : Temperature reading for mode evaluation. The property name is configurable via **Input Property**.
+: context (string) : Optional command. Set to `"bypass timer"` to force an immediate swap to the currently pending mode change.
 
 ### Outputs
-: payload (boolean) : `true` for heating, `false` for cooling.
-: context (string) : Always `"isHeating"`.
-: status (object) : `{ mode, operationMode, isHeating, heatingSetpoint, coolingSetpoint, temperature }`.
+: payload (number) : The current temperature value used for the mode decision.
+: isHeating (boolean) : `true` for heating, `false` for cooling.
+: status (object) : `{ mode, operationMode, algorithm, isHeating, heatingSetpoint, coolingSetpoint, temperature }`.
 
 ### Operation Modes
 All parameters support typed inputs (static value, `msg`, `flow`, or `global`).
@@ -307,6 +348,8 @@ All parameters support typed inputs (static value, `msg`, `flow`, or `global`).
 On startup, the node waits for `initWindow` seconds to let sensors stabilize before selecting the initial mode. During this period, temperature is cached but no output is sent.
 
 The `extent` parameter (split algorithm) widens the switching thresholds beyond the setpoints. This prevents nuisance mode changes from overshoot and allows sharing the same setpoint values with other nodes while having independent switching buffers.
+
+Use the **Bypass Pending Timer** action button in the node UI, or send `msg.context = "bypass timer"`, to skip the active swap countdown and switch immediately. The bypass command only applies while the node is in `auto` mode and an actual swap is pending.
 
 ### Status
 - **Yellow (ring)**: Initializing (startup window)

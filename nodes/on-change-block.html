@@ -5,11 +5,19 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-mode" title="How the gate handles messages"><i class="fa fa-sliders"></i> Mode</label>
+        <select id="node-input-mode">
+            <option value="on-change">On Change</option>
+            <option value="rate-limit">Rate Limit</option>
+            <option value="pass-through">Pass Through</option>
+        </select>
+    </div>
+    <div class="form-row">
         <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
-        <label for="node-input-period" title="Filter period in milliseconds (non-negative number from msg, flow, global, or static value)"><i class="fa fa-clock-o"></i> Filter Period (ms)</label>
+        <label for="node-input-period" title="Gate-close time in milliseconds for messages sent close together. Used by On Change and Rate Limit. Ignored by Pass Through."><i class="fa fa-clock-o"></i> Filter Period (ms)</label>
         <input type="text" id="node-input-period" placeholder="0">
         <input type="hidden" id="node-input-periodType">
     </div>
@@ -22,6 +30,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            mode: { value: "on-change", required: true, validate: function(v) { return ["on-change", "rate-limit", "pass-through"].includes(v); } },
             inputProperty: { value: "payload" },
             period: { value: 0 },
             periodType: { value: "num" }
@@ -36,47 +45,56 @@
             return this.name || "on change";
         },
         oneditprepare: function() {
-            const periodInput = $("#node-input-period").typedInput({
+            $("#node-input-period").typedInput({
                 default: "num",
                 types: ["num", "msg", "flow", "global"],
                 typeField: "#node-input-periodType"
             });
+
+            $("#node-input-mode").attr("title",
+                "On Change: send only when the value differs from the last sent value. " +
+                "Rate Limit: send the first message, then close the gate and drop messages until the period ends. " +
+                "Pass Through: send every message and ignore the filter period."
+            );
         }
     });
 </script>
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="on-change-block">
-Filters redundant messages based on value changes from a configured property.
+Filters or drops messages from a configured property based on the selected mode.
 
 ### Inputs
-: input-property (any) : Value to monitor for changes, read from the configured Input Property.
-: context (string, optional) : Configures period (`"period"`) or queries state (`"status"`).
-: payload (number | any, for `context`) : Non-negative number for `"period"` (ms), any for `"status"`.
+: input-property (any) : Value to evaluate, read from the configured Input Property.
+: context (string, optional) : Configures `"period"` or `"mode"`.
+: payload (number | string, for `context`) : Non-negative number for `"period"` (ms), or one of `"on-change"`, `"rate-limit"`, `"pass-through"` for `"mode"`.
 
 ### Outputs
-: msg (any) : Input message if value changed and not filtered.
-: payload (object, for `msg.context = "status"`) : `{ period, periodType }`.
+: msg (any) : Input message when the current mode allows it.
 
 ### Properties
 : name (string) : Display name in editor.
+: mode (string) : Gate behavior. Default `"on-change"`.
 : inputProperty (string) : Message property to monitor for changes (default: `payload`). Supports nested properties (e.g., `data.value`).
 : period (number) : Filter period in milliseconds (≥ 0). Default 0.
 : periodType (string) : Source of period (`"num"`, `"msg"`, `"flow"`, `"global"`). Default `"num"`.
 
 ### Details
-Filters messages based on value changes (deep comparison) to the input property and an optional filter period.
-When `period = 0`, outputs the input message only if the input property differs from the last output value.
-When `period > 0`, outputs the first message, then suppresses all messages during the period.
+Uses a simple gate. Messages are either sent immediately or dropped. There is no delayed output and no queued replay.
+
+Modes:
+- `On Change` sends only when the input value differs from the last sent value. If `period > 0`, the gate closes after a send and drops messages until the period ends. When the gate reopens, the value must still be different from the last sent value before another message is sent.
+- `Rate Limit` sends the first message when the gate is open, then closes the gate for `period` and drops all messages during that time. When the gate reopens, the next message is sent even if the value is unchanged.
+- `Pass Through` sends every message and ignores the filter period.
 
 Supports complex payloads (objects, arrays) via deep comparison.
 
-Configuration via `msg.context = "period"` with numeric `msg.payload` sets the filter period in milliseconds (no output).
+Configuration via `msg.context = "period"` with numeric `msg.payload`, or `msg.context = "mode"` with a valid mode string, updates runtime behavior without producing output.
 
 ### Status
 - Green (dot): Configuration update
-- Blue (dot): State changed
-- Blue (ring): State unchanged
+- Blue (dot): Message sent
+- Blue (ring): Unchanged, dropped, or gate open
 - Red (ring): Error
 - Yellow (ring): Warning
 

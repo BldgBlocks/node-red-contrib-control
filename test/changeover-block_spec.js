@@ -357,6 +357,67 @@ describe("changeover-block", function() {
                 }).catch(done);
             });
         });
+
+        it("should bypass a pending swap immediately via msg.context", function(done) {
+            const flow = buildFlow("changeover-block", SINGLE_DEFAULTS);
+
+            helper.load(changeoverNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+                const st = trackStatus(n1);
+
+                try {
+                    const first = waitForMessage(out);
+                    sendPayload(n1, 65);
+                    const msg1 = await first;
+                    assert.strictEqual(msg1.isHeating, true, "should start in heating");
+
+                    const second = waitForMessage(out);
+                    sendPayload(n1, 80);
+                    const msg2 = await second;
+                    assert.strictEqual(msg2.isHeating, true, "should still be heating while swap timer runs");
+                    assert.ok(st.last.text.includes("→"), `Should show pending countdown, got: ${st.last.text}`);
+
+                    const bypass = waitForMessage(out);
+                    n1.receive({ context: "bypass timer" });
+                    const msg3 = await bypass;
+
+                    assert.strictEqual(msg3.payload, 80, "bypass output should reuse the last temperature");
+                    assert.strictEqual(msg3.isHeating, false, "bypass should switch immediately to cooling");
+                    assert.strictEqual(msg3.status.mode, "cooling");
+                    assert.ok(!st.last.text.includes("→"), `Pending countdown should clear after bypass, got: ${st.last.text}`);
+                    done();
+                } catch (e) {
+                    done(e);
+                }
+            });
+        });
+
+        it("should ignore bypass command when no swap is pending", function(done) {
+            const flow = buildFlow("changeover-block", SINGLE_DEFAULTS);
+
+            helper.load(changeoverNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+                const st = trackStatus(n1);
+
+                try {
+                    const first = waitForMessage(out);
+                    sendPayload(n1, 65);
+                    await first;
+
+                    n1.receive({ context: "bypass timer" });
+
+                    await expectNoMessage(out, 200);
+                    assert.ok(st.last, "status should have been updated");
+                    assert.strictEqual(st.last.fill, "yellow");
+                    assert.ok(st.last.text.includes("no pending mode change"), `Unexpected status text: ${st.last.text}`);
+                    done();
+                } catch (e) {
+                    done(e);
+                }
+            });
+        });
     });
 
     // ========================================================================
