@@ -11,6 +11,14 @@
     </div>
 
     <div class="form-row">
+        <label for="node-input-outputMode"><i class="fa fa-random"></i> Output</label>
+        <select id="node-input-outputMode">
+            <option value="immediate">When Ready</option>
+            <option value="trigger">On Trigger</option>
+        </select>
+    </div>
+
+    <div class="form-row">
         <label for="node-input-excludedKeys"><i class="fa fa-ban"></i> Exclude</label>
         <input type="text" id="node-input-excludedKeys" placeholder="status, req, res">
         <div style="font-size: 0.8em; color: #888; margin-left: 105px;">Comma separated list of properties to ignore</div>
@@ -30,7 +38,8 @@
         defaults: {
             name: { value: "" },
             count: { value: 4, required: true, validate: RED.validators.number() },
-            excludedKeys: { value: "status" } // Default to 'status' to maintain previous behavior
+            outputMode: { value: "immediate", required: true, validate: function(v) { return ["immediate", "trigger"].includes(v); } },
+            excludedKeys: { value: "status,context" } // Default to 'status' to maintain previous behavior
         },
         inputs: 1,
         outputs: 1,
@@ -40,7 +49,10 @@
         },
         paletteLabel: "join",
         oneditprepare: function() {
-            // Optional: visual tweaks when opening the edit dialog
+            $("#node-input-outputMode").attr("title",
+                "When Ready: emit whenever the cached key count reaches the configured threshold. " +
+                "On Trigger: keep caching values, but only emit when a message arrives with msg.context = 'trigger'."
+            );
         }
     });
 </script>
@@ -54,6 +66,7 @@ and combines to root level using property names.
 ### Inputs 
 : all (any) : All unique properties from incoming messages.
 : Key Count (number) : The number of unique keys required before the node emits the accumulated message.
+: Output (string) : `When Ready` emits as soon as the key count is met. `On Trigger` caches values and emits only when `msg.context = "trigger"` arrives.
 : Exclude (string) : A comma-separated list of properties to ignore (e.g., `status, topic`).
 
 ### Outputs
@@ -63,7 +76,8 @@ and combines to root level using property names.
 1. The node stores a running list of properties from every `msg` it receives.
 2. It ignores properties starting with `_` (like `_msgid`).
 3. It ignores any properties listed in the `Exclude` configuration.
-4. When the number of stored unique keys equals or exceeds the `Key Count`, it emits the combined object as a new message.
+4. In `When Ready` mode, once the stored key count equals or exceeds `Key Count`, it emits the combined object on each subsequent update.
+5. In `On Trigger` mode, it keeps caching the latest values and only emits when a message arrives with `msg.context = "trigger"`.
 
 ### Status
 - Green (dot): Configuration update
