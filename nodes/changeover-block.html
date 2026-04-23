@@ -42,12 +42,12 @@
             Cooling setpoint must be greater than heating setpoint
         </div>
     </div>
-    <div class="form-row split-only">
+    <div class="form-row extent-only">
         <label for="node-input-extent" title="Extra buffer mode switching thresholds (non-negative number)"><i class="fa fa-tachometer"></i> Extent</label>
         <input type="text" id="node-input-extent" placeholder="1">
         <input type="hidden" id="node-input-extentType">
     </div>
-    <div class="form-row split-only" style="display: none;">
+    <div class="form-row extent-only" style="display: none;">
         <div id="extent-warning" style="color: red; display: none; margin-top: 5px;">
             Invalid
         </div>
@@ -154,6 +154,7 @@
             const $algorithm = $("#node-input-algorithm");
             const $singleFields = $(".single-only");
             const $splitFields = $(".split-only");
+            const $extentFields = $(".extent-only");
             const $specifiedFields = $(".specified-only");
             const $bypassButton = $("#node-input-bypass-timer");
 
@@ -253,6 +254,7 @@
                         // Dynamic source — show all, resolved at runtime
                         $singleFields.show();
                         $splitFields.show();
+                        $extentFields.show();
                         $specifiedFields.show();
                         return;
                     }
@@ -260,14 +262,17 @@
                     if (algorithm === "single") {
                         $singleFields.show();
                         $splitFields.hide();
+                        $extentFields.show();
                         $specifiedFields.hide();
                     } else if (algorithm === "split") {
                         $singleFields.hide();
                         $splitFields.show();
+                        $extentFields.show();
                         $specifiedFields.hide();
                     } else if (algorithm === "specified") {
                         $singleFields.hide();
                         $splitFields.hide();
+                        $extentFields.hide();
                         $specifiedFields.show();
                     }
                 }
@@ -314,10 +319,10 @@ All parameters support typed inputs (static value, `msg`, `flow`, or `global`).
 
 ### Algorithms
 
-- **Single Setpoint** — one setpoint with a deadband.
-  - Heating threshold: `setpoint - deadband / 2`
-  - Cooling threshold: `setpoint + deadband / 2`
-  - Example: `setpoint=70`, `deadband=2` → heat below 69, cool above 71.
+- **Single Setpoint** — one setpoint with a deadband and optional extent buffer.
+    - Heating threshold: `setpoint - deadband / 2 - extent`
+    - Cooling threshold: `setpoint + deadband / 2 + extent`
+    - Example: `setpoint=74.5`, `deadband=1.5`, `extent=0.5` → heat below 73.25, cool above 75.75.
 
 - **Split Setpoint** — separate heating and cooling setpoints with an extent buffer.
   - Heating threshold: `heatingSetpoint - extent`
@@ -331,7 +336,7 @@ All parameters support typed inputs (static value, `msg`, `flow`, or `global`).
 ### Details
 On startup, the node waits for `initWindow` seconds to let sensors stabilize before selecting the initial mode. During this period, temperature is cached but no output is sent.
 
-The `extent` parameter (split algorithm) widens the switching thresholds beyond the setpoints. This prevents nuisance mode changes from overshoot and allows sharing the same setpoint values with other nodes while having independent switching buffers.
+The `extent` parameter widens the switching thresholds beyond the base deadband or setpoints. In single mode it expands the deadband outward from `setpoint ± deadband/2`; in split mode it expands beyond the separate heating and cooling setpoints. This prevents nuisance mode changes from overshoot and allows sharing the same setpoint values with other nodes while having independent switching buffers.
 
 Use the **Bypass Pending Timer** action button in the node UI, or send `msg.context = "bypass timer"`, to skip the active swap countdown and switch immediately. The bypass command only applies while the node is in `auto` mode and an actual swap is pending.
 

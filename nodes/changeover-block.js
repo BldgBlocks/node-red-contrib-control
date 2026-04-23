@@ -279,8 +279,8 @@ module.exports = function(RED) {
             switch (node.algorithm) {
                 case "single":
                     return {
-                        heating: node.setpoint - node.deadband / 2,
-                        cooling: node.setpoint + node.deadband / 2
+                        heating: node.setpoint - node.deadband / 2 - node.extent,
+                        cooling: node.setpoint + node.deadband / 2 + node.extent
                     };
                 case "split":
                     return {

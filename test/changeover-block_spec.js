@@ -352,9 +352,35 @@ describe("changeover-block", function() {
                 sendPayload(n1, 70);
 
                 promise.then(msg => {
-                    // setpoint=70, deadband=2 → heat=69, cool=71
+                    // setpoint=70, deadband=2, extent=0 → heat=69, cool=71
                     assert.strictEqual(msg.status.heatingSetpoint, 69);
                     assert.strictEqual(msg.status.coolingSetpoint, 71);
+                    done();
+                }).catch(done);
+            });
+        });
+
+        it("should widen single-algorithm thresholds by extent", function(done) {
+            const flow = buildFlow("changeover-block", {
+                ...SINGLE_DEFAULTS,
+                setpoint: "74.5", setpointType: "num",
+                deadband: "1.5", deadbandType: "num",
+                extent: "0.5", extentType: "num",
+            });
+
+            helper.load(changeoverNode, flow, function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+                const st = trackStatus(n1);
+
+                const promise = waitForMessage(out);
+                sendPayload(n1, 74.5);
+
+                promise.then(msg => {
+                    assert.strictEqual(msg.status.heatingSetpoint, 73.25);
+                    assert.strictEqual(msg.status.coolingSetpoint, 75.75);
+                    assert.ok(st.last.text.includes("below cool>75.8"),
+                        `should show extent-adjusted single cooling switch point, got: ${st.last.text}`);
                     done();
                 }).catch(done);
             });
