@@ -102,7 +102,7 @@ Calculates the rate of value change over time.
 
 ### Properties
 : name (string) : Display name in editor.
-: inputProperty (string) : Message property to read values from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: inputProperty (string) : Message property to read values from (default `payload`). Supports nested properties (e.g., `data.value`).
 : sampleSize (number) : Number of samples to maintain (≥ 2).
 : rateUnits (string) : Units for rate output (`"seconds"`, `"minutes"`, `"hours"`).
 
@@ -111,10 +111,10 @@ Tracks value changes over a rolling window of samples. Calculates rate as `(last
 
 Useful for detecting system issues like rapid changes, droop, or anomalies.
 
-Configuration via `msg.context`:
-- `"reset"`: Clears sample buffer (no output).
-- `"sampleSize"`: Changes number of samples with numeric `msg.payload`.
-- `"units"`: Changes rate units with `msg.payload` as `"seconds"`, `"minutes"`, or `"hours"`.
+Configuration via `msg.context`
+- `"reset"` Clears sample buffer (no output).
+- `"sampleSize"` Changes number of samples with numeric `msg.payload`.
+- `"units"` Changes rate units with `msg.payload` as `"seconds"`, `"minutes"`, or `"hours"`.
 
 ### Status
 - Green (dot): Configuration update

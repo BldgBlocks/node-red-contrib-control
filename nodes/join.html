@@ -13,7 +13,7 @@
     <div class="form-row">
         <label for="node-input-outputMode"><i class="fa fa-random"></i> Output</label>
         <select id="node-input-outputMode">
-            <option value="immediate">When Ready</option>
+            <option value="immediate">On Input</option>
             <option value="trigger">On Trigger</option>
         </select>
     </div>
@@ -50,7 +50,7 @@
         paletteLabel: "join",
         oneditprepare: function() {
             $("#node-input-outputMode").attr("title",
-                "When Ready: emit whenever the cached key count reaches the configured threshold. " +
+                "On Input: emit whenever the cached key count reaches the configured threshold. " +
                 "On Trigger: keep caching values, but only emit when a message arrives with msg.context = 'trigger'."
             );
         }
@@ -66,7 +66,7 @@ and combines to root level using property names.
 ### Inputs 
 : all (any) : All unique properties from incoming messages.
 : Key Count (number) : The number of unique keys required before the node emits the accumulated message.
-: Output (string) : `When Ready` emits as soon as the key count is met. `On Trigger` caches values and emits only when `msg.context = "trigger"` arrives.
+: Output (string) : `On Input` emits as soon as the key count is met. `On Trigger` caches values and emits only when `msg.context = "trigger"` arrives.
 : Exclude (string) : A comma-separated list of properties to ignore (e.g., `status, topic`).
 
 ### Outputs
@@ -76,7 +76,7 @@ and combines to root level using property names.
 1. The node stores a running list of properties from every `msg` it receives.
 2. It ignores properties starting with `_` (like `_msgid`).
 3. It ignores any properties listed in the `Exclude` configuration.
-4. In `When Ready` mode, once the stored key count equals or exceeds `Key Count`, it emits the combined object on each subsequent update.
+4. In `On Input` mode, once the stored key count equals or exceeds `Key Count`, it emits the combined object on each subsequent update.
 5. In `On Trigger` mode, it keeps caching the latest values and only emits when a message arrives with `msg.context = "trigger"`.
 
 ### Status
