@@ -389,37 +389,32 @@ module.exports = function(RED) {
 
             if (!initComplete) {
                 const remaining = Math.max(0, node.initWindow - (now - initStartTime));
-                utils.setStatusBusy(node, `init ${remaining.toFixed(0)}s [${node.operationMode}] ${node.currentMode}`);
+                utils.setStatusBusy(node, `init ${remaining.toFixed(0)}s | ${node.currentMode}`);
                 return;
             }
 
             const temp = node.lastTemperature !== null ? node.lastTemperature.toFixed(1) : "?";
             const { heating, cooling } = getThresholds();
-            let thresholdText, hysteresisText;
-            if (isHeating) {
-                thresholdText = `<${cooling.toFixed(1)}`;
-                if (node.lastTemperature !== null && node.lastTemperature < cooling) {
-                    hysteresisText = " (on)";
-                } else if (node.lastTemperature !== null && node.lastTemperature >= heating && node.lastTemperature < cooling) {
-                    hysteresisText = ` (holding, swap at >${heating.toFixed(1)})`;
-                } else if (node.lastTemperature !== null && node.lastTemperature >= cooling) {
-                    hysteresisText = " (off)";
+            let text;
+            let relationText = "";
+
+            if (node.lastTemperature !== null) {
+                if (isHeating) {
+                    relationText = node.lastTemperature < cooling ? "below" : node.lastTemperature > cooling ? "above" : "at";
                 } else {
-                    hysteresisText = "";
-                }
-            } else {
-                thresholdText = `>${heating.toFixed(1)}`;
-                if (node.lastTemperature !== null && node.lastTemperature > heating) {
-                    hysteresisText = " (on)";
-                } else if (node.lastTemperature !== null && node.lastTemperature <= cooling && node.lastTemperature > heating) {
-                    hysteresisText = ` (holding, swap at <${cooling.toFixed(1)})`;
-                } else if (node.lastTemperature !== null && node.lastTemperature <= heating) {
-                    hysteresisText = " (off)";
-                } else {
-                    hysteresisText = "";
+                    relationText = node.lastTemperature > heating ? "above" : node.lastTemperature < heating ? "below" : "at";
                 }
             }
-            let text = `${temp}° ${thresholdText} [${node.operationMode}] ${node.currentMode}${hysteresisText}`;
+
+            const switchText = isHeating
+                ? `cool>${cooling.toFixed(1)}`
+                : `heat<${heating.toFixed(1)}`;
+
+            if (node.operationMode === "heat" || node.operationMode === "cool") {
+                text = `${temp}° [${node.operationMode}] ${relationText} ${switchText} ${node.currentMode}`;
+            } else {
+                text = `${temp}° ${relationText} ${switchText} ${node.currentMode}`;
+            }
 
             if (pendingMode && conditionStartTime) {
                 const remaining = Math.max(0, node.swapTime - (now - conditionStartTime));

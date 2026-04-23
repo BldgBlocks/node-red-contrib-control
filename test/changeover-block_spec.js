@@ -109,6 +109,8 @@ describe("changeover-block", function() {
                     assert.strictEqual(msg.payload, 95, "payload should be temperature");
                     assert.strictEqual(msg.isHeating, true);
                     assert.ok(st.last, "status should have been set");
+                    assert.ok(st.last.text.includes("above cool>71.0"),
+                        `Status should show relation to cooling swap point, got: ${st.last.text}`);
                     assert.ok(!st.last.text.includes("pending"),
                         `Status should not show pending, got: ${st.last.text}`);
                     done();
@@ -440,6 +442,27 @@ describe("changeover-block", function() {
                     assert.strictEqual(msg.isHeating, true);
                     assert.strictEqual(msg.status.heatingSetpoint, 67);
                     assert.strictEqual(msg.status.coolingSetpoint, 75);
+                    done();
+                }).catch(done);
+            });
+        });
+
+        it("should show extent-adjusted switch point in status", function(done) {
+            const flow = buildFlow("changeover-block", SPLIT_DEFAULTS);
+
+            helper.load(changeoverNode, flow, function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+                const st = trackStatus(n1);
+
+                const promise = waitForMessage(out);
+                sendPayload(n1, 66);
+
+                promise.then(msg => {
+                    assert.strictEqual(msg.isHeating, true);
+                    assert.ok(st.last, "status should be set");
+                    assert.ok(st.last.text.includes("below cool>75.0"), `should show extent-adjusted cooling switch point, got: ${st.last.text}`);
+                    assert.ok(!st.last.text.includes("(on)"), `status should not show hysteresis labels, got: ${st.last.text}`);
                     done();
                 }).catch(done);
             });
