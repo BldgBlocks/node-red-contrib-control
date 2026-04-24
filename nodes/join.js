@@ -1,6 +1,10 @@
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
 
+    function isPlainObject(value) {
+        return Object.prototype.toString.call(value) === "[object Object]";
+    }
+
     function BldgBlocksJoinNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -17,6 +21,66 @@ module.exports = function(RED) {
             exclusionString.split(',').map(s => s.trim()).filter(s => s.length > 0)
         );
 
+        function shouldExcludePath(path) {
+            for (const excludedPath of excludedSet) {
+                if (path === excludedPath || path.startsWith(`${excludedPath}.`)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function flattenObjectToLeafMap(source, target, options = {}, parentPath = "") {
+            if (!source || typeof source !== "object") {
+                return;
+            }
+
+            Object.keys(source).forEach(key => {
+                if (!parentPath && key.startsWith("_")) {
+                    return;
+                }
+
+                const path = parentPath ? `${parentPath}.${key}` : key;
+
+                if (options.applyExclusions && shouldExcludePath(path)) {
+                    return;
+                }
+
+                const value = source[key];
+
+                if (value === undefined) {
+                    return;
+                }
+
+                if (isPlainObject(value)) {
+                    const childKeys = Object.keys(value);
+
+                    if (childKeys.length === 0) {
+                        target[path] = {};
+                        return;
+                    }
+
+                    flattenObjectToLeafMap(value, target, options, path);
+                    return;
+                }
+
+                target[path] = RED.util.cloneMessage(value);
+            });
+        }
+
+        function getFlatValueMap() {
+            const storedValueMap = node.context().get("valueMap") || {};
+
+            if (Object.keys(storedValueMap).some(key => key.includes("."))) {
+                return storedValueMap;
+            }
+
+            const flattenedValueMap = {};
+            flattenObjectToLeafMap(storedValueMap, flattenedValueMap);
+            return flattenedValueMap;
+        }
+
         function buildStatusText(currentCount) {
             if (node.outputMode === "trigger" && currentCount >= node.targetCount) {
                 return `ready: ${currentCount}/${node.targetCount}`;
@@ -26,7 +90,11 @@ module.exports = function(RED) {
         }
 
         function emitJoinedMessage(valueMap, send) {
-            const outputMsg = RED.util.cloneMessage(valueMap);
+            const outputMsg = {};
+
+            Object.keys(valueMap).forEach(path => {
+                RED.util.setMessageProperty(outputMsg, path, RED.util.cloneMessage(valueMap[path]), true);
+            });
 
             if (!outputMsg._msgid) {
                 outputMsg._msgid = RED.util.generateId();
@@ -48,24 +116,13 @@ module.exports = function(RED) {
             }
 
             // Get current state from context
-            let valueMap = node.context().get("valueMap") || {};
+            let valueMap = getFlatValueMap();
             const isTriggerMessage = node.outputMode === "trigger" && msg.context === node.triggerContext;
 
             if (!isTriggerMessage) {
-                // Add properties from incoming message to the state
-                Object.keys(msg).forEach(key => {
-                    // Logic:
-                    // 1. Value must exist (not undefined/null)
-                    // 2. Key must NOT start with '_' (internal Node-RED props)
-                    // 3. Key must NOT be in the user-defined excluded list
-                    if (
-                        msg[key] !== undefined &&
-                        !key.startsWith('_') &&
-                        !excludedSet.has(key)
-                    ) {
-                        valueMap[key] = msg[key];
-                    }
-                });
+                const updatedValueMap = { ...valueMap };
+                flattenObjectToLeafMap(msg, updatedValueMap, { applyExclusions: true });
+                valueMap = updatedValueMap;
 
                 // Save state back to context
                 node.context().set("valueMap", valueMap);

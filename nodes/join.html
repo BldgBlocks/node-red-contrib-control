@@ -25,8 +25,8 @@
     </div>
 
     <div class="form-tips">
-        <b>Note:</b> Works with root properties only and must all be unique. Nested properties are not supported.
-        Instead of incoming properties like 'outdoor.temp' (a nested object), consider using outdoor/temp or outdoorTemp as property names.
+        <b>Note:</b> Counts unique leaf property paths, including nested ones.
+        Example: <code>msg.payload.outdoor.temp</code> counts as one cached key path and is rebuilt as nested output.
     </div>
 </script>
 
@@ -65,9 +65,9 @@ and combines to root level using property names.
 
 ### Inputs 
 : all (any) : All unique properties from incoming messages.
-: Key Count (number) : The number of unique keys required before the node emits the accumulated message.
+: Key Count (number) : The number of unique leaf property paths required before the node emits the accumulated message.
 : Output (string) : `On Input` emits as soon as the key count is met. `On Trigger` caches values and emits only when `msg.context = "trigger"` arrives.
-: Exclude (string) : A comma-separated list of properties to ignore (e.g., `status, topic`).
+: Exclude (string) : A comma-separated list of property paths to ignore (e.g., `status, payload.meta`).
 
 ### Outputs
 : msg (any) : All unique properties combined at root level into a single message.
@@ -75,9 +75,10 @@ and combines to root level using property names.
 ### Details
 1. The node stores a running list of properties from every `msg` it receives.
 2. It ignores properties starting with `_` (like `_msgid`).
-3. It ignores any properties listed in the `Exclude` configuration.
-4. In `On Input` mode, once the stored key count equals or exceeds `Key Count`, it emits the combined object on each subsequent update.
-5. In `On Trigger` mode, it keeps caching the latest values and only emits when a message arrives with `msg.context = "trigger"`.
+3. Nested objects are flattened into unique leaf paths for counting and then rebuilt as nested output messages.
+4. It ignores any properties or subtrees listed in the `Exclude` configuration.
+5. In `On Input` mode, once the stored key count equals or exceeds `Key Count`, it emits the combined object on each subsequent update.
+6. In `On Trigger` mode, it keeps caching the latest values and only emits when a message arrives with `msg.context = "trigger"`.
 
 ### Status
 - Green (dot): Configuration update

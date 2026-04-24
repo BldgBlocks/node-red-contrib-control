@@ -72,4 +72,85 @@ describe("bldgblocks-join", function() {
             expectNoMessage(out, 300).then(() => done()).catch(done);
         });
     });
+
+    it("should count nested leaf properties and rebuild them on output", function(done) {
+        const flow = buildFlow("bldgblocks-join", {
+            count: 2,
+            excludedKeys: "status,context"
+        });
+
+        helper.load(joinNode, flow, function() {
+            const n1 = helper.getNode("n1");
+            const out = helper.getNode("out");
+
+            n1.receive({ payload: { outside: { temp: 55 } } });
+
+            expectNoMessage(out, 200).then(() => {
+                const messagePromise = waitForMessage(out, 500);
+                n1.receive({ payload: { outside: { humidity: 42 } } });
+                return messagePromise;
+            }).then(msg => {
+                assert.strictEqual(msg.payload.outside.temp, 55);
+                assert.strictEqual(msg.payload.outside.humidity, 42);
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("should support dotted-path excludes for nested subtrees", function(done) {
+        const flow = buildFlow("bldgblocks-join", {
+            count: 2,
+            excludedKeys: "status,context,payload.meta"
+        });
+
+        helper.load(joinNode, flow, function() {
+            const n1 = helper.getNode("n1");
+            const out = helper.getNode("out");
+
+            n1.receive({
+                payload: {
+                    meta: { source: "sensor-a" },
+                    outside: { temp: 55 }
+                }
+            });
+
+            expectNoMessage(out, 200).then(() => {
+                const messagePromise = waitForMessage(out, 500);
+                n1.receive({ payload: { outside: { humidity: 42 } } });
+                return messagePromise;
+            }).then(msg => {
+                assert.strictEqual(msg.payload.outside.temp, 55);
+                assert.strictEqual(msg.payload.outside.humidity, 42);
+                assert.strictEqual(msg.payload.meta, undefined);
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("should trigger nested cached output without counting the trigger context", function(done) {
+        const flow = buildFlow("bldgblocks-join", {
+            count: 2,
+            outputMode: "trigger",
+            excludedKeys: "status,context"
+        });
+
+        helper.load(joinNode, flow, function() {
+            const n1 = helper.getNode("n1");
+            const out = helper.getNode("out");
+
+            n1.receive({ payload: { outside: { temp: 55 } } });
+            n1.receive({ payload: { outside: { humidity: 42 } } });
+
+            expectNoMessage(out, 200).then(() => {
+                const messagePromise = waitForMessage(out, 500);
+                n1.receive({ context: "trigger" });
+                return messagePromise;
+            }).then(msg => {
+                assert.strictEqual(msg.payload.outside.temp, 55);
+                assert.strictEqual(msg.payload.outside.humidity, 42);
+                assert.strictEqual(msg.context, undefined);
+                done();
+            }).catch(done);
+        });
+    });
 });
