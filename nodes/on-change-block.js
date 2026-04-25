@@ -171,7 +171,7 @@ module.exports = function(RED) {
             const currentValue = inputValue;
 
             if (node.mode !== "pass-through" && node.blockTimer) {
-                utils.setStatusUnchanged(node, modeStatus(node, "closed"));
+                utils.setStatusUnchanged(node, `${modeStatus(node, "closed")} |`);
                 if (done) done();
                 return;
             }

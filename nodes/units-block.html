@@ -61,6 +61,10 @@
                 <option value="g">g (Gram)</option>
                 <option value="lb">lb (Pound)</option>
             </optgroup>
+            <optgroup label="Energy">
+                <option value="btu/lb">btu/lb (British Thermal Units per Pound)</option>
+                <option value="therm">therm (Therm)</option>
+            </optgroup>
             <optgroup label="Time">
                 <option value="s">s (Second)</option>
                 <option value="min">min (Minute)</option>
@@ -115,7 +119,7 @@ Appends a selected unit to `msg.units` of every input message.
 
 ### Outputs
 : payload (any) : Original payload from configured Input Property.  
-: units (string) : Selected unit (e.g., °F, %RH, inH₂O).
+: units (string) : Selected unit (e.g., °F, %RH, inH₂O, btu/lb).
 
 ### Properties
 : name (string) : Display name in editor.
@@ -125,7 +129,7 @@ Appends a selected unit to `msg.units` of every input message.
 ### Details
 Appends `msg.units` with the configured unit to every input message. The input value is read from the configured **Input Property** (default: `msg.payload`).
 Unit can be set via editor or dynamically with `msg.context = "unit"` and a valid unit in `msg.payload`.
-Supports units like °C, °F, %RH, inH₂O, CFM for HVAC and control systems.
+Supports units like °C, °F, %RH, inH₂O, CFM, and btu/lb for HVAC and control systems.
 Processes every input message, preserving all original properties, just adding `msg.units`.
 
 ### Status

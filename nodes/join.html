@@ -24,6 +24,15 @@
         <div style="font-size: 0.8em; color: #888; margin-left: 105px;">Comma separated list of properties to ignore</div>
     </div>
 
+    <hr>
+
+    <div class="form-row">
+        <label>&nbsp;</label>
+        <button type="button" id="node-btn-clear-cache" class="editor-button" style="width: calc(70% - 3px);" title="Clear the live cached key map for this deployed join node and reset its count to zero">
+            <i class="fa fa-eraser"></i> Clear Cached Keys
+        </button>
+    </div>
+
     <div class="form-tips">
         <b>Note:</b> Counts unique leaf property paths, including nested ones.
         Example: <code>msg.payload.outdoor.temp</code> counts as one cached key path and is rebuilt as nested output.
@@ -39,7 +48,7 @@
             name: { value: "" },
             count: { value: 4, required: true, validate: RED.validators.number() },
             outputMode: { value: "immediate", required: true, validate: function(v) { return ["immediate", "trigger"].includes(v); } },
-            excludedKeys: { value: "status,context" } // Default to 'status' to maintain previous behavior
+            excludedKeys: { value: "status" } // Default to 'status' to maintain previous behavior
         },
         inputs: 1,
         outputs: 1,
@@ -49,10 +58,36 @@
         },
         paletteLabel: "join",
         oneditprepare: function() {
+            const node = this;
+
             $("#node-input-outputMode").attr("title",
                 "On Input: emit whenever the cached key count reaches the configured threshold. " +
                 "On Trigger: keep caching values, but only emit when a message arrives with msg.context = 'trigger'."
             );
+
+            $("#node-btn-clear-cache").on("click", function() {
+                const btn = $(this);
+                if (!node.id) {
+                    RED.notify("Node must be deployed before clearing cached keys.", "warning");
+                    return;
+                }
+
+                btn.prop("disabled", true).find("i").removeClass("fa-eraser").addClass("fa-spinner fa-spin");
+                $.ajax({
+                    url: "join/" + node.id + "/clear-cache",
+                    type: "POST",
+                    success: function(data) {
+                        RED.notify("Join cache cleared: " + (data.statusText || "0 keys"), "success");
+                    },
+                    error: function(jqXHR) {
+                        const errMsg = jqXHR.responseJSON ? jqXHR.responseJSON.error : "Unknown error";
+                        RED.notify("Failed to clear join cache: " + errMsg, "error");
+                    },
+                    complete: function() {
+                        btn.prop("disabled", false).find("i").removeClass("fa-spinner fa-spin").addClass("fa-eraser");
+                    }
+                });
+            });
         }
     });
 </script>
@@ -79,6 +114,7 @@ and combines to root level using property names.
 4. It ignores any properties or subtrees listed in the `Exclude` configuration.
 5. In `On Input` mode, once the stored key count equals or exceeds `Key Count`, it emits the combined object on each subsequent update.
 6. In `On Trigger` mode, it keeps caching the latest values and only emits when a message arrives with `msg.context = "trigger"`.
+7. The cache is reset when the node is created on deploy/restart, and the editor includes a `Clear Cached Keys` button for manually resetting a live node.
 
 ### Status
 - Green (dot): Configuration update

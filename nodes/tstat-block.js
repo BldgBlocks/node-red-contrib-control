@@ -347,10 +347,20 @@ module.exports = function(RED) {
                 cyclesSinceModeChange
             };
 
+            const comfortInfo = {
+                source: "tstat",
+                mode: node.isHeating ? "heating" : "cooling",
+                temperature: input,
+                heatingThreshold: effectiveThresholds.heatOn,
+                coolingThreshold: effectiveThresholds.coolOn,
+                callActive: outputAbove || outputBelow,
+                callMode: outputBelow ? "heating" : outputAbove ? "cooling" : null
+            };
+
             send([
-                { payload: node.isHeating, status: statusInfo },
-                { payload: outputAbove, status: statusInfo },
-                { payload: outputBelow, status: statusInfo }
+                { payload: node.isHeating, status: statusInfo, comfort: comfortInfo },
+                { payload: outputAbove, status: statusInfo, comfort: comfortInfo },
+                { payload: outputBelow, status: statusInfo, comfort: comfortInfo }
             ]);
 
             // ----------------------------------------------------------------

@@ -1,0 +1,188 @@
+<script type="text/html" data-template-name="enum-select">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-selectedKey" title="Initial selected key"><i class="fa fa-crosshairs"></i> Initial Key</label>
+        <select id="node-input-selectedKey"></select>
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-list"></i> Keys</label>
+        <div id="node-input-keys-container" style="border: 1px solid #999; padding: 5px; margin: 5px 0; max-height: 200px; overflow-y: auto;">
+            <input type="hidden" id="node-input-keys">
+            <div class="enum-select-key-template" style="display: none;">
+                <div class="form-row enum-select-key-item" style="margin-bottom: 5px; padding: 5px; border-bottom: 1px solid #eee; display: flex; align-items: center;">
+                    <input type="text" class="node-input-key-name" placeholder="occupied" style="flex: 1; margin-right: 5px;">
+                    <button class="red-ui-button enum-select-delete-key" style="width: auto; padding: 0 8px;">
+                        <i class="fa fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="node-input-keys-list"></div>
+            <button id="node-input-add-key" class="red-ui-button" style="width: 100%; margin-top: 5px;">
+                <i class="fa fa-plus"></i> Add Key
+            </button>
+        </div>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("enum-select", {
+        category: "bldgblocks control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            keys: { value: "[]" },
+            selectedKey: { value: "" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["selected"],
+        icon: "font-awesome/fa-random",
+        paletteLabel: "enum select",
+        label: function() {
+            let count = 0;
+
+            try {
+                count = JSON.parse(this.keys || "[]").length;
+            } catch (err) {
+                count = 0;
+            }
+
+            return this.name || `enum select (${count})`;
+        },
+        oneditprepare: function() {
+            const node = this;
+            const keysList = $("#node-input-keys-list");
+            const keyTemplate = $(".enum-select-key-template").clone().removeClass("enum-select-key-template").show();
+            const selectedKeyField = $("#node-input-selectedKey");
+
+            function getKeys() {
+                const keys = [];
+
+                keysList.find(".enum-select-key-item").each(function() {
+                    const value = $(this).find(".node-input-key-name").val().trim();
+                    if (value && !keys.includes(value)) {
+                        keys.push(value);
+                    }
+                });
+
+                return keys;
+            }
+
+            function refreshSelectedKeyOptions(preferredKey) {
+                const keys = getKeys();
+                const existingValue = preferredKey !== undefined ? preferredKey : selectedKeyField.val();
+
+                selectedKeyField.empty();
+
+                if (keys.length === 0) {
+                    selectedKeyField.append($("<option></option>").attr("value", "").text("No keys configured"));
+                    selectedKeyField.val("");
+                    return;
+                }
+
+                keys.forEach(function(key) {
+                    selectedKeyField.append($("<option></option>").attr("value", key).text(key));
+                });
+
+                if (existingValue && keys.includes(existingValue)) {
+                    selectedKeyField.val(existingValue);
+                } else {
+                    selectedKeyField.val(keys[0]);
+                }
+            }
+
+            function addKeyRow(value) {
+                const row = keyTemplate.clone();
+                row.find(".node-input-key-name").val(value || "");
+                keysList.append(row);
+            }
+
+            let keys = [];
+
+            try {
+                keys = JSON.parse(node.keys || "[]");
+            } catch (err) {
+                keys = [];
+            }
+
+            keys.forEach(function(key) {
+                addKeyRow(key);
+            });
+
+            refreshSelectedKeyOptions(node.selectedKey || "");
+
+            $("#node-input-add-key").on("click", function(evt) {
+                evt.preventDefault();
+                addKeyRow("");
+                refreshSelectedKeyOptions();
+            });
+
+            keysList.on("click", ".enum-select-delete-key", function(evt) {
+                evt.preventDefault();
+                $(this).closest(".enum-select-key-item").remove();
+                refreshSelectedKeyOptions();
+            });
+
+            keysList.on("input", ".node-input-key-name", function() {
+                refreshSelectedKeyOptions();
+            });
+        },
+        oneditsave: function() {
+            const keys = [];
+
+            $("#node-input-keys-list .enum-select-key-item").each(function() {
+                const value = $(this).find(".node-input-key-name").val().trim();
+                if (value && !keys.includes(value)) {
+                    keys.push(value);
+                }
+            });
+
+            $("#node-input-keys").val(JSON.stringify(keys));
+
+            const selectedKey = $("#node-input-selectedKey").val();
+            this.selectedKey = keys.includes(selectedKey) ? selectedKey : (keys[0] || "");
+        },
+        oneditresize: function(size) {
+            $("#node-input-keys-container").height(size.height - 180);
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="enum-select">
+Selects one input by enum key.
+
+### Inputs
+: context (string) : Use `"switch"` to change the active key, `"reset"` to clear stored values, or any configured key name such as `occupied` or `unoccupied`.
+: payload (any) : Key name for `"switch"`; flow data for configured key inputs.
+
+### Outputs
+: selected (msg) : Emits the selected message. The output preserves the original message and adds `msg.selectedKey`.
+
+### Properties
+: initial key (string) : Key selected when the node starts.
+: keys (list) : Allowed key names, such as `occupied`, `unoccupied`, `standby`.
+
+### Details
+Set the active key with `msg.context = "switch"` and the desired key in `msg.payload`.
+
+Send messages to the configured key names directly.
+If the active key is updated, the node outputs that message.
+If the active key changes, the node outputs the last value received for that key.
+
+Use `"reset"` to clear stored values.
+
+### Status
+- Green (dot): Input updated
+- Blue (dot): Selected output changed
+- Blue (ring): Repeated switch to the same selected key
+- Red (ring): Error
+- Yellow (ring): Warning
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-control.git)
+</script>

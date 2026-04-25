@@ -66,8 +66,9 @@
 
     <!-- Shared hysteresis time option -->
     <div class="form-row">
-        <label for="node-input-hysteresisTime"><i class="fa fa-hourglass-start"></i> Hysteresis Time</label>
-        <input type="number" id="node-input-hysteresisTime" placeholder="500" step="50" min="0">
+        <label for="node-input-hysteresisTime"><i class="fa fa-hourglass-start"></i> Hysteresis Time (s)</label>
+        <input type="number" id="node-input-hysteresisTime" placeholder="0.5" step="0.1" min="0">
+        <input type="hidden" id="node-input-hysteresisTimeUnit">
     </div>
 
     <!-- Alarm Message Properties -->
@@ -94,9 +95,15 @@
     </div>
 
     <div class="form-row">
-        <label for="node-input-message"><i class="fa fa-comment"></i> Message</label>
-        <input type="text" id="node-input-message" placeholder="Zone exceeds setpoint">
-        <input type="hidden" id="node-input-messageType">
+        <label for="node-input-onMessage"><i class="fa fa-bell"></i> On Message</label>
+        <input type="text" id="node-input-onMessage" placeholder="Zone exceeds setpoint">
+        <input type="hidden" id="node-input-onMessageType">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-offMessage"><i class="fa fa-bell-slash"></i> Off Message</label>
+        <input type="text" id="node-input-offMessage" placeholder="Zone returned to normal">
+        <input type="hidden" id="node-input-offMessageType">
     </div>
 
     <div class="form-row">
@@ -126,13 +133,18 @@
             highThreshold: { value: 85 },
             lowThreshold: { value: 68 },
             compareMode: { value: "either" },
-            hysteresisTime: { value: 500 },
+            hysteresisTime: { value: 0.5 },
+            hysteresisTimeUnit: { value: "seconds" },
             hysteresisMagnitude: { value: 2 },
             priority: { value: "high" },
             topic: { value: "Alarms_Default" },
             title: { value: "Alarm" },
             message: { value: "Condition active" },
             messageType: { value: "str" },
+            onMessage: { value: "Condition active" },
+            onMessageType: { value: "str" },
+            offMessage: { value: "Condition cleared" },
+            offMessageType: { value: "str" },
             tags: { value: "" },
             units: { value: "°F" }
         },
@@ -147,6 +159,15 @@
         },
         oneditprepare: function() {
             const node = this;
+
+            if (node.hysteresisTimeUnit === "seconds") {
+                $("#node-input-hysteresisTime").val(node.hysteresisTime ?? 0.5);
+            } else {
+                const legacyMilliseconds = parseFloat(node.hysteresisTime);
+                const displaySeconds = isNaN(legacyMilliseconds) ? 0.5 : legacyMilliseconds / 1000;
+                $("#node-input-hysteresisTime").val(displaySeconds);
+            }
+            $("#node-input-hysteresisTimeUnit").val("seconds");
 
             // Build searchable list of global-setter nodes
             var candidateNodes = [];
@@ -199,14 +220,22 @@
                 typeField: "#node-input-inputFieldType"
             }).typedInput("type", node.inputFieldType || "msg").typedInput("value", node.inputField || "payload");
 
-            // Setup message typedInput: static string or from msg property
-            $("#node-input-message").typedInput({
+            // Setup on/off message typedInputs: static string or from msg property
+            $("#node-input-onMessage").typedInput({
                 types: [
                     "str",
                     "msg"
                 ],
-                typeField: "#node-input-messageType"
-            }).typedInput("type", node.messageType || "str").typedInput("value", node.message || "Condition active");
+                typeField: "#node-input-onMessageType"
+            }).typedInput("type", node.onMessageType || node.messageType || "str").typedInput("value", node.onMessage || node.message || "Condition active");
+
+            $("#node-input-offMessage").typedInput({
+                types: [
+                    "str",
+                    "msg"
+                ],
+                typeField: "#node-input-offMessageType"
+            }).typedInput("type", node.offMessageType || "str").typedInput("value", node.offMessage || "Condition cleared");
 
             // Show/hide sections based on inputMode
             const updateDisplay = () => {
@@ -245,13 +274,19 @@ Monitors a condition and emits alarm events on state transitions.
 
 ### Hysteresis
 
-**Time-based**: Condition must persist for N milliseconds before triggering alarm or clearing it
+**Time-based**: Condition must persist for N seconds before triggering alarm or clearing it
 - Prevents false alarms from sensor noise
-- Configurable delay (default 500ms)
+- Configurable delay (default 0.5s)
 
 **Magnitude-based** (numeric mode only): Additional deadband before clearing alarm
 - Requires sensor to move away from threshold to prevent chatter
 - Example: highThreshold=85, magnitude=2 requires cool to 83°F to clear (not 84°F)
+
+### Messages
+
+- **On Message**: Sent when the alarm transitions from cleared to active
+- **Off Message**: Sent when the alarm transitions from active to cleared
+- Both messages can be static strings or resolved from `msg.*`
 
 ### Event Emission
 

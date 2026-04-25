@@ -23,13 +23,16 @@ function buildAlarmFlow(collectorOverrides = {}) {
             highThreshold: "50",
             lowThreshold: "10",
             compareMode: "high-only",
-            hysteresisTime: "100",
+            hysteresisTime: "0.1",
+            hysteresisTimeUnit: "seconds",
             hysteresisMagnitude: "2",
             priority: "normal",
             topic: "Alarms_Test",
             title: "Test Alarm",
-            message: "Test condition",
-            messageType: "str",
+            onMessage: "Test condition",
+            onMessageType: "str",
+            offMessage: "Test condition cleared",
+            offMessageType: "str",
             tags: "",
             units: "°F",
             sourceNodeType: "wired",
@@ -81,9 +84,20 @@ describe("alarm-collector", function () {
             assert.strictEqual(n1.name, "test-alarm");
             assert.strictEqual(n1.highThreshold, 50);
             assert.strictEqual(n1.lowThreshold, 10);
-            assert.strictEqual(n1.hysteresisTime, 100);
+            assert.strictEqual(n1.hysteresisTime, 0.1);
+            assert.strictEqual(n1.hysteresisTimeMs, 100);
             assert.strictEqual(n1.hysteresisMagnitude, 2);
             assert.strictEqual(n1.compareMode, "high-only");
+            done();
+        });
+    });
+
+    it("should support legacy millisecond hysteresis configs", function (done) {
+        const flow = buildAlarmFlow({ hysteresisTime: "100", hysteresisTimeUnit: undefined });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, function () {
+            const n1 = helper.getNode("n1");
+            assert.strictEqual(n1.hysteresisTime, 0.1);
+            assert.strictEqual(n1.hysteresisTimeMs, 100);
             done();
         });
     });
@@ -104,7 +118,7 @@ describe("alarm-collector", function () {
     // High-only threshold: alarm activates after hysteresis time
     // ========================================================================
     it("should activate alarm after value exceeds high threshold for hysteresisTime", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "100" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.1" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -131,7 +145,7 @@ describe("alarm-collector", function () {
     // High-only threshold: alarm does NOT fire if condition clears before timer
     // ========================================================================
     it("should NOT activate alarm if value drops below threshold within hysteresis time", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "200" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.2" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -160,7 +174,7 @@ describe("alarm-collector", function () {
     // ========================================================================
     it("should keep alarm active while value is within magnitude hysteresis band", function (done) {
         // highThreshold=50, hysteresisMagnitude=2 → clearThreshold=48
-        const flow = buildAlarmFlow({ hysteresisTime: "50", hysteresisMagnitude: "2" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.05", hysteresisMagnitude: "2" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -186,7 +200,7 @@ describe("alarm-collector", function () {
     // ========================================================================
     it("should clear alarm when value drops below hysteresis band", function (done) {
         // highThreshold=50, hysteresisMagnitude=2 → clearThreshold=48
-        const flow = buildAlarmFlow({ hysteresisTime: "50", hysteresisMagnitude: "2" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.05", hysteresisMagnitude: "2" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -222,7 +236,7 @@ describe("alarm-collector", function () {
     // ========================================================================
     it("should clear alarm on LATER update that exits hysteresis band (regression)", function (done) {
         // highThreshold=50, hysteresisMagnitude=2 → Schmitt effectiveHigh=48 when active
-        const flow = buildAlarmFlow({ hysteresisTime: "50", hysteresisMagnitude: "2" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.05", hysteresisMagnitude: "2" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -262,7 +276,7 @@ describe("alarm-collector", function () {
         const flow = buildAlarmFlow({
             highThreshold: "50",
             hysteresisMagnitude: "2",
-            hysteresisTime: "50",  // shortened for test speed (real: 60000)
+            hysteresisTime: "0.05",
             compareMode: "high-only"
         });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
@@ -300,7 +314,7 @@ describe("alarm-collector", function () {
         const flow = buildAlarmFlow({
             compareMode: "low-only",
             lowThreshold: "10",
-            hysteresisTime: "50",
+            hysteresisTime: "0.05",
             hysteresisMagnitude: "2"
         });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
@@ -343,7 +357,7 @@ describe("alarm-collector", function () {
             compareMode: "either",
             highThreshold: "50",
             lowThreshold: "10",
-            hysteresisTime: "50",
+            hysteresisTime: "0.05",
             hysteresisMagnitude: "2"
         });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
@@ -379,7 +393,7 @@ describe("alarm-collector", function () {
         const flow = buildAlarmFlow({
             inputMode: "boolean",
             alarmWhenTrue: true,
-            hysteresisTime: "50"
+            hysteresisTime: "0.05"
         });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
@@ -407,7 +421,7 @@ describe("alarm-collector", function () {
         const flow = buildAlarmFlow({
             inputMode: "boolean",
             alarmWhenTrue: false,
-            hysteresisTime: "50"
+            hysteresisTime: "0.05"
         });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
@@ -450,7 +464,7 @@ describe("alarm-collector", function () {
     // Numeric string input
     // ========================================================================
     it("should parse numeric string input correctly", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "50" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.05" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -468,7 +482,7 @@ describe("alarm-collector", function () {
     // Registry update: alarm-config reflects state changes
     // ========================================================================
     it("should update alarm-config registry on state transitions", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "50" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.05" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const ac = helper.getNode("ac1");
@@ -497,7 +511,7 @@ describe("alarm-collector", function () {
     // Deduplication: emitAlarmEvent should not re-emit same state
     // ========================================================================
     it("should not emit duplicate events for same state", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "50" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.05" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -521,7 +535,7 @@ describe("alarm-collector", function () {
     // Cleanup: timers and listeners removed on close
     // ========================================================================
     it("should cleanup timers on close", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "500" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.5" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
 
@@ -542,7 +556,7 @@ describe("alarm-collector", function () {
     // Event data: verify event payload structure
     // ========================================================================
     it("should emit event with correct structure", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "50" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.05" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -560,8 +574,29 @@ describe("alarm-collector", function () {
             assert.strictEqual(evt.topic, "Alarms_Test");
             assert.strictEqual(evt.title, "Test Alarm");
             assert.strictEqual(evt.message, "Test condition");
+            assert.strictEqual(evt.onMessage, "Test condition");
+            assert.strictEqual(evt.offMessage, "Test condition cleared");
             assert.strictEqual(evt.units, "°F");
             assert.ok(evt.timestamp, "timestamp should exist");
+            capture.cleanup();
+            done();
+        });
+    });
+
+    it("should emit the configured off-message on alarm clear", function (done) {
+        const flow = buildAlarmFlow({ hysteresisTime: "0.05", compareMode: "high-only" });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
+            const n1 = helper.getNode("n1");
+            const capture = captureAlarmEvents(helper._RED);
+
+            await sendAndSettle(n1, 55);
+            await wait(80);
+            await sendAndSettle(n1, 40);
+            await wait(80);
+
+            assert.strictEqual(capture.events.length, 2);
+            assert.strictEqual(capture.events[1].state, false);
+            assert.strictEqual(capture.events[1].message, "Test condition cleared");
             capture.cleanup();
             done();
         });
@@ -571,7 +606,7 @@ describe("alarm-collector", function () {
     // Hysteresis time: condition must stay true for full duration
     // ========================================================================
     it("should reset hysteresis timer if condition toggles", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "150" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.15" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -607,7 +642,7 @@ describe("alarm-collector", function () {
     // duplicate alarms for the same sustained condition.
     // ========================================================================
     it("should not re-alarm when value briefly dips below threshold", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "150", hysteresisMagnitude: "0" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.15", hysteresisMagnitude: "0" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -642,7 +677,7 @@ describe("alarm-collector", function () {
     // Clearing time hysteresis: condition must be false for full duration
     // ========================================================================
     it("should not clear alarm until condition is false for full hysteresisTime", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "150" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.15" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -676,7 +711,7 @@ describe("alarm-collector", function () {
         const flow = buildAlarmFlow({
             compareMode: "low-only",
             lowThreshold: "10",
-            hysteresisTime: "50",
+            hysteresisTime: "0.05",
             hysteresisMagnitude: "2"
         });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
@@ -724,7 +759,7 @@ describe("alarm-collector", function () {
                 highThreshold: "50",
                 lowThreshold: "10",
                 compareMode: "high-only",
-                hysteresisTime: "50",
+                hysteresisTime: "0.05",
                 hysteresisMagnitude: "1",
                 priority: "normal",
                 topic: "Test",
@@ -752,7 +787,7 @@ describe("alarm-collector", function () {
     // (Note: hysteresisMagnitude=0 is parsed as default 2 via `|| 2` fallback)
     // ========================================================================
     it("should clear with small magnitude hysteresis", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "50", hysteresisMagnitude: "0.5" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.05", hysteresisMagnitude: "0.5" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);
@@ -782,7 +817,7 @@ describe("alarm-collector", function () {
     // Full cycle: activate → stay active → clear → reactivate
     // ========================================================================
     it("should support full alarm lifecycle", function (done) {
-        const flow = buildAlarmFlow({ hysteresisTime: "50", hysteresisMagnitude: "2" });
+        const flow = buildAlarmFlow({ hysteresisTime: "0.05", hysteresisMagnitude: "2" });
         helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
             const n1 = helper.getNode("n1");
             const capture = captureAlarmEvents(helper._RED);

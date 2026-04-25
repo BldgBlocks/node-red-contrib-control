@@ -21,6 +21,10 @@ module.exports = function(RED) {
             exclusionString.split(',').map(s => s.trim()).filter(s => s.length > 0)
         );
 
+        function clearValueMap() {
+            node.context().set("valueMap", {});
+        }
+
         function shouldExcludePath(path) {
             for (const excludedPath of excludedSet) {
                 if (path === excludedPath || path.startsWith(`${excludedPath}.`)) {
@@ -88,6 +92,23 @@ module.exports = function(RED) {
 
             return `${currentCount}/${node.targetCount} keys`;
         }
+
+        node.clearCache = function() {
+            clearValueMap();
+            const statusText = buildStatusText(0);
+            utils.setStatusOK(node, `cleared: ${statusText}`);
+
+            return {
+                currentCount: 0,
+                targetCount: node.targetCount,
+                outputMode: node.outputMode,
+                statusText
+            };
+        };
+
+        // Reset persisted context on node creation so a deploy/restart starts with an empty cache.
+        clearValueMap();
+        utils.setStatusOK(node, buildStatusText(0));
 
         function emitJoinedMessage(valueMap, send) {
             const outputMsg = {};
@@ -157,6 +178,7 @@ module.exports = function(RED) {
         });
 
         node.on('close', function(removed, done) {
+            node.clearCache = null;
             if (removed) {
                 node.context().set("valueMap", undefined);
             }
@@ -164,4 +186,25 @@ module.exports = function(RED) {
         });
     }
     RED.nodes.registerType("bldgblocks-join", BldgBlocksJoinNode);
+
+    RED.httpAdmin.post('/join/:id/clear-cache', RED.auth.needsPermission('join.write'), function(req, res) {
+        const targetNode = RED.nodes.getNode(req.params.id);
+        if (!targetNode || typeof targetNode.clearCache !== "function") {
+            return res.status(404).json({ error: "Node not found" });
+        }
+
+        try {
+            const result = targetNode.clearCache();
+            return res.status(200).json({
+                message: "Cache cleared",
+                currentCount: result.currentCount,
+                targetCount: result.targetCount,
+                outputMode: result.outputMode,
+                statusText: result.statusText
+            });
+        } catch (err) {
+            targetNode.error(`Clear cache error: ${err.message}`);
+            return res.status(500).json({ error: err.message });
+        }
+    });
 }

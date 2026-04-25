@@ -1,9 +1,37 @@
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
 
+    function parseHysteresisTime(config) {
+        const rawValue = parseFloat(config.hysteresisTime);
+        const hasNumericValue = !isNaN(rawValue);
+        const unit = config.hysteresisTimeUnit || "legacy-ms";
+
+        if (!hasNumericValue) {
+            return {
+                seconds: 0.5,
+                milliseconds: 500
+            };
+        }
+
+        if (unit === "seconds") {
+            const seconds = rawValue < 0 ? 0 : rawValue;
+            return {
+                seconds,
+                milliseconds: Math.round(seconds * 1000)
+            };
+        }
+
+        const milliseconds = rawValue < 0 ? 0 : rawValue;
+        return {
+            seconds: milliseconds / 1000,
+            milliseconds
+        };
+    }
+
     function AlarmCollectorNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
+        const hysteresisConfig = parseHysteresisTime(config);
 
         // Initialize configuration
         node.name = config.name || "alarm-collector";
@@ -14,13 +42,16 @@ module.exports = function(RED) {
         node.highThreshold = parseFloat(config.highThreshold) || 85;
         node.lowThreshold = parseFloat(config.lowThreshold) || 68;
         node.compareMode = config.compareMode || "either";
-        node.hysteresisTime = parseInt(config.hysteresisTime) || 500;
+        node.hysteresisTime = hysteresisConfig.seconds;
+        node.hysteresisTimeMs = hysteresisConfig.milliseconds;
         node.hysteresisMagnitude = parseFloat(config.hysteresisMagnitude) || 2;
         node.priority = config.priority || "normal";
         node.topic = config.topic || "Alarms_Default";
         node.title = config.title || "Alarm";
-        node.message = config.message || "Condition active";
-        node.messageType = config.messageType || "str";
+        node.onMessage = config.onMessage || config.message || "Condition active";
+        node.onMessageType = config.onMessageType || config.messageType || "str";
+        node.offMessage = config.offMessage || "Condition cleared";
+        node.offMessageType = config.offMessageType || "str";
         node.tags = config.tags || "";
         node.units = config.units || "";
 
@@ -53,7 +84,7 @@ module.exports = function(RED) {
                 severity: node.priority,
                 status: 'cleared',
                 title: node.title,
-                message: node.message,
+                message: node.offMessage,
                 topic: node.topic,
                 value: null,
                 timestamp: new Date().toISOString()
@@ -124,7 +155,7 @@ module.exports = function(RED) {
                             emitAlarmEvent(node.alarmState ? "false → true" : "true → false");
                         }
                         node.hysteresisTimer = null;
-                    }, node.hysteresisTime);
+                    }, node.hysteresisTimeMs);
                 }
             }
 
@@ -150,12 +181,17 @@ module.exports = function(RED) {
         // ====================================================================
         // Emit alarm event (only on state transition)
         // ====================================================================
+        function getCurrentMessage() {
+            return node.alarmState ? node.onMessage : node.offMessage;
+        }
+
         function emitAlarmEvent(transition) {
             if (node.lastEmittedState === node.alarmState) {
                 return;
             }
 
             node.lastEmittedState = node.alarmState;
+            const currentMessage = getCurrentMessage();
 
             const eventData = {
                 nodeId: node.id,
@@ -168,7 +204,9 @@ module.exports = function(RED) {
                 priority: node.priority,
                 topic: node.topic,
                 title: node.title,
-                message: node.message,
+                message: currentMessage,
+                onMessage: node.onMessage,
+                offMessage: node.offMessage,
                 tags: node.tags,
                 units: node.units,
                 timestamp: new Date().toISOString(),
@@ -182,7 +220,7 @@ module.exports = function(RED) {
                     severity: node.priority,
                     status: node.alarmState ? 'active' : 'cleared',
                     title: node.title,
-                    message: node.message,
+                    message: currentMessage,
                     topic: node.topic,
                     value: node.currentValue,
                     timestamp: new Date().toISOString()
@@ -254,15 +292,26 @@ module.exports = function(RED) {
                     }
                 }
 
-                // Resolve message dynamically if configured as msg property
-                if (node.messageType === "msg") {
+                // Resolve on/off messages dynamically if configured as msg properties
+                if (node.onMessageType === "msg") {
                     try {
-                        const resolved = await utils.evaluateNodeProperty(config.message, "msg", node, msg);
-                        if (resolved !== undefined && resolved !== null) {
-                            node.message = String(resolved);
+                        const resolvedOn = await utils.evaluateNodeProperty(config.onMessage || config.message, "msg", node, msg);
+                        if (resolvedOn !== undefined && resolvedOn !== null) {
+                            node.onMessage = String(resolvedOn);
                         }
                     } catch (e) {
-                        // Keep existing message on error
+                        // Keep existing on-message on error
+                    }
+                }
+
+                if (node.offMessageType === "msg") {
+                    try {
+                        const resolvedOff = await utils.evaluateNodeProperty(config.offMessage, "msg", node, msg);
+                        if (resolvedOff !== undefined && resolvedOff !== null) {
+                            node.offMessage = String(resolvedOff);
+                        }
+                    } catch (e) {
+                        // Keep existing off-message on error
                     }
                 }
 

@@ -362,11 +362,21 @@ module.exports = function(RED) {
         function buildOutputs(msg) {
             const isHeating = node.currentMode === "heating";
             const { heating: effectiveHeating, cooling: effectiveCooling } = getThresholds();
+            const comfort = {
+                source: "changeover",
+                mode: node.currentMode,
+                temperature: node.lastTemperature,
+                heatingThreshold: effectiveHeating,
+                coolingThreshold: effectiveCooling,
+                callActive: null,
+                callMode: null
+            };
 
             // Preserve all original message properties (e.g., singleSetpoint, splitHeatingSetpoint)
             // and add/overwrite changeover-specific fields
             msg.payload = node.lastTemperature;
             msg.isHeating = isHeating;
+            msg.comfort = comfort;
             msg.status = {
                 mode: node.currentMode,
                 operationMode: node.operationMode,

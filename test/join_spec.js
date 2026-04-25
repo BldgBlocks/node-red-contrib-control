@@ -153,4 +153,35 @@ describe("bldgblocks-join", function() {
             }).catch(done);
         });
     });
+
+    it("should clear the cached key map when clearCache is called", function(done) {
+        const flow = buildFlow("bldgblocks-join", {
+            count: 2,
+            excludedKeys: "status"
+        });
+
+        helper.load(joinNode, flow, function() {
+            const n1 = helper.getNode("n1");
+            const out = helper.getNode("out");
+
+            n1.receive({ a: 1 });
+
+            expectNoMessage(out, 200).then(() => {
+                const result = n1.clearCache();
+                assert.strictEqual(result.currentCount, 0);
+
+                n1.receive({ b: 2 });
+                return expectNoMessage(out, 200);
+            }).then(() => {
+                const messagePromise = waitForMessage(out, 500);
+                n1.receive({ c: 3 });
+                return messagePromise;
+            }).then(msg => {
+                assert.strictEqual(msg.a, undefined);
+                assert.strictEqual(msg.b, 2);
+                assert.strictEqual(msg.c, 3);
+                done();
+            }).catch(done);
+        });
+    });
 });
