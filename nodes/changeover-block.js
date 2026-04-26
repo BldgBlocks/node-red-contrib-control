@@ -369,7 +369,7 @@ module.exports = function(RED) {
                 heatingThreshold: effectiveHeating,
                 coolingThreshold: effectiveCooling,
                 callActive: null,
-                callMode: null
+                callMode: "idle"
             };
 
             // Preserve all original message properties (e.g., singleSetpoint, splitHeatingSetpoint)
