@@ -1,0 +1,78 @@
+<script type="text/html" data-template-name="pulse-block">
+    <div class="form-row">
+        <label for="node-input-name" title="Display name shown on the canvas"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-interval" title="Repeat interval for the cached input value"><i class="fa fa-repeat"></i> Interval</label>
+        <input type="number" id="node-input-interval" placeholder="1" min="0.001" step="any" style="width: 70%;">
+        <select id="node-input-intervalUnits" style="width: 28%; margin-left: 2%;">
+            <option value="milliseconds">ms</option>
+            <option value="seconds">sec</option>
+            <option value="minutes">min</option>
+        </select>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("pulse-block", {
+        category: "bldgblocks control",
+        color: "#301934",
+        defaults: {
+            name: { value: "" },
+            interval: {
+                value: 1,
+                required: true,
+                validate: function(v) {
+                    return !isNaN(parseFloat(v)) && parseFloat(v) > 0 && isFinite(parseFloat(v));
+                }
+            },
+            intervalUnits: { value: "seconds" }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ["input"],
+        outputLabels: ["pulse"],
+        icon: "font-awesome/fa-repeat",
+        paletteLabel: "pulse",
+        label: function() {
+            return this.name || "pulse";
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="pulse-block">
+Repeats the most recent input payload at a fixed interval.
+
+### Inputs
+: payload (any) : Any non-context message becomes the cached output value and is emitted immediately, then repeated.
+: context (string) : Configuration commands - `"interval"`, `"command"`, `"reset"`.
+: payload (number | string | boolean) : Positive number for `"interval"`, `"start"` or `"stop"` for `"command"`, boolean for `"reset"`.
+: units (string) : Optional for `"interval"` updates - `"milliseconds"`, `"seconds"`, or `"minutes"`.
+
+### Outputs
+: payload (any) : Exact cached payload from the last non-context input.
+
+### Properties
+: interval (number) : Repeat interval.
+: intervalUnits (string) : Interval units (`milliseconds`, `seconds`, `minutes`).
+
+### Details
+`pulse` is a debug/testing helper node. Send any regular message into it and that message becomes the cached value.
+
+The node emits the cached message immediately and continues repeating it on the configured interval until stopped or reset.
+
+Values like `false` and `0` are preserved exactly and continue repeating without being treated as empty.
+
+Use `msg.context = "command"` with `msg.payload = "stop"` to pause repeating, `"start"` to resume the cached value, and `msg.context = "reset"` with `msg.payload = true` to clear the cached message.
+
+### Status
+- Green (dot): Configuration update
+- Blue (dot): Repeated output emitted
+- Red (ring): Error
+- Yellow (ring): Warning or stopped/reset state
+
+### References
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [GitHub Repository](https://github.com/BldgBlocks/node-red-contrib-buildingblocks-control.git)
+</script>

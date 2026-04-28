@@ -20,6 +20,18 @@
         </select>
     </div>
     <div class="form-row">
+        <label for="node-input-algorithm" title="Estimator used for rate calculation"><i class="fa fa-sliders"></i> Algorithm</label>
+        <select id="node-input-algorithm">
+            <option value="linear-regression">Linear Regression</option>
+            <option value="robust-slope">Robust Slope</option>
+            <option value="alpha-beta">Alpha-Beta Tracker</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-minimumWindowSpan" title="Minimum elapsed span before non-zero output is allowed"><i class="fa fa-hourglass-half"></i> Warmup Span (s)</label>
+        <input type="number" id="node-input-minimumWindowSpan" placeholder="30" min="0" step="1">
+    </div>
+    <div class="form-row">
         <label for="node-input-minValid"><i class="fa fa-arrow-down"></i> Minimum Valid Temp</label>
         <input type="text" id="node-input-minValid" placeholder="-40">
         <input type="hidden" id="node-input-minValidType">
@@ -44,6 +56,12 @@
                 validate: function(v) { return !isNaN(parseInt(v)) && parseInt(v) >= 2; }
             },
             units: { value: "minutes" },
+            algorithm: { value: "linear-regression" },
+            minimumWindowSpan: {
+                value: 30,
+                required: true,
+                validate: function(v) { return !isNaN(parseFloat(v)) && parseFloat(v) >= 0; }
+            },
             minValid: { value: -40, required: true },
             minValidType: { value: "num" },
             maxValid: { value: 150, required: true },
@@ -77,6 +95,8 @@
                 
                 // Set units dropdown
                 $("#node-input-units").val(node.units || "minutes");
+                $("#node-input-algorithm").val(node.algorithm || "linear-regression");
+                $("#node-input-minimumWindowSpan").val(node.minimumWindowSpan || 30);
             } catch (err) {
                 console.error("Error in oneditprepare:", err);
             }
@@ -95,19 +115,31 @@ Calculates the rate of value change over time.
 
 ### Outputs
 : payload (number | null) : Rate of change in value per time unit.
+: rawRate (number | null) : Unquantized slope estimate before warmup gating and output rounding.
 : samples (number) : Current number of samples in buffer.
 : units (string) : Rate units ("per second", "per minute", "per hour").
 : currentValue (number) : Most recent value.
 : timeSpan (number) : Time span of sample buffer in seconds.
+: warming (boolean) : `true` while the elapsed sample span is below the configured warmup span.
 
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read values from (default `payload`). Supports nested properties (e.g., `data.value`).
 : sampleSize (number) : Number of samples to maintain (≥ 2).
 : rateUnits (string) : Units for rate output (`"seconds"`, `"minutes"`, `"hours"`).
+: algorithm (string) : Estimator for the recent trend: `linear-regression`, `robust-slope`, or `alpha-beta`.
+: minimumWindowSpan (number) : Minimum elapsed sample span in seconds before non-zero output is allowed.
 
 ### Details
-Tracks value changes over a rolling window of samples. Calculates rate as `(last_value - first_value) / time_difference`.
+Tracks value changes over a rolling window of samples and estimates rate with the selected windowed slope estimator.
+
+`Linear Regression` is the default and represents the average recent slope across the retained window.
+
+`Robust Slope` uses a Theil-Sen median slope for cases where one or two samples should have less influence on the reported trend.
+
+`Alpha-Beta Tracker` is an optional momentum-based, stateful estimator. It preserves tracker-style behavior across messages, so once it gains momentum it can settle into a smooth trend, but it is more model-based than the two windowed slope options.
+
+The node emits immediately from the first valid sample. Public output starts at `0.00` and remains there while the retained sample span is below `Warmup Span`, even though `rawRate` may already be changing internally.
 
 Useful for detecting system issues like rapid changes, droop, or anomalies.
 
@@ -115,6 +147,8 @@ Configuration via `msg.context`
 - `"reset"` Clears sample buffer (no output).
 - `"sampleSize"` Changes number of samples with numeric `msg.payload`.
 - `"units"` Changes rate units with `msg.payload` as `"seconds"`, `"minutes"`, or `"hours"`.
+- `"algorithm"` Changes estimator with `msg.payload` as `"linear-regression"`, `"robust-slope"`, or `"alpha-beta"`.
+- `"minimumWindowSpan"` Changes warmup span in seconds with numeric `msg.payload`.
 
 ### Status
 - Green (dot): Configuration update

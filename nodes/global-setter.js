@@ -11,6 +11,7 @@ module.exports = function(RED) {
         node.defaultValue = config.defaultValue;
         node.writePriority = config.writePriority;
         node.type = config.defaultValueType;
+        node.showStatus = config.showStatus !== false;
         node.isBusy = false;
         
         if(!isNaN(node.defaultValue) && node.defaultValue !== "") node.defaultValue = Number(node.defaultValue);
@@ -38,6 +39,34 @@ module.exports = function(RED) {
             };
         }
 
+        function formatStatusValue(value, units = "") {
+            let display = value;
+            if (display === null) display = "null";
+            else if (display === undefined) display = "undefined";
+            else if (typeof display === "object") display = JSON.stringify(display);
+            else display = String(display);
+
+            if (display.length > 64) {
+                display = display.substring(0, 64) + "...";
+            }
+
+            return `${display}${units || ""}`;
+        }
+
+        function buildStatusText(verb, writeSlotLabel, inputValue, activeLabel, activeValue, units = "") {
+            if (!node.showStatus) {
+                return `${verb}: ${writeSlotLabel} > active: ${activeLabel}`;
+            }
+            return `${verb}: ${writeSlotLabel}:${formatStatusValue(inputValue, units)} > active: ${activeLabel}:${formatStatusValue(activeValue, units)}`;
+        }
+
+        function buildReloadStatusText(activeLabel, activeValue, units = "") {
+            if (!node.showStatus) {
+                return `reload: ${activeLabel}`;
+            }
+            return `reload: ${activeLabel}:${formatStatusValue(activeValue, units)}`;
+        }
+
         // --- ASYNC INITIALIZATION (IIFE) ---
         // This runs in background immediately after deployment
         (async function initialize() {
@@ -52,9 +81,17 @@ module.exports = function(RED) {
                     // If not, set default
                     state = buildDefaultState();
                     await utils.setGlobalState(node, node.varName, node.storeName, state);
-                    utils.setStatusOK(node, `initialized: default:${node.defaultValue}`);
+                    if (node.showStatus) {
+                        utils.setStatusOK(node, `initialized: default:${formatStatusValue(node.defaultValue)}`);
+                    } else {
+                        utils.setStatusOK(node, "initialized");
+                    }
                 } else {
-                    utils.setStatusOK(node, `loaded: ${state.value}`);
+                    if (node.showStatus) {
+                        utils.setStatusOK(node, `loaded: ${formatStatusValue(state.value, state.units)}`);
+                    } else {
+                        utils.setStatusOK(node, "loaded");
+                    }
                 }
                 
                 // Send properly formed state object downstream after full initialization
@@ -172,7 +209,7 @@ module.exports = function(RED) {
                     await utils.setGlobalState(node, node.varName, node.storeName, state);
                     
                     const activeLabel = state.activePriority === 'default' ? 'default' : (state.activePriority === 'fallback' ? 'fallback' : `P${state.activePriority}`);
-                    const statusText = `reload: ${activeLabel}:${state.value}${state.units || ''}`;
+                    const statusText = buildReloadStatusText(activeLabel, state.value, state.units);
                     
                     return utils.sendSuccess(node, { ...state }, done, statusText, null, "dot");
                 }
@@ -215,7 +252,7 @@ module.exports = function(RED) {
                     }
                     const writeSlotLabel = isFallbackWrite ? 'fallback' : `P${activePrioritySlot}`;
                     const activeLabel = state.activePriority === 'default' ? 'default' : (state.activePriority === 'fallback' ? 'fallback' : `P${state.activePriority}`);
-                    const noChangeText = `no change: ${writeSlotLabel}:${inputValue} > active: ${activeLabel}:${state.value}${state.units || ''}`;
+                    const noChangeText = buildStatusText("no change", writeSlotLabel, inputValue, activeLabel, state.value, state.units);
                     utils.setStatusUnchanged(node, noChangeText);
                     // Pass message through even if no context change
                     send({ ...state });
@@ -255,7 +292,7 @@ module.exports = function(RED) {
 
                 const writeSlotLabel = isFallbackWrite ? 'fallback' : `P${activePrioritySlot}`;
                 const activeLabel = state.activePriority === 'default' ? 'default' : (state.activePriority === 'fallback' ? 'fallback' : `P${state.activePriority}`);
-                const statusText = `write: ${writeSlotLabel}:${inputValue}${state.units || ''} > active: ${activeLabel}:${state.value}${state.units || ''}`;
+                const statusText = buildStatusText("write", writeSlotLabel, inputValue, activeLabel, state.value, state.units);
 
                 RED.events.emit("bldgblocks:global:value-changed", {
                     key: node.varName,
@@ -319,7 +356,19 @@ module.exports = function(RED) {
                 data: state
             });
             const activeLabel = state.activePriority === 'default' ? 'default' : (state.activePriority === 'fallback' ? 'fallback' : `P${state.activePriority}`);
-            utils.setStatusOK(targetNode, `cleared: active: ${activeLabel}:${state.value}`);
+            let clearedStatus = `cleared: active: ${activeLabel}`;
+            if (targetNode.showStatus !== false) {
+                let activeValue = state.value;
+                if (activeValue === null) activeValue = "null";
+                else if (activeValue === undefined) activeValue = "undefined";
+                else if (typeof activeValue === "object") activeValue = JSON.stringify(activeValue);
+                else activeValue = String(activeValue);
+                if (activeValue.length > 64) {
+                    activeValue = activeValue.substring(0, 64) + "...";
+                }
+                clearedStatus = `cleared: active: ${activeLabel}:${activeValue}${state.units || ''}`;
+            }
+            utils.setStatusOK(targetNode, clearedStatus);
             targetNode.send({ ...state });
 
             res.status(200).json({ message: "Priorities cleared", value: state.value, activePriority: state.activePriority });

@@ -45,6 +45,11 @@
         </select>
     </div>
 
+    <div class="form-row">
+        <label for="node-input-showStatus"><i class="fa fa-eye"></i> Show Status</label>
+        <input type="checkbox" id="node-input-showStatus" style="display:inline-block; width:auto; vertical-align:middle;">
+    </div>
+
     <div class="form-tips">
         <b>Note:</b> Source path may change without breaking this link. 'Reactive' events do not cause disk reads.
         Setter nodes will always write, on change, to its configured store and 'default' to ensure data stays 'in memory' during operation (avoids disk IO hammering).
@@ -63,7 +68,8 @@
             outputPropertyType: { value: "msg", required: true },
             dropdownPath: { value: "", required: false },
             updates: { value: "always", required: true },
-            detail: {value: "getObject", required: true }
+            detail: { value: "getObject", required: true },
+            showStatus: { value: true }
         },
         inputs: 1,
         outputs: 1,

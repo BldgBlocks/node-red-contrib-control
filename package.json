@@ -60,6 +60,7 @@
       "oneshot-block": "nodes/oneshot-block.js",
       "or-block": "nodes/or-block.js",
       "pid-block": "nodes/pid-block.js",
+      "pulse-block": "nodes/pulse-block.js",
       "priority-block": "nodes/priority-block.js",
       "rate-limit-block": "nodes/rate-limit-block.js",
       "rate-of-change-block": "nodes/rate-of-change-block.js",

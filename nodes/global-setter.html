@@ -34,6 +34,11 @@
         </button>
     </div>
 
+    <div class="form-row">
+        <label for="node-input-showStatus"><i class="fa fa-eye"></i> Show Status</label>
+        <input type="checkbox" id="node-input-showStatus" style="display:inline-block; width:auto; vertical-align:middle;">
+    </div>
+
     <div class="form-tips">
         <b>Note:</b> This node writes to the <b>Network Priority</b> slot (1-16), manually, by msg or flow. The actual value is determined by the highest active source: Priorities 1-16 → Fallback → Default.
     </div>
@@ -50,7 +55,8 @@
             defaultValue: { value: "", required: true },
             defaultValueType: { value: "num", required: true },
             writePriority: { value: "fallback", required: true },
-            writePriorityType: { value: "dropdown" }
+            writePriorityType: { value: "dropdown" },
+            showStatus: { value: true }
         },
         inputs: 1,
         outputs: 1,

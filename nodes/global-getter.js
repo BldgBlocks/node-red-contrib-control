@@ -8,6 +8,7 @@ module.exports = function(RED) {
         node.dropdownPath = config.dropdownPath || "";
         node.updates = config.updates;
         node.detail = config.detail;
+        node.showStatus = config.showStatus !== false;
         
         let setterNode = null;
         let retryTimeout = null;
@@ -51,18 +52,22 @@ module.exports = function(RED) {
                     msg.metadata = { path: setterNode ? setterNode.varName : "unknown", legacy: true };
                 }
                 
-                let valDisplay = storedObject.value;
-                if (valDisplay === null) valDisplay = "null";
-                else if (valDisplay === undefined) valDisplay = "undefined";
-                else if (typeof valDisplay === "object") valDisplay = JSON.stringify(valDisplay);
-                else valDisplay = typeof valDisplay === "number" ? valDisplay : valDisplay;
-                
-                // Trim to 64 characters with ellipsis
-                if (valDisplay.length > 64) {
-                    valDisplay = valDisplay.substring(0, 64) + "...";
+                if (node.showStatus) {
+                    let valDisplay = storedObject && storedObject.hasOwnProperty('value') ? storedObject.value : storedObject;
+                    if (valDisplay === null) valDisplay = "null";
+                    else if (valDisplay === undefined) valDisplay = "undefined";
+                    else if (typeof valDisplay === "object") valDisplay = JSON.stringify(valDisplay);
+                    else valDisplay = String(valDisplay);
+
+                    // Trim to 64 characters with ellipsis
+                    if (valDisplay.length > 64) {
+                        valDisplay = valDisplay.substring(0, 64) + "...";
+                    }
+
+                    utils.sendSuccess(node, msg, done, `get: ${valDisplay}`, null, "dot");
+                } else {
+                    utils.sendSuccess(node, msg, done, "get", null, "dot");
                 }
-                
-                utils.sendSuccess(node, msg, done, `get: ${valDisplay}`, null, "dot");
             } else {
                 utils.sendError(node, msg, done, "global variable undefined");
             }
