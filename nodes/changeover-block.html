@@ -96,6 +96,8 @@
     <div class="form-row">
         <label title="Runtime actions for the deployed node"><i class="fa fa-bolt"></i> Actions</label>
         <button type="button" id="node-input-bypass-timer" class="red-ui-button" style="width: auto;">Bypass Pending Timer</button>
+        <button type="button" id="node-input-force-heat" class="red-ui-button" style="width: auto; margin-left: 6px;">Force Heat</button>
+        <button type="button" id="node-input-force-cool" class="red-ui-button" style="width: auto; margin-left: 6px;">Force Cool</button>
         <span style="margin-left: 8px; color: #666;">Applies to the deployed node instance.</span>
     </div>
 </script>
@@ -105,6 +107,15 @@
         return $.ajax({
             url: "changeover-block/" + nodeId + "/bypass-timer",
             type: "POST"
+        });
+    }
+
+    function triggerChangeoverForceMode(nodeId, mode) {
+        return $.ajax({
+            url: "changeover-block/" + nodeId + "/force-mode",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({ mode: mode })
         });
     }
 
@@ -157,6 +168,8 @@
             const $extentFields = $(".extent-only");
             const $specifiedFields = $(".specified-only");
             const $bypassButton = $("#node-input-bypass-timer");
+            const $forceHeatButton = $("#node-input-force-heat");
+            const $forceCoolButton = $("#node-input-force-cool");
 
             try {
                 // Initialize typed inputs
@@ -290,6 +303,28 @@
                             RED.notify(response.error || "Unable to bypass timer", "error");
                         });
                 });
+
+                $forceHeatButton.on("click", function() {
+                    triggerChangeoverForceMode(node.id, "heat")
+                        .done(function(data) {
+                            RED.notify(data.message, "success");
+                        })
+                        .fail(function(jqXHR) {
+                            const response = jqXHR.responseJSON || {};
+                            RED.notify(response.error || "Unable to force heat", "error");
+                        });
+                });
+
+                $forceCoolButton.on("click", function() {
+                    triggerChangeoverForceMode(node.id, "cool")
+                        .done(function(data) {
+                            RED.notify(data.message, "success");
+                        })
+                        .fail(function(jqXHR) {
+                            const response = jqXHR.responseJSON || {};
+                            RED.notify(response.error || "Unable to force cool", "error");
+                        });
+                });
                 
             } catch (err) {
                 console.error("Error in oneditprepare:", err);
@@ -303,7 +338,7 @@ Manages HVAC mode switching between heating and cooling based on temperature inp
 
 ### Inputs
 : payload (number) : Temperature reading for mode evaluation. The property name is configurable via **Input Property**.
-: context (string) : Optional command. Set to `"bypass timer"` to force an immediate swap to the currently pending mode change.
+: context (string) : Optional command. Set to `"bypass timer"` to force an immediate swap to the currently pending mode change. Set to `"force heat"` or `"force cool"` to directly set the runtime mode while keeping configured operation mode in `auto`.
 
 ### Outputs
 : payload (number) : The current temperature value used for the mode decision.
@@ -337,6 +372,8 @@ All parameters support typed inputs (static value, `msg`, `flow`, or `global`).
 On startup, the node waits for `initWindow` seconds to let sensors stabilize before selecting the initial mode. During this period, temperature is cached but no output is sent.
 
 The `extent` parameter widens the switching thresholds beyond the base deadband or setpoints. In single mode it expands the deadband outward from `setpoint ± deadband/2`; in split mode it expands beyond the separate heating and cooling setpoints. This prevents nuisance mode changes from overshoot and allows sharing the same setpoint values with other nodes while having independent switching buffers.
+
+The editor Actions row can directly force heating or cooling on the deployed node instance without changing the configured **Operation Mode** away from `auto`. This provides a manual correction path after startup or redeploy while still allowing the node to continue in automatic control afterwards.
 
 Use the **Bypass Pending Timer** action button in the node UI, or send `msg.context = "bypass timer"`, to skip the active swap countdown and switch immediately. The bypass command only applies while the node is in `auto` mode and an actual swap is pending.
 

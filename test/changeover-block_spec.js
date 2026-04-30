@@ -446,6 +446,63 @@ describe("changeover-block", function() {
                 }
             });
         });
+
+        it("should force cooling immediately via msg.context while staying in auto", function(done) {
+            const flow = buildFlow("changeover-block", SINGLE_DEFAULTS);
+
+            helper.load(changeoverNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+
+                try {
+                    let promise = waitForMessage(out);
+                    sendPayload(n1, 65);
+                    const msg1 = await promise;
+                    assert.strictEqual(msg1.isHeating, true, "should start in heating");
+
+                    promise = waitForMessage(out);
+                    n1.receive({ context: "force cool" });
+                    const msg2 = await promise;
+
+                    assert.strictEqual(msg2.payload, 65, "forced output should reuse the last temperature");
+                    assert.strictEqual(msg2.isHeating, false, "force cool should switch immediately to cooling");
+                    assert.strictEqual(msg2.status.mode, "cooling");
+                    assert.strictEqual(msg2.status.operationMode, "auto");
+                    done();
+                } catch (e) {
+                    done(e);
+                }
+            });
+        });
+
+        it("should ignore forced mode when operationMode is not auto", function(done) {
+            const flow = buildFlow("changeover-block", {
+                ...SINGLE_DEFAULTS,
+                operationMode: "heat", operationModeType: "dropdown"
+            });
+
+            helper.load(changeoverNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+                const st = trackStatus(n1);
+
+                try {
+                    const first = waitForMessage(out);
+                    sendPayload(n1, 65);
+                    await first;
+
+                    n1.receive({ context: "force cool" });
+
+                    await expectNoMessage(out, 200);
+                    assert.ok(st.last, "status should have been updated");
+                    assert.strictEqual(st.last.fill, "yellow");
+                    assert.ok(st.last.text.includes("force ignored in heat mode"), `Unexpected status text: ${st.last.text}`);
+                    done();
+                } catch (e) {
+                    done(e);
+                }
+            });
+        });
     });
 
     // ========================================================================

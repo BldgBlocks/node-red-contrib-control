@@ -23,6 +23,8 @@ module.exports = function(RED) {
     const VALID_MODES = ["auto", "heat", "cool"];
     const VALID_ALGORITHMS = ["single", "split", "specified"];
     const BYPASS_TIMER_CONTEXT = "bypass timer";
+    const FORCE_HEAT_CONTEXT = "force heat";
+    const FORCE_COOL_CONTEXT = "force cool";
     const MIN_SWAP_TIME = 60; // seconds
 
     function ChangeoverBlockNode(config) {
@@ -116,7 +118,38 @@ module.exports = function(RED) {
             };
         }
 
+        function triggerForceMode(targetMode, commandMsg) {
+            if (targetMode !== "heating" && targetMode !== "cooling") {
+                utils.setStatusWarn(node, "force ignored - invalid mode");
+                return { ok: false, statusCode: 400, message: "Invalid force mode" };
+            }
+            if (node.operationMode !== "auto") {
+                utils.setStatusWarn(node, `force ignored in ${node.operationMode} mode`);
+                return { ok: false, statusCode: 409, message: `Force mode only applies in auto mode; current mode is ${node.operationMode}` };
+            }
+
+            node.currentMode = targetMode;
+            node.lastModeChange = Date.now() / 1000;
+            conditionStartTime = null;
+            pendingMode = null;
+
+            if (commandMsg && node.lastTemperature !== null) {
+                node.send(buildOutputs(commandMsg));
+            }
+            updateStatus();
+
+            return {
+                ok: true,
+                statusCode: 200,
+                message: `Mode forced to ${targetMode}`,
+                mode: node.currentMode,
+                isHeating: node.currentMode === "heating",
+                temperature: node.lastTemperature
+            };
+        }
+
         node.triggerBypass = triggerBypass;
+        node.triggerForceMode = triggerForceMode;
 
         // ====================================================================
         // Main input handler
@@ -132,6 +165,12 @@ module.exports = function(RED) {
 
             if (msg.context === BYPASS_TIMER_CONTEXT) {
                 triggerBypass(msg);
+                if (done) done();
+                return;
+            }
+
+            if (msg.context === FORCE_HEAT_CONTEXT || msg.context === FORCE_COOL_CONTEXT) {
+                triggerForceMode(msg.context === FORCE_HEAT_CONTEXT ? "heating" : "cooling", msg);
                 if (done) done();
                 return;
             }
@@ -443,6 +482,7 @@ module.exports = function(RED) {
         // ====================================================================
         node.on("close", function(done) {
             node.triggerBypass = null;
+            node.triggerForceMode = null;
             done();
         });
     }
@@ -458,6 +498,37 @@ module.exports = function(RED) {
         const result = targetNode.triggerBypass({
             topic: "changeover-bypass",
             context: BYPASS_TIMER_CONTEXT,
+            payload: true,
+            _source: "editor"
+        });
+
+        if (!result.ok) {
+            return res.status(result.statusCode || 409).json({ error: result.message });
+        }
+
+        return res.status(200).json({
+            message: result.message,
+            mode: result.mode,
+            isHeating: result.isHeating,
+            temperature: result.temperature
+        });
+    });
+
+    RED.httpAdmin.post('/changeover-block/:id/force-mode', RED.auth.needsPermission('changeover-block.write'), function(req, res) {
+        const targetNode = RED.nodes.getNode(req.params.id);
+        if (!targetNode || typeof targetNode.triggerForceMode !== "function") {
+            return res.status(404).json({ error: "Node not found" });
+        }
+
+        const requestedMode = req.body && req.body.mode;
+        const runtimeMode = requestedMode === "heat" ? "heating" : requestedMode === "cool" ? "cooling" : null;
+        if (!runtimeMode) {
+            return res.status(400).json({ error: "Mode must be 'heat' or 'cool'" });
+        }
+
+        const result = targetNode.triggerForceMode(runtimeMode, {
+            topic: "changeover-force-mode",
+            context: runtimeMode === "heating" ? FORCE_HEAT_CONTEXT : FORCE_COOL_CONTEXT,
             payload: true,
             _source: "editor"
         });
