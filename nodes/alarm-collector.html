@@ -94,10 +94,24 @@
         <input type="text" id="node-input-title" placeholder="Temperature Out of Range">
     </div>
 
-    <div class="form-row">
+    <div class="form-row" id="boolean-on-message-row">
         <label for="node-input-onMessage"><i class="fa fa-bell"></i> On Message</label>
-        <input type="text" id="node-input-onMessage" placeholder="Zone exceeds setpoint">
+        <input type="text" id="node-input-onMessage" placeholder="Condition active">
         <input type="hidden" id="node-input-onMessageType">
+    </div>
+
+    <div id="value-message-rows" style="display: none;">
+        <div class="form-row">
+            <label for="node-input-highMessage"><i class="fa fa-arrow-up"></i> High Message</label>
+            <input type="text" id="node-input-highMessage" placeholder="Zone exceeds high limit">
+            <input type="hidden" id="node-input-highMessageType">
+        </div>
+
+        <div class="form-row">
+            <label for="node-input-lowMessage"><i class="fa fa-arrow-down"></i> Low Message</label>
+            <input type="text" id="node-input-lowMessage" placeholder="Zone falls below low limit">
+            <input type="hidden" id="node-input-lowMessageType">
+        </div>
     </div>
 
     <div class="form-row">
@@ -143,6 +157,10 @@
             messageType: { value: "str" },
             onMessage: { value: "Condition active" },
             onMessageType: { value: "str" },
+            highMessage: { value: "" },
+            highMessageType: { value: "str" },
+            lowMessage: { value: "" },
+            lowMessageType: { value: "str" },
             offMessage: { value: "Condition cleared" },
             offMessageType: { value: "str" },
             tags: { value: "" },
@@ -229,6 +247,22 @@
                 typeField: "#node-input-onMessageType"
             }).typedInput("type", node.onMessageType || node.messageType || "str").typedInput("value", node.onMessage || node.message || "Condition active");
 
+            $("#node-input-highMessage").typedInput({
+                types: [
+                    "str",
+                    "msg"
+                ],
+                typeField: "#node-input-highMessageType"
+            }).typedInput("type", node.highMessageType || node.onMessageType || node.messageType || "str").typedInput("value", node.highMessage || node.onMessage || node.message || "High condition active");
+
+            $("#node-input-lowMessage").typedInput({
+                types: [
+                    "str",
+                    "msg"
+                ],
+                typeField: "#node-input-lowMessageType"
+            }).typedInput("type", node.lowMessageType || node.onMessageType || node.messageType || "str").typedInput("value", node.lowMessage || node.onMessage || node.message || "Low condition active");
+
             $("#node-input-offMessage").typedInput({
                 types: [
                     "str",
@@ -242,6 +276,8 @@
                 let mode = $("#node-input-inputMode").val();
                 $("#boolean-options").toggle(mode === "boolean");
                 $("#value-options").toggle(mode === "value");
+                $("#boolean-on-message-row").toggle(mode === "boolean");
+                $("#value-message-rows").toggle(mode === "value");
             };
 
             $("#node-input-inputMode").on("change", updateDisplay);
@@ -284,9 +320,11 @@ Monitors a condition and emits alarm events on state transitions.
 
 ### Messages
 
-- **On Message**: Sent when the alarm transitions from cleared to active
+- **On Message**: Used for boolean mode when the alarm transitions from cleared to active
+- **High Message**: Used for numeric alarms triggered by the high threshold
+- **Low Message**: Used for numeric alarms triggered by the low threshold
 - **Off Message**: Sent when the alarm transitions from active to cleared
-- Both messages can be static strings or resolved from `msg.*`
+- All messages can be static strings or resolved from `msg.*`
 
 ### Event Emission
 

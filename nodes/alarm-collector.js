@@ -50,6 +50,10 @@ module.exports = function(RED) {
         node.title = config.title || "Alarm";
         node.onMessage = config.onMessage || config.message || "Condition active";
         node.onMessageType = config.onMessageType || config.messageType || "str";
+        node.highMessage = config.highMessage || config.onMessage || config.message || "High condition active";
+        node.highMessageType = config.highMessageType || config.onMessageType || config.messageType || "str";
+        node.lowMessage = config.lowMessage || config.onMessage || config.message || "Low condition active";
+        node.lowMessageType = config.lowMessageType || config.onMessageType || config.messageType || "str";
         node.offMessage = config.offMessage || "Condition cleared";
         node.offMessageType = config.offMessageType || "str";
         node.tags = config.tags || "";
@@ -76,6 +80,8 @@ module.exports = function(RED) {
         node.hysteresisTimer = null;
         node.conditionMet = false;
         node.valueChangedListener = null;
+        node.pendingTriggerDirection = null;
+        node.currentTriggerDirection = null;
 
         // Register with alarm-config at startup so the registry knows about this collector
         if (node.alarmConfig) {
@@ -99,10 +105,12 @@ module.exports = function(RED) {
         function evaluateAndEmit(inputValue) {
             let conditionNowMet = false;
             let numericValue = null;
+            let triggerDirection = null;
 
             if (node.inputMode === "boolean") {
                 conditionNowMet = (inputValue === node.alarmWhenTrue);
                 node.currentValue = inputValue;
+                triggerDirection = "boolean";
             } else {
                 numericValue = inputValue;
                 if (typeof inputValue === 'object' && inputValue !== null && inputValue.value !== undefined) {
@@ -126,13 +134,26 @@ module.exports = function(RED) {
                 const effectiveLow = node.alarmState
                     ? (node.lowThreshold + node.hysteresisMagnitude)
                     : node.lowThreshold;
+                const highConditionMet = numericValue > effectiveHigh;
+                const lowConditionMet = numericValue < effectiveLow;
 
                 if (node.compareMode === "either") {
-                    conditionNowMet = (numericValue > effectiveHigh) || (numericValue < effectiveLow);
+                    conditionNowMet = highConditionMet || lowConditionMet;
+                    if (highConditionMet) {
+                        triggerDirection = "high";
+                    } else if (lowConditionMet) {
+                        triggerDirection = "low";
+                    }
                 } else if (node.compareMode === "high-only") {
-                    conditionNowMet = numericValue > effectiveHigh;
+                    conditionNowMet = highConditionMet;
+                    if (highConditionMet) {
+                        triggerDirection = "high";
+                    }
                 } else if (node.compareMode === "low-only") {
-                    conditionNowMet = numericValue < effectiveLow;
+                    conditionNowMet = lowConditionMet;
+                    if (lowConditionMet) {
+                        triggerDirection = "low";
+                    }
                 }
             }
 
@@ -141,6 +162,7 @@ module.exports = function(RED) {
             // This filters noise in both the activation and clearing directions.
             if (conditionNowMet !== node.conditionMet) {
                 node.conditionMet = conditionNowMet;
+                node.pendingTriggerDirection = conditionNowMet ? triggerDirection : null;
 
                 if (node.hysteresisTimer) {
                     clearTimeout(node.hysteresisTimer);
@@ -152,10 +174,21 @@ module.exports = function(RED) {
                     node.hysteresisTimer = setTimeout(() => {
                         if (node.conditionMet !== node.alarmState) {
                             node.alarmState = node.conditionMet;
+                            if (node.alarmState) {
+                                node.currentTriggerDirection = node.pendingTriggerDirection;
+                            }
                             emitAlarmEvent(node.alarmState ? "false → true" : "true → false");
+                            if (!node.alarmState) {
+                                node.currentTriggerDirection = null;
+                            }
                         }
                         node.hysteresisTimer = null;
                     }, node.hysteresisTimeMs);
+                }
+            } else if (conditionNowMet && triggerDirection) {
+                node.pendingTriggerDirection = triggerDirection;
+                if (node.alarmState) {
+                    node.currentTriggerDirection = triggerDirection;
                 }
             }
 
@@ -182,7 +215,19 @@ module.exports = function(RED) {
         // Emit alarm event (only on state transition)
         // ====================================================================
         function getCurrentMessage() {
-            return node.alarmState ? node.onMessage : node.offMessage;
+            if (!node.alarmState) {
+                return node.offMessage;
+            }
+
+            if (node.inputMode !== "value") {
+                return node.onMessage;
+            }
+
+            if (node.currentTriggerDirection === "low") {
+                return node.lowMessage;
+            }
+
+            return node.highMessage;
         }
 
         function emitAlarmEvent(transition) {
@@ -192,6 +237,7 @@ module.exports = function(RED) {
 
             node.lastEmittedState = node.alarmState;
             const currentMessage = getCurrentMessage();
+            const triggerDirection = node.currentTriggerDirection;
 
             const eventData = {
                 nodeId: node.id,
@@ -206,10 +252,13 @@ module.exports = function(RED) {
                 title: node.title,
                 message: currentMessage,
                 onMessage: node.onMessage,
+                highMessage: node.highMessage,
+                lowMessage: node.lowMessage,
                 offMessage: node.offMessage,
                 tags: node.tags,
                 units: node.units,
                 timestamp: new Date().toISOString(),
+                triggerDirection: triggerDirection,
                 transition: transition
             };
 
@@ -301,6 +350,28 @@ module.exports = function(RED) {
                         }
                     } catch (e) {
                         // Keep existing on-message on error
+                    }
+                }
+
+                if (node.highMessageType === "msg") {
+                    try {
+                        const resolvedHigh = await utils.evaluateNodeProperty(config.highMessage || config.onMessage || config.message, "msg", node, msg);
+                        if (resolvedHigh !== undefined && resolvedHigh !== null) {
+                            node.highMessage = String(resolvedHigh);
+                        }
+                    } catch (e) {
+                        // Keep existing high-message on error
+                    }
+                }
+
+                if (node.lowMessageType === "msg") {
+                    try {
+                        const resolvedLow = await utils.evaluateNodeProperty(config.lowMessage || config.onMessage || config.message, "msg", node, msg);
+                        if (resolvedLow !== undefined && resolvedLow !== null) {
+                            node.lowMessage = String(resolvedLow);
+                        }
+                    } catch (e) {
+                        // Keep existing low-message on error
                     }
                 }
 

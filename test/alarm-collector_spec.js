@@ -31,6 +31,10 @@ function buildAlarmFlow(collectorOverrides = {}) {
             title: "Test Alarm",
             onMessage: "Test condition",
             onMessageType: "str",
+            highMessage: "High test condition",
+            highMessageType: "str",
+            lowMessage: "Low test condition",
+            lowMessageType: "str",
             offMessage: "Test condition cleared",
             offMessageType: "str",
             tags: "",
@@ -88,6 +92,8 @@ describe("alarm-collector", function () {
             assert.strictEqual(n1.hysteresisTimeMs, 100);
             assert.strictEqual(n1.hysteresisMagnitude, 2);
             assert.strictEqual(n1.compareMode, "high-only");
+            assert.strictEqual(n1.highMessage, "High test condition");
+            assert.strictEqual(n1.lowMessage, "Low test condition");
             done();
         });
     });
@@ -386,6 +392,46 @@ describe("alarm-collector", function () {
         });
     });
 
+    it("should use the high message for a high-threshold alarm", function (done) {
+        const flow = buildAlarmFlow({
+            compareMode: "either",
+            hysteresisTime: "0.05"
+        });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
+            const n1 = helper.getNode("n1");
+            const capture = captureAlarmEvents(helper._RED);
+
+            await sendAndSettle(n1, 55);
+            await wait(80);
+
+            assert.strictEqual(capture.events.length, 1);
+            assert.strictEqual(capture.events[0].message, "High test condition");
+            assert.strictEqual(capture.events[0].triggerDirection, "high");
+            capture.cleanup();
+            done();
+        });
+    });
+
+    it("should use the low message for a low-threshold alarm", function (done) {
+        const flow = buildAlarmFlow({
+            compareMode: "either",
+            hysteresisTime: "0.05"
+        });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
+            const n1 = helper.getNode("n1");
+            const capture = captureAlarmEvents(helper._RED);
+
+            await sendAndSettle(n1, 5);
+            await wait(80);
+
+            assert.strictEqual(capture.events.length, 1);
+            assert.strictEqual(capture.events[0].message, "Low test condition");
+            assert.strictEqual(capture.events[0].triggerDirection, "low");
+            capture.cleanup();
+            done();
+        });
+    });
+
     // ========================================================================
     // Boolean mode: alarm when true
     // ========================================================================
@@ -573,11 +619,35 @@ describe("alarm-collector", function () {
             assert.strictEqual(evt.priority, "normal");
             assert.strictEqual(evt.topic, "Alarms_Test");
             assert.strictEqual(evt.title, "Test Alarm");
-            assert.strictEqual(evt.message, "Test condition");
+            assert.strictEqual(evt.message, "High test condition");
             assert.strictEqual(evt.onMessage, "Test condition");
+            assert.strictEqual(evt.highMessage, "High test condition");
+            assert.strictEqual(evt.lowMessage, "Low test condition");
             assert.strictEqual(evt.offMessage, "Test condition cleared");
+            assert.strictEqual(evt.triggerDirection, "high");
             assert.strictEqual(evt.units, "°F");
             assert.ok(evt.timestamp, "timestamp should exist");
+            capture.cleanup();
+            done();
+        });
+    });
+
+    it("should fall back to the legacy on-message when high/low messages are not configured", function (done) {
+        const flow = buildAlarmFlow({
+            compareMode: "either",
+            highMessage: "",
+            lowMessage: "",
+            hysteresisTime: "0.05"
+        });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
+            const n1 = helper.getNode("n1");
+            const capture = captureAlarmEvents(helper._RED);
+
+            await sendAndSettle(n1, 55);
+            await wait(80);
+
+            assert.strictEqual(capture.events.length, 1);
+            assert.strictEqual(capture.events[0].message, "Test condition");
             capture.cleanup();
             done();
         });
