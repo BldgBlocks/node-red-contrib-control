@@ -31,14 +31,16 @@
 Implements a priority array with 16 levels, default, and fallback.
 
 ### Inputs
-: context (string) : Identifies slot (`"priority1"` to `"priority16"`, `"default"`, `"fallback"`) for setting or clearing. Ignored if `msg.payload` is an object with `clear` key.
-: payload (any | object | string) : 
-  - Non-object, non-"clear" (number, boolean, null) Value for slot specified by `msg.context` (numbers parsed as float, null to relinquish).
-  - String `"clear"` Relinquish slot specified by `msg.context`.
-  - Object with `clear`
-    - `{ clear "priorityX" }` Relinquish single slot.
-    - `{ clear ["priorityX", ...] }` Relinquish multiple slots.
-    - `{ clear "all" }` Relinquish all slots.
+: context (string) : Command/slot identifier.
+    - `"priority1"` to `"priority16"`: set or relinquish priority slots.
+    - `"fallback"`: set or relinquish fallback slot.
+    - `"clear"`: clear all priority slots (`priority1` to `priority16`) in one command.
+    - `"default"`: runtime updates are ignored (default is fixed).
+: payload (number | boolean | string | null) : 
+    - For `priorityX` and `fallback`: `number`, `boolean`, or `string` values are accepted.
+    - `null` or empty string (`""`) relinquishes the targeted runtime-writable slot.
+    - For `context: "clear"`, payload is ignored.
+    - Object-based clear payloads are not supported.
 
 ### Outputs
 : payload (any) : Value from highest non-null slot (`priority1` to `fallback`), or `null` if none set.
@@ -51,7 +53,8 @@ Manages a priority array with 16 slots (`priority1` to `priority16`), `default`,
 Forwards the original message from the highest non-null slot (`priority1` highest, `fallback` lowest), adding `msg.diagnostics.activePriority`. 
 
 If no slots are set, outputs `{ payload null, diagnostics { activePriority null } }`. 
-Set slots via `msg.context` with `msg.payload` (number, boolean, null) or clear via `msg.payload.clear` or `msg.payload = "clear"`.
+Set runtime slots via `msg.context` + `msg.payload` and clear all priorities with `msg.context = "clear"`.
+`default` is treated as fixed and is not changed by runtime messages.
 
 ### Status
 - Green (dot): Configuration
