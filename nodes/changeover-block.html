@@ -182,6 +182,7 @@
                             { value: "auto", label: "Auto"},
                             { value: "heat", label: "Heat"},
                             { value: "cool", label: "Cool"},
+                            { value: "off", label: "Off"},
                         ]
                     }, "msg", "flow", "global"],
                     typeField: "#node-input-operationModeType"
@@ -343,7 +344,7 @@ Manages HVAC mode switching between heating and cooling based on temperature inp
 ### Outputs
 : payload (number) : The current temperature value used for the mode decision.
 : isHeating (boolean) : `true` for heating, `false` for cooling.
-: status (object) : `{ mode, operationMode, algorithm, isHeating, heatingSetpoint, coolingSetpoint, temperature }`.
+: status (object) : `{ mode, operationMode, algorithm, isHeating, isOff, heatingSetpoint, coolingSetpoint, temperature }`.
 
 ### Operation Modes
 All parameters support typed inputs (static value, `msg`, `flow`, or `global`).
@@ -351,6 +352,7 @@ All parameters support typed inputs (static value, `msg`, `flow`, or `global`).
 - **Auto** — switches between heating and cooling based on temperature vs. algorithm thresholds. A mode change requires the condition to persist for `swapTime` seconds (minimum 60s). A countdown is shown in the status (e.g., `pending: cooling in 120s`).
 - **Heat** — locked to heating regardless of temperature.
 - **Cool** — locked to cooling regardless of temperature.
+- **Off** — forces the node to idle output mode immediately (`mode: "off"`, `isHeating: false`) while still reporting temperature and thresholds.
 
 ### Algorithms
 
@@ -375,12 +377,15 @@ The `extent` parameter widens the switching thresholds beyond the base deadband 
 
 The editor Actions row can directly force heating or cooling on the deployed node instance without changing the configured **Operation Mode** away from `auto`. This provides a manual correction path after startup or redeploy while still allowing the node to continue in automatic control afterwards.
 
+When **Operation Mode** is `off`, pending swap timers are cancelled and automatic switching is suspended until operation mode returns to `auto`, `heat`, or `cool`.
+
 Use the **Bypass Pending Timer** action button in the node UI, or send `msg.context = "bypass timer"`, to skip the active swap countdown and switch immediately. The bypass command only applies while the node is in `auto` mode and an actual swap is pending.
 
 ### Status
 - **Yellow (ring)**: Initializing (startup window)
 - **Blue (dot)**: Mode just changed
 - **Blue (ring)**: Normal operation, no change
+- **Blue (ring)**: Off mode active (`[off] calls disabled`)
 - **Red (ring)**: Error (invalid temperature, bad configuration)
 
 ### References

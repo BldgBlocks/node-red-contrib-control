@@ -59,6 +59,11 @@
         <input type="hidden" id="node-input-ignoreAnticipatorCyclesType">
     </div>
     <div class="form-row">
+        <label for="node-input-operationMode" title="Operation mode: auto follows isHeating, heat/cool lock mode, off disables all calls"><i class="fa fa-cogs"></i> Operation Mode</label>
+        <input type="text" id="node-input-operationMode" placeholder="auto">
+        <input type="hidden" id="node-input-operationModeType">
+    </div>
+    <div class="form-row">
         <label for="node-input-isHeating" title="Heating mode (true) or cooling mode (false)"><i class="fa fa-fire"></i> Heating Mode</label>
         <input type="text" id="node-input-isHeating" style="width: auto; vertical-align: middle;">
         <input type="hidden" id="node-input-isHeatingType">
@@ -66,6 +71,10 @@
     <div class="form-row">
         <label for="node-input-startupDelay" title="Seconds to suppress heating/cooling calls after deploy (0 = disabled)"><i class="fa fa-hourglass-start"></i> Startup Delay</label>
         <input type="number" id="node-input-startupDelay" placeholder="30" min="0" step="1">
+    </div>
+    <div class="form-row">
+        <label for="node-input-heartbeatTimeoutSec" title="Failsafe timeout in seconds. If no valid payload arrives before timeout, outputs are forced off. 0 = disabled"><i class="fa fa-heartbeat"></i> Heartbeat Timeout</label>
+        <input type="number" id="node-input-heartbeatTimeoutSec" placeholder="0" min="0" step="1">
     </div>
 </script>
 
@@ -97,9 +106,12 @@
             anticipatorType: { value: "num" },
             ignoreAnticipatorCycles: { value: "1" },
             ignoreAnticipatorCyclesType: { value: "num" },
+            operationMode: { value: "auto" },
+            operationModeType: { value: "dropdown" },
             isHeating: { value: false },
             isHeatingType: { value: "bool" },
-            startupDelay: { value: 30 }
+            startupDelay: { value: 30 },
+            heartbeatTimeoutSec: { value: 60 }
         },
         inputs: 1,
         outputs: 3,
@@ -191,6 +203,20 @@
                     typeField: "#node-input-ignoreAnticipatorCyclesType"
                 });
 
+                $("#node-input-operationMode").typedInput({
+                    default: "dropdown",
+                    types: [{
+                        value: "dropdown",
+                        options: [
+                            { value: "auto", label: "Auto"},
+                            { value: "heat", label: "Heat"},
+                            { value: "cool", label: "Cool"},
+                            { value: "off", label: "Off"},
+                        ]
+                    }, "msg", "flow", "global"],
+                    typeField: "#node-input-operationModeType"
+                });
+
                 $("#node-input-isHeating").typedInput({
                     default: "bool",
                     types: ["bool", "msg", "flow", "global"],
@@ -240,14 +266,23 @@ Thermostat controller for heating/cooling with single, split, or specified setpo
 
 ### Inputs
 : payload (number) : Temperature reading.
-: isHeating (boolean) : Optional. Overrides the configured heating mode (typically wired from a changeover node).
+: operationMode (string) : Optional when configured as `msg`/`flow`/`global`. Allowed values: `auto`, `heat`, `cool`, `off`.
+: isHeating (boolean) : Optional. In `auto` mode, selects heating (`true`) or cooling (`false`) (typically from a changeover node).
+
+Only `operationMode = "off"` is accepted without a `payload`. All other modes require a valid numeric payload.
 
 ### Outputs
 : isHeating (boolean) : Output 1. Current heating mode. Includes `msg.context = "isHeating"`.
 : above (boolean) : Output 2. `true` when cooling call is active (temperature exceeded cooling threshold).
 : below (boolean) : Output 3. `true` when heating call is active (temperature dropped below heating threshold).
 
-All outputs include a `msg.status` object with runtime diagnostics: `algorithm`, `input`, `isHeating`, `above`, `below`, `activeSetpoint`, `onThreshold`, `offThreshold`, `diff`, `anticipator`, `effectiveAnticipator`, `modeChanged`, `cyclesSinceModeChange`.
+All outputs include a `msg.status` object with runtime diagnostics: `algorithm`, `mode`, `operationMode`, `input`, `isHeating`, `above`, `below`, `activeSetpoint`, `onThreshold`, `offThreshold`, `diff`, `anticipator`, `effectiveAnticipator`, `modeChanged`, `cyclesSinceModeChange`.
+
+### Operation Modes
+- **Auto**: Uses the `isHeating` signal as the active mode selector.
+- **Heat**: Forces heating-mode call logic.
+- **Cool**: Forces cooling-mode call logic.
+- **Off**: Immediately forces both `above` and `below` outputs to `false` and keeps calls off while still reporting diagnostics.
 
 ### Algorithms
 
@@ -271,8 +306,11 @@ The `ignoreAnticipatorCycles` setting disables the anticipator for N cycles afte
 ### Startup Delay
 Configurable delay (default 30s, 0 = disabled) suppresses `above`/`below` calls after deployment. Prevents false calls before upstream mode selection has initialized. During delay, `isHeating` passes through normally and internal state is tracked. Status shows `[startup]` during suppression.
 
+### Heartbeat Failsafe
+If **Heartbeat Timeout** is greater than 0, the node starts/restarts a watchdog timer on each valid payload. If the timer expires before a new payload arrives, the node enters failsafe off mode and forces all outputs false to prevent stale calls from remaining active.
+
 ### Configuration
-All numeric inputs support `num`, `msg`, `flow`, or `global` types via typed inputs. The `isHeating` flag supports `bool`, `msg`, `flow`, or `global`. Algorithm supports dropdown, `msg`, `flow`, or `global`.
+All numeric typed parameters support `num`, `msg`, `flow`, or `global`. The `isHeating` flag supports `bool`, `msg`, `flow`, or `global`. `operationMode` and algorithm both support dropdown, `msg`, `flow`, or `global`. `heartbeatTimeoutSec` is a static numeric editor field (seconds).
 
 ### Status
 - Green (dot): Configuration update

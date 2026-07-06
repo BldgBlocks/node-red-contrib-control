@@ -157,6 +157,73 @@ describe("changeover-block", function() {
     });
 
     // ========================================================================
+    // Operation mode: off lock
+    // ========================================================================
+    describe("off mode", function() {
+
+        it("should always output off state and isHeating=false", function(done) {
+            const flow = buildFlow("changeover-block", {
+                ...SINGLE_DEFAULTS,
+                operationMode: "off", operationModeType: "dropdown",
+            });
+
+            helper.load(changeoverNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+
+                try {
+                    const promise = collectMessages(out, 2);
+
+                    sendPayload(n1, 50);
+                    await wait(50);
+                    sendPayload(n1, 90);
+
+                    const msgs = await promise;
+                    msgs.forEach((msg) => {
+                        assert.strictEqual(msg.isHeating, false, "isHeating should be false in off mode");
+                        assert.strictEqual(msg.status.mode, "off", "runtime mode should be off");
+                        assert.strictEqual(msg.status.operationMode, "off");
+                        assert.strictEqual(msg.status.isOff, true);
+                    });
+                    done();
+                } catch (e) {
+                    done(e);
+                }
+            });
+        });
+
+        it("should allow off command messages without payload", function(done) {
+            const flow = buildFlow("changeover-block", {
+                ...SINGLE_DEFAULTS,
+                operationMode: "operationMode", operationModeType: "msg",
+            });
+
+            helper.load(changeoverNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+
+                try {
+                    let promise = waitForMessage(out);
+                    sendPayload(n1, 72.5);
+                    const first = await promise;
+                    assert.strictEqual(first.payload, 72.5);
+
+                    promise = waitForMessage(out);
+                    n1.receive({ operationMode: "off" });
+                    const second = await promise;
+
+                    assert.strictEqual(second.status.mode, "off");
+                    assert.strictEqual(second.status.operationMode, "off");
+                    assert.strictEqual(second.payload, 72.5, "off output should reuse cached temperature");
+                    done();
+                } catch (e) {
+                    done(e);
+                }
+            });
+        });
+    });
+
+    // ========================================================================
     // Operation mode via msg property (typed input)
     // ========================================================================
     describe("msg-typed operationMode", function() {
@@ -210,6 +277,31 @@ describe("changeover-block", function() {
                     assert.strictEqual(msg.status.operationMode, "cool");
                     done();
                 } catch(e) { done(e); }
+            });
+        });
+
+        it("should respect msg.operationMode = 'off' and force off state", function(done) {
+            const flow = buildFlow("changeover-block", {
+                ...SINGLE_DEFAULTS,
+                operationMode: "operationMode", operationModeType: "msg",
+            });
+
+            helper.load(changeoverNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+
+                try {
+                    const promise = waitForMessage(out);
+                    n1.receive({ payload: 70, operationMode: "off" });
+                    const msg = await promise;
+
+                    assert.strictEqual(msg.isHeating, false, "off mode should force isHeating=false");
+                    assert.strictEqual(msg.status.mode, "off");
+                    assert.strictEqual(msg.status.operationMode, "off");
+                    done();
+                } catch (e) {
+                    done(e);
+                }
             });
         });
     });
@@ -497,6 +589,36 @@ describe("changeover-block", function() {
                     assert.ok(st.last, "status should have been updated");
                     assert.strictEqual(st.last.fill, "yellow");
                     assert.ok(st.last.text.includes("force ignored in heat mode"), `Unexpected status text: ${st.last.text}`);
+                    done();
+                } catch (e) {
+                    done(e);
+                }
+            });
+        });
+
+        it("should transition from off to auto and restore control mode", function(done) {
+            const flow = buildFlow("changeover-block", {
+                ...SINGLE_DEFAULTS,
+                operationMode: "operationMode", operationModeType: "msg",
+            });
+
+            helper.load(changeoverNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const out = helper.getNode("out");
+
+                try {
+                    let promise = waitForMessage(out);
+                    n1.receive({ payload: 80, operationMode: "off" });
+                    const offMsg = await promise;
+                    assert.strictEqual(offMsg.status.mode, "off", "first message should be off");
+
+                    promise = waitForMessage(out);
+                    n1.receive({ payload: 80, operationMode: "auto" });
+                    const autoMsg = await promise;
+
+                    assert.strictEqual(autoMsg.status.operationMode, "auto");
+                    assert.strictEqual(autoMsg.status.mode, "cooling", "auto should re-evaluate and leave off state");
+                    assert.strictEqual(autoMsg.isHeating, false);
                     done();
                 } catch (e) {
                     done(e);

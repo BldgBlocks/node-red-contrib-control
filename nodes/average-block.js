@@ -6,9 +6,9 @@ module.exports = function(RED) {
         const node = this;
         
         // Initialize runtime state
-        // Initialize state
         node.maxValues = parseInt(config.sampleSize);
-        node.values = [], // Queue for rolling window;
+        node.inputProperty = config.inputProperty || "payload";
+        node.values = []; // Queue for rolling window
         node.lastAvg = null;
         node.minValid = parseFloat(config.minValid);
         node.maxValid = parseFloat(config.maxValid);
@@ -123,15 +123,21 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Check for missing payload
-            if (!msg.hasOwnProperty("payload")) {
-                utils.setStatusError(node, "missing payload");
+            // Get input from configured property
+            let input;
+            try {
+                input = RED.util.getMessageProperty(msg, node.inputProperty);
+            } catch (err) {
+                input = undefined;
+            }
+            if (input === undefined) {
+                utils.setStatusError(node, "missing or invalid input property");
                 if (done) done();
                 return;
             }
 
             // Process input
-            const numVal = utils.validateNumericPayload(msg.payload, { min: node.minValid, max: node.maxValid });
+            const numVal = utils.validateNumericPayload(input, { min: node.minValid, max: node.maxValid });
             if (!numVal.valid) {
                 utils.setStatusWarn(node, "out of range");
                 if (done) done();

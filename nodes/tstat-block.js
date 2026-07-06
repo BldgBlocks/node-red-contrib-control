@@ -24,6 +24,10 @@ module.exports = function(RED) {
     const utils = require('./utils')(RED);
 
     const VALID_ALGORITHMS = ["single", "split", "specified"];
+    const VALID_OPERATION_MODES = ["auto", "heat", "cool", "off"];
+    const STATE_HEATING = "heating";
+    const STATE_COOLING = "cooling";
+    const STATE_OFF = "off";
 
     function TstatBlockNode(config) {
         RED.nodes.createNode(this, config);
@@ -48,6 +52,11 @@ module.exports = function(RED) {
         node.ignoreAnticipatorCycles = Math.floor(num(config.ignoreAnticipatorCycles, 1));
         node.isHeating = config.isHeating === true || config.isHeating === "true";
         node.algorithm = VALID_ALGORITHMS.includes(config.algorithm) ? config.algorithm : "single";
+        node.operationMode = VALID_OPERATION_MODES.includes(config.operationMode) ? config.operationMode : "auto";
+        node.heartbeatTimeoutSec = Math.max(num(config.heartbeatTimeoutSec, 0), 0);
+        node.heartbeatTimer = null;
+        node.lastPayloadTs = null;
+        node.failsafeOff = false;
 
         // Startup delay: suppress above/below calls until mode has settled
         node.startupDelay = Math.max(num(config.startupDelay, 30), 0);
@@ -70,6 +79,8 @@ module.exports = function(RED) {
         let lastAbove = false;
         let lastBelow = false;
         let lastIsHeating = null;
+        let lastInput = null;
+        let runtimeState = STATE_OFF;
         let cyclesSinceModeChange = 0;
         let modeChanged = false;
 
@@ -128,6 +139,123 @@ module.exports = function(RED) {
             };
         }
 
+        function resolveRuntimeMode(modeValue, isHeatingValue) {
+            if (modeValue === "heat") {
+                return { operationMode: "heat", isHeating: true };
+            }
+            if (modeValue === "cool") {
+                return { operationMode: "cool", isHeating: false };
+            }
+            if (modeValue === "off") {
+                return { operationMode: "off", isHeating: false };
+            }
+            return { operationMode: "auto", isHeating: isHeatingValue };
+        }
+
+        function resolveControlState(operationMode, isHeatingValue, failsafeOff) {
+            if (failsafeOff || operationMode === "off") {
+                return STATE_OFF;
+            }
+            if (operationMode === "heat") {
+                return STATE_HEATING;
+            }
+            if (operationMode === "cool") {
+                return STATE_COOLING;
+            }
+            return isHeatingValue ? STATE_HEATING : STATE_COOLING;
+        }
+
+        runtimeState = resolveControlState(node.operationMode, node.isHeating, node.failsafeOff);
+
+        function clearHeartbeatTimer() {
+            if (node.heartbeatTimer) {
+                clearTimeout(node.heartbeatTimer);
+                node.heartbeatTimer = null;
+            }
+        }
+
+        function triggerHeartbeatFailsafe() {
+            node.heartbeatTimer = null;
+            const previousState = runtimeState;
+            const previousAbove = above;
+            const previousBelow = below;
+
+            if (node.heartbeatTimeoutSec <= 0) return;
+            if (previousState === STATE_OFF && !above && !below) return;
+
+            node.failsafeOff = true;
+            runtimeState = resolveControlState(node.operationMode, node.isHeating, node.failsafeOff);
+
+            above = false;
+            below = false;
+            lastAbove = false;
+            lastBelow = false;
+            lastIsHeating = null;
+            modeChanged = false;
+            cyclesSinceModeChange = 0;
+
+            const statusInput = lastInput;
+            const nowSec = Date.now() / 1000;
+            const staleAgeSec = node.lastPayloadTs ? Math.max(0, nowSec - node.lastPayloadTs) : null;
+            const effectiveThresholds = computeThresholds(0);
+
+            const statusInfo = {
+                algorithm: node.algorithm,
+                input: statusInput,
+                mode: runtimeState,
+                operationMode: node.operationMode,
+                isHeating: false,
+                above: false,
+                below: false,
+                activeSetpoint: null,
+                onThreshold: null,
+                offThreshold: null,
+                diff: node.diff,
+                anticipator: node.anticipator,
+                effectiveAnticipator: 0,
+                heatOn: effectiveThresholds.heatOn,
+                heatOff: effectiveThresholds.heatOff,
+                coolOn: effectiveThresholds.coolOn,
+                coolOff: effectiveThresholds.coolOff,
+                modeChanged: true,
+                cyclesSinceModeChange: 0,
+                failsafeOff: true,
+                staleAgeSec,
+                heartbeatTimeoutSec: node.heartbeatTimeoutSec
+            };
+
+            const comfortInfo = {
+                source: "tstat",
+                mode: STATE_OFF,
+                temperature: statusInput,
+                heatingThreshold: effectiveThresholds.heatOn,
+                coolingThreshold: effectiveThresholds.coolOn,
+                callActive: false,
+                callMode: "off"
+            };
+
+            node.send([
+                { payload: false, status: statusInfo, comfort: comfortInfo },
+                { payload: false, status: statusInfo, comfort: comfortInfo },
+                { payload: false, status: statusInfo, comfort: comfortInfo }
+            ]);
+
+            const fmt = (value) => (typeof value === "number" ? value.toFixed(1) : "?");
+            const staleText = typeof staleAgeSec === "number" ? staleAgeSec.toFixed(0) : "?";
+            const text = `OFF ${fmt(statusInput)} stale ${staleText}s timeout ${node.heartbeatTimeoutSec.toFixed(0)}s`;
+            if (previousState === runtimeState && previousAbove === false && previousBelow === false) {
+                utils.setStatusUnchanged(node, text);
+            } else {
+                utils.setStatusChanged(node, text);
+            }
+        }
+
+        function armHeartbeatTimer() {
+            if (node.heartbeatTimeoutSec <= 0) return;
+            clearHeartbeatTimer();
+            node.heartbeatTimer = setTimeout(triggerHeartbeatFailsafe, node.heartbeatTimeoutSec * 1000);
+        }
+
         // ====================================================================
         // Main input handler
         // ====================================================================
@@ -164,6 +292,7 @@ module.exports = function(RED) {
                     evalNumeric(config.ignoreAnticipatorCycles,  config.ignoreAnticipatorCyclesType,  node.ignoreAnticipatorCycles,  msg),  // 9
                     evalBool(config.isHeating,                   config.isHeatingType,                node.isHeating,                msg),  // 10
                     evalEnum(config.algorithm, config.algorithmType, VALID_ALGORITHMS, node.algorithm, msg),  // 11
+                    evalEnum(config.operationMode, config.operationModeType, VALID_OPERATION_MODES, node.operationMode, msg),  // 12
                 ]);
 
                 node.setpoint                = results[0];
@@ -175,9 +304,12 @@ module.exports = function(RED) {
                 node.heatingOn               = results[6];
                 node.diff                    = results[7];
                 node.anticipator             = results[8];
-                node.ignoreAnticipatorCycles  = Math.floor(results[9]);
+                node.ignoreAnticipatorCycles = Math.max(0, Math.floor(results[9]));
                 node.isHeating               = results[10];
                 node.algorithm               = results[11];
+                const runtimeMode = resolveRuntimeMode(results[12], node.isHeating);
+                node.operationMode = runtimeMode.operationMode;
+                node.isHeating = runtimeMode.isHeating;
 
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
@@ -196,120 +328,157 @@ module.exports = function(RED) {
                 return;
             }
 
+            const previousAbove = above;
+            const previousBelow = below;
+            const previousState = runtimeState;
+            const previousFailsafeOff = node.failsafeOff;
+
             // ----------------------------------------------------------------
             // 4. Read temperature from msg.payload
             // ----------------------------------------------------------------
-            if (!msg.hasOwnProperty("payload")) {
+            let input = null;
+            const hasPayload = msg.hasOwnProperty("payload");
+            if (hasPayload) {
+                input = parseFloat(msg.payload);
+                if (isNaN(input)) {
+                    utils.setStatusError(node, "invalid payload");
+                    if (done) done();
+                    return;
+                }
+                lastInput = input;
+                node.lastPayloadTs = Date.now() / 1000;
+                node.failsafeOff = false;
+                armHeartbeatTimer();
+            } else if (node.operationMode !== "off") {
                 utils.setStatusError(node, "missing payload");
                 if (done) done();
                 return;
-            }
-
-            const input = parseFloat(msg.payload);
-            if (isNaN(input)) {
-                utils.setStatusError(node, "invalid payload");
-                if (done) done();
-                return;
+            } else {
+                input = lastInput;
             }
 
             // ----------------------------------------------------------------
             // 4. Anticipator mode-change logic
             // ----------------------------------------------------------------
-            if (lastIsHeating !== null && node.isHeating !== lastIsHeating) {
-                modeChanged = true;
-                cyclesSinceModeChange = 0;
-            }
-            lastIsHeating = node.isHeating;
-            if ((below && !lastBelow) || (above && !lastAbove)) {
-                cyclesSinceModeChange++;
-            }
-
             let effectiveAnticipator = node.anticipator;
-            if (modeChanged && node.ignoreAnticipatorCycles > 0 && cyclesSinceModeChange <= node.ignoreAnticipatorCycles) {
-                effectiveAnticipator = 0;
-            }
-            if (cyclesSinceModeChange > node.ignoreAnticipatorCycles) {
+            let effectiveThresholds = computeThresholds(effectiveAnticipator);
+            let activeSetpoint = null;
+            let onThreshold = null;
+            let offThreshold = null;
+            const runState = resolveControlState(node.operationMode, node.isHeating, node.failsafeOff);
+            const isOffState = runState === STATE_OFF;
+            const isHeatingState = runState === STATE_HEATING;
+
+            if (isOffState) {
+                above = false;
+                below = false;
+                lastAbove = false;
+                lastBelow = false;
+                lastIsHeating = null;
                 modeChanged = false;
+                cyclesSinceModeChange = 0;
+                effectiveAnticipator = 0;
+                effectiveThresholds = computeThresholds(0);
+            } else {
+                if (previousState !== runState) {
+                    modeChanged = true;
+                    cyclesSinceModeChange = 0;
+                    above = false;
+                    below = false;
+                    lastAbove = false;
+                    lastBelow = false;
+                } else if (lastIsHeating !== null && isHeatingState !== lastIsHeating) {
+                    modeChanged = true;
+                    cyclesSinceModeChange = 0;
+                }
+                lastIsHeating = isHeatingState;
+                if ((below && !lastBelow) || (above && !lastAbove)) {
+                    cyclesSinceModeChange++;
+                }
+
+                if (modeChanged && node.ignoreAnticipatorCycles > 0 && cyclesSinceModeChange <= node.ignoreAnticipatorCycles) {
+                    effectiveAnticipator = 0;
+                }
+                if (cyclesSinceModeChange > node.ignoreAnticipatorCycles) {
+                    modeChanged = false;
+                }
+
+                lastAbove = above;
+                lastBelow = below;
+                effectiveThresholds = computeThresholds(effectiveAnticipator);
+
+                // ------------------------------------------------------------
+                // 5. Thermostat logic — compute above/below calls
+                // ------------------------------------------------------------
+                if (node.algorithm === "single") {
+                    activeSetpoint = node.setpoint;
+
+                    if (isHeatingState) {
+                        onThreshold = effectiveThresholds.heatOn;
+                        offThreshold = node.setpoint - effectiveAnticipator;
+                        if (input < onThreshold) {
+                            below = true;
+                        } else if (below && input > offThreshold) {
+                            below = false;
+                        }
+                        above = false;
+                    } else {
+                        onThreshold = effectiveThresholds.coolOn;
+                        offThreshold = node.setpoint + effectiveAnticipator;
+                        if (input > onThreshold) {
+                            above = true;
+                        } else if (above && input < offThreshold) {
+                            above = false;
+                        }
+                        below = false;
+                    }
+                } else if (node.algorithm === "split") {
+                    if (isHeatingState) {
+                        activeSetpoint = node.heatingSetpoint;
+                        onThreshold = effectiveThresholds.heatOn;
+                        offThreshold = node.heatingSetpoint - effectiveAnticipator;
+                        if (input < onThreshold) {
+                            below = true;
+                        } else if (below && input > offThreshold) {
+                            below = false;
+                        }
+                        above = false;
+                    } else {
+                        activeSetpoint = node.coolingSetpoint;
+                        onThreshold = effectiveThresholds.coolOn;
+                        offThreshold = node.coolingSetpoint + effectiveAnticipator;
+                        if (input > onThreshold) {
+                            above = true;
+                        } else if (above && input < offThreshold) {
+                            above = false;
+                        }
+                        below = false;
+                    }
+                } else if (node.algorithm === "specified") {
+                    if (isHeatingState) {
+                        activeSetpoint = node.heatingOn;
+                        onThreshold = node.heatingOn;
+                        offThreshold = node.heatingOff - effectiveAnticipator;
+                        if (input < onThreshold) {
+                            below = true;
+                        } else if (below && input > offThreshold) {
+                            below = false;
+                        }
+                        above = false;
+                    } else {
+                        activeSetpoint = node.coolingOn;
+                        onThreshold = node.coolingOn;
+                        offThreshold = node.coolingOff + effectiveAnticipator;
+                        if (input > onThreshold) {
+                            above = true;
+                        } else if (above && input < offThreshold) {
+                            above = false;
+                        }
+                        below = false;
+                    }
+                }
             }
-
-            lastAbove = above;
-            lastBelow = below;
-
-            // ----------------------------------------------------------------
-            // 5. Thermostat logic — compute above/below calls
-            // ----------------------------------------------------------------
-            const effectiveThresholds = computeThresholds(effectiveAnticipator);
-            let activeSetpoint = 0;
-            let onThreshold = 0;
-            let offThreshold = 0;
-
-            if (node.algorithm === "single") {
-                activeSetpoint = node.setpoint;
-
-                if (node.isHeating) {
-                    onThreshold = effectiveThresholds.heatOn;
-                    offThreshold = node.setpoint - effectiveAnticipator;
-                    if (input < onThreshold) {
-                        below = true;
-                    } else if (below && input > offThreshold) {
-                        below = false;
-                    }
-                    above = false;
-                } else {
-                    onThreshold = effectiveThresholds.coolOn;
-                    offThreshold = node.setpoint + effectiveAnticipator;
-                    if (input > onThreshold) {
-                        above = true;
-                    } else if (above && input < offThreshold) {
-                        above = false;
-                    }
-                    below = false;
-                }
-            } else if (node.algorithm === "split") {
-                if (node.isHeating) {
-                    activeSetpoint = node.heatingSetpoint;
-                    onThreshold = effectiveThresholds.heatOn;
-                    offThreshold = node.heatingSetpoint - effectiveAnticipator;
-                    if (input < onThreshold) {
-                        below = true;
-                    } else if (below && input > offThreshold) {
-                        below = false;
-                    }
-                    above = false;
-                } else {
-                    activeSetpoint = node.coolingSetpoint;
-                    onThreshold = effectiveThresholds.coolOn;
-                    offThreshold = node.coolingSetpoint + effectiveAnticipator;
-                    if (input > onThreshold) {
-                        above = true;
-                    } else if (above && input < offThreshold) {
-                        above = false;
-                    }
-                    below = false;
-                }
-            } else if (node.algorithm === "specified") {
-                if (node.isHeating) {
-                    activeSetpoint = node.heatingOn;
-                    onThreshold = node.heatingOn;
-                    offThreshold = node.heatingOff - effectiveAnticipator;
-                    if (input < onThreshold) {
-                        below = true;
-                    } else if (below && input > offThreshold) {
-                        below = false;
-                    }
-                    above = false;
-                } else {
-                    activeSetpoint = node.coolingOn;
-                    onThreshold = node.coolingOn;
-                    offThreshold = node.coolingOff + effectiveAnticipator;
-                    if (input > onThreshold) {
-                        above = true;
-                    } else if (above && input < offThreshold) {
-                        above = false;
-                    }
-                    below = false;
-                }
-            }
+            runtimeState = runState;
 
             // ----------------------------------------------------------------
             // 6. Startup suppression
@@ -317,20 +486,26 @@ module.exports = function(RED) {
             // Prevent call state from accumulating during startup.
             // Without this, above/below can latch ON while output is
             // suppressed, then emit a false call the moment startup ends.
-            if (!node.startupComplete) {
+            if (!node.startupComplete && !isOffState) {
                 above = false;
                 below = false;
             }
-            const outputAbove = node.startupComplete ? above : false;
-            const outputBelow = node.startupComplete ? below : false;
+            const outputAbove = isOffState ? false : (node.startupComplete ? above : false);
+            const outputBelow = isOffState ? false : (node.startupComplete ? below : false);
+            const outputIsHeating = runtimeState === STATE_HEATING;
 
             // ----------------------------------------------------------------
             // 7. Build and send outputs
             // ----------------------------------------------------------------
+            const operationState = runtimeState;
+            const statusInput = input !== null ? input : lastInput;
+            const staleAgeSec = node.lastPayloadTs ? Math.max(0, (Date.now() / 1000) - node.lastPayloadTs) : null;
             const statusInfo = {
                 algorithm: node.algorithm,
-                input,
-                isHeating: node.isHeating,
+                input: statusInput,
+                mode: operationState,
+                operationMode: node.operationMode,
+                isHeating: outputIsHeating,
                 above: outputAbove,
                 below: outputBelow,
                 activeSetpoint,
@@ -344,21 +519,24 @@ module.exports = function(RED) {
                 coolOn: effectiveThresholds.coolOn,
                 coolOff: effectiveThresholds.coolOff,
                 modeChanged,
-                cyclesSinceModeChange
+                cyclesSinceModeChange,
+                failsafeOff: node.failsafeOff,
+                staleAgeSec,
+                heartbeatTimeoutSec: node.heartbeatTimeoutSec
             };
 
             const comfortInfo = {
                 source: "tstat",
-                mode: node.isHeating ? "heating" : "cooling",
-                temperature: input,
+                mode: operationState,
+                temperature: statusInput,
                 heatingThreshold: effectiveThresholds.heatOn,
                 coolingThreshold: effectiveThresholds.coolOn,
                 callActive: outputAbove || outputBelow,
-                callMode: outputBelow ? "heating" : outputAbove ? "cooling" : "idle"
+                callMode: isOffState ? "off" : outputBelow ? "heating" : outputAbove ? "cooling" : "idle"
             };
 
             send([
-                { payload: node.isHeating, status: statusInfo, comfort: comfortInfo },
+                { payload: outputIsHeating, status: statusInfo, comfort: comfortInfo },
                 { payload: outputAbove, status: statusInfo, comfort: comfortInfo },
                 { payload: outputBelow, status: statusInfo, comfort: comfortInfo }
             ]);
@@ -366,14 +544,29 @@ module.exports = function(RED) {
             // ----------------------------------------------------------------
             // 8. Status display
             // ----------------------------------------------------------------
-            const mode = node.isHeating ? "H" : "C";
-            const fmt = (value) => value.toFixed(1);
-            const heatOff = statusInfo.heatOff;
-            const coolOff = statusInfo.coolOff;
-            const suffix = !node.startupComplete ? " [startup]" : "";
-            const text = `${mode} ${fmt(input)} h+${fmt(statusInfo.heatOn)} h-${fmt(heatOff)} c+${fmt(statusInfo.coolOn)} c-${fmt(coolOff)}${suffix}`;
+            const fmt = (value) => (typeof value === "number" ? value.toFixed(1) : "?");
+            const suffix = (!node.startupComplete && !isOffState) ? " [startup]" : "";
+            let text;
+            if (isOffState) {
+                if (node.failsafeOff) {
+                    const staleText = typeof staleAgeSec === "number" ? staleAgeSec.toFixed(0) : "?";
+                    text = `OFF ${fmt(statusInput)} stale ${staleText}s timeout ${node.heartbeatTimeoutSec.toFixed(0)}s`;
+                } else {
+                    text = `OFF ${fmt(statusInput)} calls disabled`;
+                }
+            } else {
+                const mode = outputIsHeating ? "H" : "C";
+                const heatOff = statusInfo.heatOff;
+                const coolOff = statusInfo.coolOff;
+                text = `${mode} ${fmt(statusInput)} h+${fmt(statusInfo.heatOn)} h-${fmt(heatOff)} c+${fmt(statusInfo.coolOn)} c-${fmt(coolOff)}${suffix}`;
+            }
 
-            if (outputAbove === lastAbove && outputBelow === lastBelow) {
+            if (
+                outputAbove === previousAbove &&
+                outputBelow === previousBelow &&
+                runtimeState === previousState &&
+                node.failsafeOff === previousFailsafeOff
+            ) {
                 utils.setStatusUnchanged(node, text);
             } else {
                 utils.setStatusChanged(node, text);
@@ -390,6 +583,7 @@ module.exports = function(RED) {
                 clearTimeout(node.startupTimer);
                 node.startupTimer = null;
             }
+            clearHeartbeatTimer();
             done();
         });
     }

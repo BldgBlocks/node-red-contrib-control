@@ -20,7 +20,7 @@
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
 
-    const VALID_MODES = ["auto", "heat", "cool"];
+    const VALID_MODES = ["auto", "heat", "cool", "off"];
     const VALID_ALGORITHMS = ["single", "split", "specified"];
     const BYPASS_TIMER_CONTEXT = "bypass timer";
     const FORCE_HEAT_CONTEXT = "force heat";
@@ -60,10 +60,15 @@ module.exports = function(RED) {
         // ====================================================================
         // Runtime state
         // ====================================================================
-        node.currentMode = node.operationMode === "cool" ? "cooling" : "heating";
+        node.currentMode = node.operationMode === "cool"
+            ? "cooling"
+            : node.operationMode === "off"
+                ? "off"
+                : "heating";
         node.lastTemperature = null;
         node.lastModeChange = 0;
         node.isBusy = false;
+        let lastAutoMode = node.currentMode === "cooling" ? "cooling" : "heating";
 
         let initComplete = false;
         let conditionStartTime = null;
@@ -85,6 +90,28 @@ module.exports = function(RED) {
                 .catch(() => fallback);
         }
 
+        function rememberAutoMode(mode) {
+            if (mode === "heating" || mode === "cooling") {
+                lastAutoMode = mode;
+            }
+        }
+
+        function setAutoModeFromTemperature() {
+            if (node.lastTemperature === null) {
+                node.currentMode = lastAutoMode;
+                return;
+            }
+            const { heating, cooling } = getThresholds();
+            if (node.lastTemperature < heating) {
+                node.currentMode = "heating";
+            } else if (node.lastTemperature > cooling) {
+                node.currentMode = "cooling";
+            } else {
+                node.currentMode = lastAutoMode;
+            }
+            rememberAutoMode(node.currentMode);
+        }
+
         function triggerBypass(commandMsg) {
             if (!initComplete) {
                 utils.setStatusWarn(node, "bypass ignored during init");
@@ -100,6 +127,7 @@ module.exports = function(RED) {
             }
 
             node.currentMode = pendingMode;
+            rememberAutoMode(node.currentMode);
             node.lastModeChange = Date.now() / 1000;
             conditionStartTime = null;
             pendingMode = null;
@@ -129,6 +157,7 @@ module.exports = function(RED) {
             }
 
             node.currentMode = targetMode;
+            rememberAutoMode(node.currentMode);
             node.lastModeChange = Date.now() / 1000;
             conditionStartTime = null;
             pendingMode = null;
@@ -259,10 +288,19 @@ module.exports = function(RED) {
             // ----------------------------------------------------------------
             if (node.operationMode === "heat") {
                 node.currentMode = "heating";
+                rememberAutoMode(node.currentMode);
                 conditionStartTime = null;
                 pendingMode = null;
             } else if (node.operationMode === "cool") {
                 node.currentMode = "cooling";
+                rememberAutoMode(node.currentMode);
+                conditionStartTime = null;
+                pendingMode = null;
+            } else if (node.operationMode === "off") {
+                if (node.currentMode !== "off") {
+                    node.lastModeChange = Date.now() / 1000;
+                }
+                node.currentMode = "off";
                 conditionStartTime = null;
                 pendingMode = null;
             }
@@ -271,23 +309,36 @@ module.exports = function(RED) {
             // 4. Read temperature from msg
             // ----------------------------------------------------------------
             let input;
+            let hasInput = false;
             try {
-                input = parseFloat(RED.util.getMessageProperty(msg, node.inputProperty));
+                const rawInput = RED.util.getMessageProperty(msg, node.inputProperty);
+                if (rawInput !== undefined) {
+                    input = parseFloat(rawInput);
+                    hasInput = true;
+                }
             } catch (e) {
-                input = NaN;
+                hasInput = false;
             }
-            if (isNaN(input)) {
+
+            if (hasInput && isNaN(input)) {
                 utils.setStatusError(node, "missing or invalid temperature");
                 if (done) done();
                 return;
             }
-            node.lastTemperature = input;
+
+            if (hasInput) {
+                node.lastTemperature = input;
+            } else if (node.operationMode !== "off") {
+                utils.setStatusError(node, "missing or invalid temperature");
+                if (done) done();
+                return;
+            }
 
             // ----------------------------------------------------------------
             // 5. Init window — wait for sensors to stabilize
             // ----------------------------------------------------------------
             const now = Date.now() / 1000;
-            if (!initComplete) {
+            if (!initComplete && node.operationMode !== "off") {
                 if (now - initStartTime >= node.initWindow) {
                     initComplete = true;
                     evaluateInitialMode();
@@ -296,6 +347,13 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
+            }
+
+            if (node.operationMode === "auto" && node.currentMode === "off") {
+                setAutoModeFromTemperature();
+                node.lastModeChange = now;
+                conditionStartTime = null;
+                pendingMode = null;
             }
 
             // ----------------------------------------------------------------
@@ -351,7 +409,10 @@ module.exports = function(RED) {
                 node.currentMode = "heating";
             } else if (node.lastTemperature > cooling) {
                 node.currentMode = "cooling";
+            } else if (node.currentMode === "off") {
+                node.currentMode = lastAutoMode;
             }
+            rememberAutoMode(node.currentMode);
             node.lastModeChange = Date.now() / 1000;
         }
 
@@ -368,6 +429,9 @@ module.exports = function(RED) {
 
             // Determine what mode temperature demands
             let desiredMode = node.currentMode;
+            if (desiredMode !== "heating" && desiredMode !== "cooling") {
+                desiredMode = lastAutoMode;
+            }
             if (node.lastTemperature < heating) {
                 desiredMode = "heating";
             } else if (node.lastTemperature > cooling) {
@@ -383,6 +447,7 @@ module.exports = function(RED) {
                 } else if (conditionStartTime && now - conditionStartTime >= node.swapTime) {
                     // Countdown expired — execute the swap
                     node.currentMode = desiredMode;
+                    rememberAutoMode(node.currentMode);
                     node.lastModeChange = now;
                     conditionStartTime = null;
                     pendingMode = null;
@@ -399,6 +464,7 @@ module.exports = function(RED) {
         // Build output message
         // ====================================================================
         function buildOutputs(msg) {
+            const isOff = node.currentMode === "off";
             const isHeating = node.currentMode === "heating";
             const { heating: effectiveHeating, cooling: effectiveCooling } = getThresholds();
             const comfort = {
@@ -408,19 +474,21 @@ module.exports = function(RED) {
                 heatingThreshold: effectiveHeating,
                 coolingThreshold: effectiveCooling,
                 callActive: null,
-                callMode: "idle"
+                callMode: isOff ? "off" : "idle"
             };
 
             // Preserve all original message properties (e.g., singleSetpoint, splitHeatingSetpoint)
             // and add/overwrite changeover-specific fields
             msg.payload = node.lastTemperature;
             msg.isHeating = isHeating;
+            msg.operationMode = node.operationMode;
             msg.comfort = comfort;
             msg.status = {
                 mode: node.currentMode,
                 operationMode: node.operationMode,
                 algorithm: node.algorithm,
                 isHeating,
+                isOff,
                 heatingSetpoint: effectiveHeating,
                 coolingSetpoint: effectiveCooling,
                 temperature: node.lastTemperature
@@ -435,6 +503,17 @@ module.exports = function(RED) {
         function updateStatus() {
             const now = Date.now() / 1000;
             const isHeating = node.currentMode === "heating";
+
+            if (node.currentMode === "off" || node.operationMode === "off") {
+                const temp = node.lastTemperature !== null ? node.lastTemperature.toFixed(1) : "?";
+                const text = `${temp}° [off] calls disabled`;
+                if (now - node.lastModeChange < 1) {
+                    utils.setStatusChanged(node, text);
+                } else {
+                    utils.setStatusUnchanged(node, text);
+                }
+                return;
+            }
 
             if (!initComplete) {
                 const remaining = Math.max(0, node.initWindow - (now - initStartTime));

@@ -4,6 +4,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <input type="text" id="node-input-inputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-sampleSize" title="Rolling window size (positive integer, e.g., 10)"><i class="fa fa-list-ol"></i> Window Size</label>
         <input type="number" id="node-input-sampleSize" placeholder="10" min="1" step="1">
     </div>
@@ -25,6 +29,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            inputProperty: { value: "payload" },
             sampleSize: {
                 value: 10,
                 required: true,
@@ -72,17 +77,25 @@ Computes a rolling average of numeric inputs within a valid range.
 
 ### Inputs
 : context (string) : Configures reset (`"reset"`) or window size (`"sampleSize"`).
-: payload (number | boolean) : Number for averaging, boolean for reset.
-: minValid (number) : Minimum valid range for payload input.
-: maxValid (number) : Maximum valid range for payload input.
+: input-property (number) : Numeric input for averaging, read from the configured Input Property.
+: payload (number | boolean) : Value for configuration contexts (boolean for reset, number for sample size).
+: minValid (number) : Minimum valid range for the input value.
+: maxValid (number) : Maximum valid range for the input value.
 
 ### Outputs
 : payload (number | null) : Rolling average, or `null` if no valid inputs.
 
 ### Details
-Averages numeric `msg.payload` values over a rolling window (default: 10).
+Averages numeric input values read from the configured Input Property (default: `msg.payload`) over a rolling window (default: 10).
 
 Resets state (`sum`, `count`) via `msg.context = "reset"` with `msg.payload = true`.
+
+### Properties
+: name (string) : Display name in editor.
+: inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: sampleSize (number) : Number of values retained in the rolling window (≥ 1).
+: minValid (number) : Minimum accepted input value.
+: maxValid (number) : Maximum accepted input value.
 
 ### Status
 - Green (dot): Configuration update

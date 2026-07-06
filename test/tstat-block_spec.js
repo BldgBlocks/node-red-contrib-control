@@ -11,8 +11,10 @@ const SINGLE_DEFAULTS = {
     diff: "2", diffType: "num",
     anticipator: "0.5", anticipatorType: "num",
     ignoreAnticipatorCycles: "1", ignoreAnticipatorCyclesType: "num",
+    operationMode: "auto", operationModeType: "dropdown",
     isHeating: true, isHeatingType: "bool",
     startupDelay: 0,
+    heartbeatTimeoutSec: 0,
 };
 
 const SPLIT_DEFAULTS = {
@@ -178,6 +180,148 @@ describe("tstat-block", function() {
                     assert.strictEqual(msg.payload, false, "below must be false in cooling mode");
                     done();
                 }).catch(done);
+            });
+        });
+    });
+
+    // ========================================================================
+    // Operation mode: off
+    // ========================================================================
+    describe("operation mode - off", function() {
+
+        it("should force active cooling call off immediately", function(done) {
+            const flow = tstatFlow({
+                ...SINGLE_DEFAULTS,
+                isHeating: false,
+                operationMode: "operationMode",
+                operationModeType: "msg",
+            });
+
+            helper.load(tstatNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const outAbove = helper.getNode("out2");
+
+                try {
+                    let p = waitForMessage(outAbove);
+                    n1.receive({ payload: 72, operationMode: "cool" });
+                    const msg1 = await p;
+                    assert.strictEqual(msg1.payload, true, "cooling call should be active before off");
+
+                    p = waitForMessage(outAbove);
+                    n1.receive({ operationMode: "off" });
+                    const msg2 = await p;
+
+                    assert.strictEqual(msg2.payload, false, "off should force cooling call off");
+                    assert.strictEqual(msg2.status.operationMode, "off");
+                    assert.strictEqual(msg2.status.mode, "off");
+                    done();
+                } catch (e) {
+                    done(e);
+                }
+            });
+        });
+
+        it("should resume normal calls when transitioning from off to cool", function(done) {
+            const flow = tstatFlow({
+                ...SINGLE_DEFAULTS,
+                operationMode: "operationMode",
+                operationModeType: "msg",
+            });
+
+            helper.load(tstatNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const outAbove = helper.getNode("out2");
+
+                try {
+                    let p = waitForMessage(outAbove);
+                    n1.receive({ operationMode: "off" });
+                    const offMsg = await p;
+                    assert.strictEqual(offMsg.payload, false, "off should keep calls disabled");
+
+                    p = waitForMessage(outAbove);
+                    n1.receive({ payload: 75, operationMode: "cool" });
+                    const coolMsg = await p;
+
+                    assert.strictEqual(coolMsg.payload, true, "cool mode should re-enable cooling calls");
+                    assert.strictEqual(coolMsg.status.operationMode, "cool");
+                    done();
+                } catch (e) {
+                    done(e);
+                }
+            });
+        });
+    });
+
+    // ========================================================================
+    // Heartbeat fail-safe
+    // ========================================================================
+    describe("heartbeat fail-safe", function() {
+
+        it("should force active cooling call off when payload heartbeat expires", function(done) {
+            this.timeout(8000);
+            const flow = tstatFlow({
+                ...SINGLE_DEFAULTS,
+                operationMode: "cool",
+                operationModeType: "dropdown",
+                heartbeatTimeoutSec: 1,
+            });
+
+            helper.load(tstatNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const outAbove = helper.getNode("out2");
+
+                try {
+                    let p = waitForMessage(outAbove);
+                    sendPayload(n1, 72);
+                    const active = await p;
+                    assert.strictEqual(active.payload, true, "cooling call should be active before timeout");
+
+                    p = waitForMessage(outAbove, 2500);
+                    const timeoutMsg = await p;
+                    assert.strictEqual(timeoutMsg.payload, false, "heartbeat timeout should force call off");
+                    assert.strictEqual(timeoutMsg.status.mode, "off");
+                    assert.strictEqual(timeoutMsg.status.failsafeOff, true);
+                    done();
+                } catch (e) {
+                    done(e);
+                }
+            });
+        });
+
+        it("should recover from heartbeat off when a fresh payload arrives", function(done) {
+            this.timeout(9000);
+            const flow = tstatFlow({
+                ...SINGLE_DEFAULTS,
+                operationMode: "cool",
+                operationModeType: "dropdown",
+                heartbeatTimeoutSec: 1,
+            });
+
+            helper.load(tstatNode, flow, async function() {
+                const n1 = helper.getNode("n1");
+                const outAbove = helper.getNode("out2");
+
+                try {
+                    let p = waitForMessage(outAbove);
+                    sendPayload(n1, 72);
+                    const active = await p;
+                    assert.strictEqual(active.payload, true);
+
+                    p = waitForMessage(outAbove, 2500);
+                    const timeoutMsg = await p;
+                    assert.strictEqual(timeoutMsg.payload, false);
+                    assert.strictEqual(timeoutMsg.status.failsafeOff, true);
+
+                    p = waitForMessage(outAbove);
+                    sendPayload(n1, 72);
+                    const recovered = await p;
+                    assert.strictEqual(recovered.payload, true, "fresh payload should clear failsafe and resume cooling call");
+                    assert.strictEqual(recovered.status.failsafeOff, false);
+                    assert.strictEqual(recovered.status.mode, "cooling");
+                    done();
+                } catch (e) {
+                    done(e);
+                }
             });
         });
     });
