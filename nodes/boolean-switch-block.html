@@ -8,6 +8,27 @@
         <label for="node-input-state" title="Initial switch state"><i class="fa fa-toggle-on"></i> State</label>
         <input type="checkbox" id="node-input-state" style="width: auto;">
     </div>
+    <div class="form-row">
+        <label for="node-input-operationMode" title="How incoming messages are routed"><i class="fa fa-random"></i> Operation</label>
+        <select id="node-input-operationMode">
+            <option value="map">Map message properties</option>
+            <option value="context">Context (legacy)</option>
+        </select>
+    </div>
+    <div id="node-input-map-properties">
+        <div class="form-row">
+            <label for="node-input-switchProperty" title="Property evaluated as the switch value"><i class="fa fa-toggle-on"></i> Switch property</label>
+            <input type="text" id="node-input-switchProperty" placeholder="switch">
+        </div>
+        <div class="form-row">
+            <label for="node-input-trueProperty" title="Property that allows the message through when the switch is true"><i class="fa fa-check"></i> True property</label>
+            <input type="text" id="node-input-trueProperty" placeholder="payload">
+        </div>
+        <div class="form-row">
+            <label for="node-input-falseProperty" title="Property that allows the message through when the switch is false"><i class="fa fa-times"></i> False property</label>
+            <input type="text" id="node-input-falseProperty" placeholder="Optional">
+        </div>
+    </div>
 </script>
 
 <!-- JavaScript Section -->
@@ -17,7 +38,11 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            state: { value: false }
+            state: { value: false },
+            operationMode: { value: "map" },
+            switchProperty: { value: "switch", required: true },
+            trueProperty: { value: "payload", required: true },
+            falseProperty: { value: "" }
         },
         inputs: 1,
         outputs: 3,
@@ -27,17 +52,31 @@
         paletteLabel: "boolean switch",
         label: function() {
             return this.name || "boolean switch";
+        },
+        oneditprepare: function() {
+            $("#node-input-operationMode").on("change", function() {
+                $("#node-input-map-properties").toggle($(this).val() === "map");
+            }).trigger("change");
         }
     });
 </script>
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="boolean-switch-block">
-A boolean gate that routes messages based on a `true`/`false` switch state.
+A boolean gate that routes messages based on a `true`/`false` switch value.
 
 ### Inputs
-: context (string) : Message tag: `"in"`, `"inTrue"`, `"inFalse"`, `"toggle"`, or `"switch"`.
-: payload (any) : Flow data for `"in"` / `"inTrue"` / `"inFalse"`; boolean for `"switch"`.
+: map mode (default) : The switch, true, and false properties identify independent incoming branches.
+: context mode : `context` identifies the control command or virtual input and `payload` carries its value.
+
+#### Map mode
+- **Switch property** — Boolean value that sets the active path. Defaults to `switch` (`msg.switch`). A switch message updates state but is not forwarded.
+- **True property** — Required property for forwarding on `outTrue`. Defaults to `payload` (`msg.payload`).
+- **False property** — Optional property for forwarding on `outFalse`. Leave empty to use the false state as a dead end.
+
+Switch, true, and false messages may come from separate sources. The node retains the latest switch state but never retains or emits a data value when that state changes. A true/false-path message does not need to include the switch property; it is forwarded only when it has the currently active path property.
+
+#### Context mode
 
 #### Contexts
 - **`"in"`** — Routes `msg` to `outTrue` when state is `true`, or `outFalse` when state is `false`. Always flows through.
@@ -47,25 +86,24 @@ A boolean gate that routes messages based on a `true`/`false` switch state.
 - **`"switch"`** — Sets the switch state to `!!msg.payload` and emits on `outControl`.
 
 ### Outputs
-: outTrue (msg) : Receives `msg` when state is `true` (via `"in"` or `"inTrue"`).
-: outFalse (msg) : Receives `msg` when state is `false` (via `"in"` or `"inFalse"`).
+: outTrue (msg) : Receives the original `msg` when the true path is active.
+: outFalse (msg) : Receives the original `msg` when the false path is active.
 : outControl (msg) : Emits `{ payload: <boolean> }` on `"toggle"` or `"switch"` only.
 
 ### Details
-This node acts as a boolean gate/router.
+This node acts as a boolean gate/router. In map mode, send `{ switch: true }` to open the true path, then a polling message such as `{ payload: ... }` passes through `outTrue`. Send `{ switch: false }` to close that path without emitting a data message.
 
-Use `"in"` to auto-route messages to the correct output based on state — messages always flow through.
-Use `"inTrue"`/`"inFalse"` for conditional gating — messages are blocked (with yellow warning) when state doesn't match.
+In context mode, use `"in"` to auto-route messages to the correct output based on state. Use `"inTrue"`/`"inFalse"` for conditional gating.
 
-State can be controlled with `"toggle"` (flip) or `"switch"` (set explicitly via payload).
+Context-mode state can be controlled with `"toggle"` (flip) or `"switch"` (set explicitly via payload).
 The `outControl` port fires only on state commands, not on routed data messages.
 
 ### Status
 - **Green (dot)**: Message routed successfully
-- **Blue (dot)**: State changed (`toggle` / `switch`)
-- **Blue (ring)**: State unchanged (`switch` with same value)
-- **Yellow (ring)**: Message blocked (`inTrue` when false, `inFalse` when true) or unknown context
-- **Red (ring)**: Error (missing context, invalid message)
+- **Blue (dot)**: Context-mode state changed (`toggle` / `switch`)
+- **Blue (ring)**: Message gated or context-mode state unchanged
+- **Yellow (ring)**: Unknown context
+- **Red (ring)**: Missing context or invalid message
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

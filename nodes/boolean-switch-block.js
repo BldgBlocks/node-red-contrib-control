@@ -7,9 +7,15 @@ module.exports = function(RED) {
 
         // Initialize state from config (coerce to boolean)
         node.state = !!config.state;
+        node.operationMode = config.operationMode === "map" ? "map" : "context";
+        node.switchProperty = typeof config.switchProperty === "string" && config.switchProperty.trim() ?
+            config.switchProperty.trim() : "switch";
+        node.trueProperty = typeof config.trueProperty === "string" && config.trueProperty.trim() ?
+            config.trueProperty.trim() : "payload";
+        node.falseProperty = typeof config.falseProperty === "string" ? config.falseProperty.trim() : "";
 
         // Set initial status
-        utils.setStatusOK(node, `state: ${node.state}`);
+        utils.setStatusOK(node, `mode: ${node.operationMode}`);
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -17,6 +23,31 @@ module.exports = function(RED) {
             // Guard against invalid message
             if (!msg) {
                 utils.setStatusError(node, "invalid message");
+                if (done) done();
+                return;
+            }
+
+            if (node.operationMode === "map") {
+                const switchValue = RED.util.getMessageProperty(msg, node.switchProperty);
+                if (switchValue !== undefined) {
+                    const newState = Boolean(switchValue);
+                    if (newState === node.state) {
+                        utils.setStatusUnchanged(node, `switch: ${node.state}`);
+                    } else {
+                        node.state = newState;
+                        utils.setStatusChanged(node, `switch: ${node.state}`);
+                    }
+                    if (done) done();
+                    return;
+                }
+
+                const activeProperty = node.state ? node.trueProperty : node.falseProperty;
+                if (activeProperty && RED.util.getMessageProperty(msg, activeProperty) !== undefined) {
+                    utils.setStatusOK(node, `switch: ${node.state}, ${activeProperty}`);
+                    send(node.state ? [msg, null, null] : [null, msg, null]);
+                } else {
+                    utils.setStatusUnchanged(node, `switch: ${node.state}, gated`);
+                }
                 if (done) done();
                 return;
             }
