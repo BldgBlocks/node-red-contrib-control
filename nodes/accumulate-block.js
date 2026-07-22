@@ -13,6 +13,12 @@ module.exports = function(RED) {
         node.count = 0;
         node.lastCount = null;
 
+        node.resetCount = function() {
+            node.count = 0;
+            utils.setStatusWarn(node, "reset");
+            return { count: node.count };
+        };
+
         // Set initial status
         utils.setStatusOK(node, `mode: ${node.mode}, name: ${node.name || node.mode + " accumulate"}`);
 
@@ -29,8 +35,7 @@ module.exports = function(RED) {
 
             if (msg.context === "reset") {
                 if (msg.payload === true) {
-                    node.count = 0;
-                    utils.setStatusWarn(node, "reset");
+                    node.resetCount();
                     if (done) done();
                     return;
                 }
@@ -91,9 +96,23 @@ module.exports = function(RED) {
         });
 
         node.on("close", function(done) {
+            node.resetCount = null;
             done();
         });
     }
 
     RED.nodes.registerType("accumulate-block", AccumulateBlockNode);
+
+    RED.httpAdmin.post("/accumulate-block/:id/reset-count", RED.auth.needsPermission("accumulate-block.write"), function(req, res) {
+        const targetNode = RED.nodes.getNode(req.params.id);
+        if (!targetNode || typeof targetNode.resetCount !== "function") {
+            return res.status(404).json({ error: "Node not found" });
+        }
+
+        const result = targetNode.resetCount();
+        return res.status(200).json({
+            message: "Count reset",
+            count: result.count
+        });
+    });
 };

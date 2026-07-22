@@ -15,9 +15,21 @@
             <option value="flows">Accumulate Flows</option>
         </select>
     </div>
+    <div class="form-row">
+        <label title="Runtime action for the deployed node"><i class="fa fa-bolt"></i> Actions</label>
+        <button type="button" id="node-input-reset-count" class="red-ui-button" style="width: auto;">Reset Count</button>
+        <span style="margin-left: 8px; color: #666;">Applies to the deployed node instance.</span>
+    </div>
 </script>
 
 <script type="text/javascript">
+    function resetAccumulateCount(nodeId) {
+        return $.ajax({
+            url: "accumulate-block/" + nodeId + "/reset-count",
+            type: "POST"
+        });
+    }
+
     RED.nodes.registerType("accumulate-block", {
         category: "bldgblocks control",
         color: "#301934",
@@ -40,6 +52,25 @@
                 "flows": "flows accumulate"
             };
             return modeLabels[this.mode] || "accumulate";
+        },
+        oneditprepare: function() {
+            const node = this;
+            const $resetButton = $("#node-input-reset-count");
+
+            $resetButton.on("click", function() {
+                $resetButton.prop("disabled", true);
+                resetAccumulateCount(node.id)
+                    .done(function() {
+                        RED.notify("Count reset", "success");
+                    })
+                    .fail(function(xhr) {
+                        const error = xhr.responseJSON && xhr.responseJSON.error;
+                        RED.notify(error || "Unable to reset count", "error");
+                    })
+                    .always(function() {
+                        $resetButton.prop("disabled", false);
+                    });
+            });
         }
     });
 </script>
@@ -66,6 +97,7 @@ Counts inputs according to the selected mode, reading from the configured **Inpu
 - **Accumulate Flows** counts all valid input messages (resets only on explicit reset)
 
 Reset via `msg.context = "reset"` with `msg.payload = true`.
+The **Reset Count** action in the editor resets the deployed node count to zero without redeploying.
 
 Used to track sustained events or message frequency.
 
