@@ -879,8 +879,7 @@ describe("alarm-collector", function () {
     });
 
     // ========================================================================
-    // Small magnitude hysteresis: alarm clears quickly past narrow band
-    // (Note: hysteresisMagnitude=0 is parsed as default 2 via `|| 2` fallback)
+    // Small magnitude hysteresis: alarm clears quickly past narrow band.
     // ========================================================================
     it("should clear with small magnitude hysteresis", function (done) {
         const flow = buildAlarmFlow({ hysteresisTime: "0.05", hysteresisMagnitude: "0.5" });
