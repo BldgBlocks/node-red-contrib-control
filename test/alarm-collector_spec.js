@@ -743,6 +743,32 @@ describe("alarm-collector", function () {
         });
     });
 
+    it("should cancel a pending clear when a zero-magnitude condition returns", function (done) {
+        const flow = buildAlarmFlow({ hysteresisTime: "0.15", hysteresisMagnitude: "0" });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
+            const n1 = helper.getNode("n1");
+            const capture = captureAlarmEvents(helper._RED);
+
+            await sendAndSettle(n1, 55);
+            await wait(200);
+            assert.strictEqual(n1.alarmState, true, "alarm active");
+            assert.strictEqual(n1.hysteresisMagnitude, 0, "zero magnitude preserved");
+
+            await sendAndSettle(n1, 49);
+            assert.ok(n1.hysteresisTimer, "clear timer starts below the threshold");
+
+            await wait(50);
+            await sendAndSettle(n1, 55);
+            assert.strictEqual(n1.hysteresisTimer, null, "returning condition cancels clear timer");
+
+            await wait(200);
+            assert.strictEqual(n1.alarmState, true, "alarm remains active");
+            assert.strictEqual(capture.events.length, 1, "no clear or duplicate activation emitted");
+            capture.cleanup();
+            done();
+        });
+    });
+
     // ========================================================================
     // Clearing time hysteresis: condition must be false for full duration
     // ========================================================================
