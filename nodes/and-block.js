@@ -8,8 +8,13 @@ module.exports = function(RED) {
         // Initialize state
         node.inputs = Array(parseInt(config.slots) || 2).fill(false);
         node.slots = parseInt(config.slots);
+        node.operationMode = config.operationMode === "map" ? "map" : "context";
+        node.mappings = Array.isArray(config.mappings) ? config.mappings.filter(mapping => {
+            return mapping && typeof mapping.property === "string" && mapping.property.trim() &&
+                utils.validateSlotIndex(`in${mapping.input}`, node.slots).valid;
+        }) : [];
 
-        utils.setStatusOK(node, `slots: ${node.slots}`);
+        utils.setStatusOK(node, `slots: ${node.slots}, mode: ${node.operationMode}`);
 
         // Initialize fields
         let lastResult = null;
@@ -28,27 +33,43 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Check required properties
-            if (!msg.hasOwnProperty("context")) {
-                utils.setStatusError(node, "missing context");
-                if (done) done();
-                return;
-            }
-
-            if (!msg.hasOwnProperty("payload")) {
-                utils.setStatusError(node, "missing payload");
-                if (done) done();
-                return;
-            }
-
-            // Process input slot
-            if (msg.context.startsWith("in")) {
+            let updated = false;
+            if (node.operationMode === "map") {
+                node.mappings.forEach(mapping => {
+                    const value = RED.util.getMessageProperty(msg, mapping.property);
+                    if (value !== undefined) {
+                        node.inputs[mapping.input - 1] = Boolean(value);
+                        updated = true;
+                    }
+                });
+                if (!updated) {
+                    utils.setStatusWarn(node, "no mapped properties found");
+                    if (done) done();
+                    return;
+                }
+            } else {
+                if (!msg.hasOwnProperty("context")) {
+                    utils.setStatusError(node, "missing context");
+                    if (done) done();
+                    return;
+                }
+                if (!msg.hasOwnProperty("payload")) {
+                    utils.setStatusError(node, "missing payload");
+                    if (done) done();
+                    return;
+                }
                 const slotVal = utils.validateSlotIndex(msg.context, node.slots);
-                if (slotVal.valid) {
-                    node.inputs[slotVal.index - 1] = Boolean(msg.payload);
-                    const result = node.inputs.every(v => v === true);
-                    const isUnchanged = result === lastResult && node.inputs.every((v, i) => v === lastInputs[i]);
-                    const statusText = `[${node.inputs.join(", ")}] -> ${result}`;
+                if (!slotVal.valid) {
+                    utils.setStatusWarn(node, "unknown context");
+                    if (done) done();
+                    return;
+                }
+                node.inputs[slotVal.index - 1] = Boolean(msg.payload);
+            }
+
+            const result = node.inputs.every(v => v === true);
+            const isUnchanged = result === lastResult && node.inputs.every((v, i) => v === lastInputs[i]);
+            const statusText = `[${node.inputs.join(", ")}] -> ${result}`;
                     
                     // ================================================================
                     // Debounce: Suppress consecutive same outputs within 500ms
@@ -78,18 +99,8 @@ module.exports = function(RED) {
                         send({ payload: result });
                     }
                     
-                    lastResult = result;
-                    lastInputs = node.inputs.slice();
-                    if (done) done();
-                    return;
-                } else {
-                    utils.setStatusError(node, slotVal.error);
-                    if (done) done();
-                    return;
-                }
-            }
-
-            utils.setStatusWarn(node, "unknown context");
+            lastResult = result;
+            lastInputs = node.inputs.slice();
             if (done) done();
         });
 

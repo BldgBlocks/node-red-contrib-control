@@ -7,6 +7,11 @@
         <label><i class="fa fa-eraser"></i> Rules</label>
         <ol id="node-input-rule-container"></ol>
     </div>
+    <div class="form-row">
+        <label for="node-input-deleteAll" title="Output a new empty message instead of applying rules"><i class="fa fa-trash"></i> Delete all</label>
+        <input type="checkbox" id="node-input-deleteAll" style="display: inline-block; width: auto; vertical-align: top;">
+        <span style="margin-left: 6px;">Delete all message properties</span>
+    </div>
 </script>
 
 <script type="text/javascript">
@@ -15,7 +20,8 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            rules: { value: [{ property: "payload", propertyType: "msg" }], required: true }
+            rules: { value: [{ property: "payload", propertyType: "msg" }], required: true },
+            deleteAll: { value: false }
         },
         inputs: 1,
         outputs: 1,
@@ -94,7 +100,9 @@ Sets multiple configured `msg` properties to `null`, creating each property if i
 
 Properties are specified via a dynamic rule list in the editor, each defining a `msg` property.
 
- Outputs the modified input message, preserving all other properties. 
+When **Delete all message properties** is enabled, creates a new empty message object (`{}`) and ignores the configured rules. Node-RED adds a new `_msgid` when forwarding the message; all original application properties are removed.
+
+Otherwise, outputs the modified input message, preserving all other properties. 
 
  Invalid inputs (missing message, invalid rule configuration) prevent output and show error status. 
 

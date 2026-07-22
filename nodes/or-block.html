@@ -7,6 +7,18 @@
         <label for="node-input-slots" title="Number of boolean inputs (integer ≥ 2)"><i class="fa fa-list"></i> Slots</label>
         <input type="number" id="node-input-slots" placeholder="2" min="2" step="1">
     </div>
+    <div class="form-row">
+        <label for="node-input-operationMode" title="How incoming messages update virtual inputs"><i class="fa fa-random"></i> Operation</label>
+        <select id="node-input-operationMode">
+            <option value="map">Map message properties</option>
+            <option value="context">Context (legacy)</option>
+        </select>
+    </div>
+    <div id="node-input-mappings-row" class="form-row">
+        <label><i class="fa fa-exchange"></i> Mappings</label>
+        <ol id="node-input-mapping-container"></ol>
+        <a href="#" id="node-input-add-mapping" class="red-ui-button" style="margin-top: 5px;">Add mapping</a>
+    </div>
 </script>
 
 <script type="text/javascript">
@@ -22,7 +34,9 @@
                     const num = parseFloat(v, 10);
                     return !isNaN(num) && num >= 2;
                 }
-            }
+            },
+            operationMode: { value: "map" },
+            mappings: { value: [] }
         },
         inputs: 1,
         outputs: 1,
@@ -32,6 +46,52 @@
         paletteLabel: "or",
         label: function() {
             return this.name ? `${this.name} (${this.slots})` : `or (${this.slots})`;
+        },
+        oneditprepare: function() {
+            const node = this;
+            const $container = $("#node-input-mapping-container");
+            const $mappingRow = $("#node-input-mappings-row");
+
+            function addMapping(mapping) {
+                const $item = $("<li>", { class: "node-input-mapping-row" }).appendTo($container);
+                $("<input>", {
+                    type: "text",
+                    class: "node-input-mapping-property",
+                    placeholder: "schedule"
+                }).val(mapping.property || "").appendTo($item);
+                $("<input>", {
+                    type: "number",
+                    class: "node-input-mapping-input",
+                    min: 1,
+                    step: 1,
+                    style: "width: 70px; margin-left: 6px;",
+                    title: "Virtual input number"
+                }).val(mapping.input || 1).appendTo($item);
+                $("<a>", { href: "#", class: "red-ui-button red-ui-button-small", style: "margin-left: 5px;" })
+                    .html('<i class="fa fa-remove"></i>')
+                    .on("click", function(event) {
+                        event.preventDefault();
+                        $item.remove();
+                    })
+                    .appendTo($item);
+            }
+
+            (node.mappings || []).slice().sort((left, right) => left.property.localeCompare(right.property)).forEach(addMapping);
+            $("#node-input-add-mapping").on("click", function(event) {
+                event.preventDefault();
+                addMapping({ property: "", input: 1 });
+            });
+            $("#node-input-operationMode").on("change", function() {
+                $mappingRow.toggle($(this).val() === "map");
+            }).trigger("change");
+        },
+        oneditsave: function() {
+            const slots = parseInt($("#node-input-slots").val(), 10);
+            this.mappings = $("#node-input-mapping-container .node-input-mapping-row").map(function() {
+                const property = $(this).find(".node-input-mapping-property").val().trim();
+                const input = parseInt($(this).find(".node-input-mapping-input").val(), 10);
+                return property && input >= 1 && input <= slots ? { property, input } : null;
+            }).get().filter(Boolean).sort((left, right) => left.property.localeCompare(right.property));
         }
     });
 </script>
@@ -40,8 +100,8 @@
 Computes the logical OR of multiple boolean inputs, outputting a new message with the result.
 
 ### Inputs
-: context (string) : Identifies the input slot (e.g., `"in1"`, `"in2"`).
-: payload (any) : Value for the slot, converted to boolean (`true`, `1` → `true`; `false`, `0`, `null` → `false`).
+: map mode (default) : Each configured property (for example, `schedule` for `msg.schedule`) updates its mapped virtual input.
+: context mode : `context` identifies the input slot (for example, `"in1"`, `"in2"`) and `payload` supplies its value.
 
 ### Outputs
 : payload (boolean) : `true` if any slot is `true`, `false` otherwise.
@@ -49,7 +109,9 @@ Computes the logical OR of multiple boolean inputs, outputting a new message wit
 ### Details
 Evaluates the logical OR of a fixed number of boolean inputs (`slots` ≥ 2, set in editor). 
 
-Each slot is updated via `msg.context = "inX"` (e.g., `"in1"`, `"in2"`) with `msg.payload` converted to boolean. 
+In **Map message properties** mode, configure each incoming property and its virtual input number. A message may update several mapped inputs, and multiple properties may map to the same input. The mapping list is kept alphabetical by property name.
+
+In **Context (legacy)** mode, each slot is updated via `msg.context = "inX"` (for example, `"in1"`, `"in2"`) with `msg.payload` converted to boolean.
 
 ### Status
 - Green (dot): Configuration update

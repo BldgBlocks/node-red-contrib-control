@@ -6,6 +6,7 @@ module.exports = function(RED) {
 
         // Initialize state
         node.rules = config.rules || [];
+        node.deleteAll = config.deleteAll === true;
 
         // Validate configuration
         let valid = true;
@@ -52,16 +53,18 @@ module.exports = function(RED) {
                 }
             }
 
-            // Apply nullification rules
-            const outputMsg = RED.util.cloneMessage(msg);
+            // Replace the root message or apply nullification rules.
+            const outputMsg = node.deleteAll ? {} : RED.util.cloneMessage(msg);
             const nullified = [];
-            node.rules.forEach(rule => {
-                RED.util.setMessageProperty(outputMsg, rule.property, null);
-                nullified.push(rule.property);
-            });
+            if (!node.deleteAll) {
+                node.rules.forEach(rule => {
+                    RED.util.setMessageProperty(outputMsg, rule.property, null);
+                    nullified.push(rule.property);
+                });
+            }
 
             // Update status and send output
-            utils.setStatusOK(node, `nullified: ${nullified.join(", ")}`);
+            utils.setStatusOK(node, node.deleteAll ? "all properties deleted" : `nullified: ${nullified.join(", ")}`);
             send(outputMsg);
 
             if (done) done();
