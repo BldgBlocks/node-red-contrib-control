@@ -7,6 +7,12 @@ module.exports = function(RED) {
 
         node.inputProperty = config.inputProperty || "payload";
         node.setpoint = Number(config.setpoint);
+        // Undefined values keep compare nodes created before selectable outputs enabled.
+        node.enabledComparisons = [
+            config.greaterThan !== false,
+            config.equalTo !== false,
+            config.lessThan !== false
+        ];
 
         node.on("input", function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -67,13 +73,12 @@ module.exports = function(RED) {
             const greater = inputValue > node.setpoint;
             const equal = inputValue === node.setpoint;
             const less = inputValue < node.setpoint;
-            const outputs = [
-                { payload: greater },
-                { payload: equal },
-                { payload: less }
-            ];
+            const comparisonResults = [greater, equal, less];
+            const outputs = comparisonResults
+                .filter((result, index) => node.enabledComparisons[index])
+                .map(result => ({ payload: result }));
 
-            utils.setStatusOK(node, `in: ${inputValue.toFixed(2)}, sp: ${node.setpoint.toFixed(2)}, out: [${greater}, ${equal}, ${less}]`);
+            utils.setStatusOK(node, `in: ${inputValue.toFixed(2)}, sp: ${node.setpoint.toFixed(2)}, out: [${outputs.map(output => output.payload).join(", ")}]`);
             
             send(outputs);
 

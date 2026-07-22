@@ -12,6 +12,18 @@
         <label for="node-input-setpoint" title="Default setpoint value for comparison (number)"><i class="fa fa-crosshairs"></i> Setpoint</label>
         <input type="number" id="node-input-setpoint" placeholder="50" step="any">
     </div>
+    <div class="form-row">
+        <label title="Select the comparison results to expose as output ports"><i class="fa fa-sign-out"></i> Outputs</label>
+        <label style="width: auto; margin-right: 12px;" title="Output true when input is greater than the setpoint">
+            <input type="checkbox" id="node-input-greaterThan" style="width: auto; margin-right: 4px;"> Greater than
+        </label>
+        <label style="width: auto; margin-right: 12px;" title="Output true when input equals the setpoint">
+            <input type="checkbox" id="node-input-equalTo" style="width: auto; margin-right: 4px;"> Equal to
+        </label>
+        <label style="width: auto;" title="Output true when input is less than the setpoint">
+            <input type="checkbox" id="node-input-lessThan" style="width: auto; margin-right: 4px;"> Less than
+        </label>
+    </div>
 </script>
 
 <!-- JavaScript Section: Registers the node and handles editor logic -->
@@ -22,40 +34,80 @@
         defaults: {
             name: { value: "" },
             inputProperty: { value: "payload" },
-            setpoint: { value: 50, required: true, validate: function(v) { return !isNaN(+v) && isFinite(+v); } }
+            setpoint: { value: 50, required: true, validate: function(v) { return !isNaN(+v) && isFinite(+v); } },
+            greaterThan: { value: true },
+            equalTo: { value: true },
+            lessThan: { value: true }
         },
         inputs: 1,
-        outputs: 3,
-        outputLabels: ["greater than", "equal to", "less than"],
+        outputs: function() {
+            return [this.greaterThan, this.equalTo, this.lessThan].filter(value => value !== false).length;
+        },
+        outputLabels: function(index) {
+            return ["greater than", "equal to", "less than"]
+                .filter((label, comparisonIndex) => [this.greaterThan, this.equalTo, this.lessThan][comparisonIndex] !== false)[index];
+        },
         inputLabels: ["input"],
         icon: "font-awesome/fa-balance-scale",
         paletteLabel: "compare",
         label: function() {
-            return this.name || "compare";
+            if (this.name) {
+                return this.name;
+            }
+
+            const enabled = [this.greaterThan, this.equalTo, this.lessThan].map(value => value !== false);
+            const labels = {
+                "true,true,true": "compare",
+                "true,true,false": "greater than or equal to",
+                "true,false,true": "not equal to",
+                "true,false,false": "greater than",
+                "false,true,true": "less than or equal to",
+                "false,true,false": "equal to",
+                "false,false,true": "less than"
+            };
+            return labels[enabled.join(",")] || "compare";
+        },
+        oneditprepare: function() {
+            const comparisonCheckboxes = $("#node-input-greaterThan, #node-input-equalTo, #node-input-lessThan");
+
+            function requireOneOutput() {
+                comparisonCheckboxes.prop("disabled", false);
+                const selected = comparisonCheckboxes.filter(":checked");
+                if (selected.length === 1) {
+                    selected.prop("disabled", true);
+                }
+            }
+
+            comparisonCheckboxes.on("change", requireOneOutput);
+            requireOneOutput();
         }
     });
 </script>
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="compare-block">
-Compares a numeric input to a setpoint, outputting three boolean signals.
+Compares a numeric input to a setpoint, outputting the selected boolean signals.
 
 ### Inputs
 : input-property (number) : Input number to compare, read from the configured Input Property.
 : context (string) : Configuration commands - setpoint (`"setpoint"`). Unmatched values trigger error.
 ### Outputs
-: greater than (boolean) : `true` if input > setpoint, else `false`.
-: equal to (boolean) : `true` if input = setpoint, else `false`.
-: less than (boolean) : `true` if input < setpoint, else `false`.
+: greater than (boolean) : Optional output; `true` if input > setpoint, else `false`.
+: equal to (boolean) : Optional output; `true` if input = setpoint, else `false`.
+: less than (boolean) : Optional output; `true` if input < setpoint, else `false`.
 
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
 : setpoint (number) : Value for comparison.
+: greaterThan (boolean) : Expose the greater-than output (default: enabled).
+: equalTo (boolean) : Expose the equal-to output (default: enabled).
+: lessThan (boolean) : Expose the less-than output (default: enabled).
 
 ### Details
-Compares a numeric input (read from the configured **Input Property**, default: `msg.payload`) to a `setpoint` (default: 50), outputting three messages to separate ports:
-`true` for greater than, equal to, or less than the setpoint, respectively; `false` otherwise.
+Compares a numeric input (read from the configured **Input Property**, default: `msg.payload`) to a `setpoint` (default: 50). Enable only the comparison result outputs required by the flow. Ports remain ordered as greater than, equal to, then less than.
+
+With no custom name, the canvas label reflects the selected relation, such as `less than`, `equal to`, or `greater than or equal to`.
 
 Output is always written to `msg.payload` in each output message.
 
