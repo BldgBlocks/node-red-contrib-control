@@ -47,7 +47,7 @@ module.exports = function(RED) {
         if (msg) {
             msg.status = { 
                 code: "error", 
-                pointId: pointId || msg.pointId || "unknown", 
+                pointId: pointId ?? msg.pointId ?? "unknown",
                 message: text 
             };
             node.send(msg);

@@ -36,7 +36,7 @@ Routes point read/write requests through WebSocket to remote devices and correla
 Sits in the network flow between point-reference nodes and WebSocket communication, handling request/response routing and request correlation.
 
 ### Inputs
-: action (string) : Command - read, write
+: action (string) : Remote command or response: `read`, `write`, or `discover`.
 : pointId (number) : Target point ID for read/write operations.
 : requestId (string) : Unique request identifier for correlation.
 : priority (number) : Priority level for write operations.
@@ -47,15 +47,15 @@ Sits in the network flow between point-reference nodes and WebSocket communicati
 : payload (object) : Response data (value for reads, status for writes).
 : pointId (number) : Echo of request point ID.
 : requestId (string) : Matching request ID for correlation.
-: action (string) : readResponse, writeResponse, or stats.
+: action (string) : `read`, `write`, `discover`, or bridge management response.
 : value (any) : Retrieved value (for reads) or winner value (for writes).
 : timestamp (number) : Response timestamp.
 
 ### Details
 Request/Response Correlation:
-1. Assigns unique requestId to each request
-2. Tracks pending requests in memory
-3. Matches incoming responses to original requests
+1. Local client nodes assign unique request IDs and submit requests through internal events.
+2. The bridge tracks pending requests and forwards them to the wired remote transport.
+3. Remote responses must preserve the request ID and action.
 4. Timeout: 10 seconds per request
 
 Management Commands:
@@ -64,9 +64,9 @@ Management Commands:
 - resetStats: Reset statistics counters
 
 Flow Architecture:
-- Left input: Requests from point-read/point-write nodes
-- Right input: Responses from remote via WebSocket
-- Outputs routed appropriately (back to requester or to WebSocket)
+- Input: Responses and management commands from the remote transport.
+- Output: Requests to the remote transport.
+- Local point nodes communicate with the bridge through internal events.
 
 ### Status
 - Green (dot): Idle, no pending requests
@@ -80,9 +80,9 @@ Flow Architecture:
 
 Request Flow:
 ```
-[point-reference] sends read request
+[network-point-read] sends a read request
     ↓
-[point-network-bridge] assigns requestId, forwards to WebSocket
+[network-service-bridge] forwards request to WebSocket
     ↓
 [WebSocket client] sends to remote
     ↓
@@ -90,7 +90,7 @@ Request Flow:
     ↓
 [WebSocket client] receives response
     ↓
-[point-network-bridge] matches by requestId, forwards back
+[network-service-bridge] matches the response by requestId, forwards back
     ↓
 [point-reference] updates cache
 ```
@@ -98,7 +98,7 @@ Request Flow:
 #### Architecture
 
 This node is the **bridge** between:
-- **LOCAL**: point-reference nodes (send read requests)
+- **LOCAL**: network-point-read/network-point-write nodes (send requests)
 - **REMOTE**: WebSocket endpoint (receives/sends over network)
 
 Enables non-blocking polling pattern:
@@ -118,7 +118,7 @@ Enables non-blocking polling pattern:
 
 ```
 Network Flow:
-[WebSocket client] ←→ [point-network-bridge]
+[WebSocket client] ←→ [network-service-bridge]
                               ↑
                         [point-reference #301]
                         [point-reference #302]
@@ -127,5 +127,5 @@ Network Flow:
 
 #### References
 - [Polling Architecture](../planning/POLLING_ARCHITECTURE.md)
-- [point-reference Node](./point-reference.html)
+- [Network Point Read](./network-point-read.html)
 </script>

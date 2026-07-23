@@ -125,7 +125,7 @@ module.exports = function(RED) {
 
         node.on('close', function(removed, done) {
             if (removed && node.registry && node.isRegistered) {
-                node.registry.unregister(node.pointId, node.pointId);
+                node.registry.unregister(node.pointId, node.id);
             }
             done();
         });

@@ -8,15 +8,24 @@ module.exports = function(RED) {
         help: "Display this help message.\nExample: `{ action: \"help\" }`"
     };
 
+    function parsePointId(value) {
+        const pointId = typeof value === "number" ? value : Number(value);
+        return Number.isInteger(pointId) && pointId >= 0 ? pointId : null;
+    }
+
     function NetworkServiceNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
         node.registry = RED.nodes.getNode(config.registry);
 
         async function read(msg, done) {
-            const entry = node.registry.lookup(msg.pointId);
+            const pointId = parsePointId(msg.pointId);
+            if (pointId === null) {
+                return utils.sendError(node, msg, done, "Invalid pointId", msg.pointId);
+            }
+            const entry = node.registry.lookup(pointId);
             if (!entry) {
-                return utils.sendError(node, msg, done, `Not Registered: ${msg.pointId}`, msg.pointId);
+                return utils.sendError(node, msg, done, `Not Registered: ${pointId}`, pointId);
             }
 
             const state = await utils.getGlobalState(node, entry.path, entry.store || "default");
@@ -24,49 +33,52 @@ module.exports = function(RED) {
                 return utils.sendError(node, msg, done, `Global Data Empty: ${msg.pointId}`, msg.pointId);
             }
 
-            const result = { ...state };
-            const pointId = result.network?.pointId ?? msg.pointId;
-            utils.sendSuccess(node, result, done, `Data Found. pointId: ${pointId} value: ${result.value ?? "No Value"}`, pointId, "ring");
+            const result = { ...msg, ...state, action: "read", requestId: msg.requestId };
+            const responsePointId = result.network?.pointId ?? pointId;
+            utils.sendSuccess(node, result, done, `Data Found. pointId: ${responsePointId} value: ${result.value ?? "No Value"}`, responsePointId, "ring");
         }
 
         async function write(msg, done) {
-            if (msg.pointId === undefined || msg.pointId === null || msg.priority === undefined || msg.priority === null || msg.value === undefined) {
+            const pointId = parsePointId(msg.pointId);
+            if (pointId === null || msg.priority === undefined || msg.priority === null || msg.value === undefined) {
                 return utils.sendError(node, msg, done, "Invalid write properties", msg.pointId);
             }
 
-            const entry = node.registry.lookup(msg.pointId);
+            const entry = node.registry.lookup(pointId);
             if (!entry?.path) {
-                return utils.sendError(node, msg, done, `Unknown ID: (${entry?.store ?? "unknown"})::${msg.pointId}`, msg.pointId);
+                return utils.sendError(node, msg, done, `Unknown ID: (${entry?.store ?? "unknown"})::${pointId}`, pointId);
             }
             if (!entry.writable) {
-                return utils.sendError(node, msg, done, `Not Writable: (${entry.store || "default"})::${entry.path}::${msg.pointId}`, msg.pointId);
+                return utils.sendError(node, msg, done, `Not Writable: (${entry.store || "default"})::${entry.path}::${pointId}`, pointId);
             }
 
             const store = entry.store || "default";
             const state = await utils.getGlobalState(node, entry.path, store);
             if (!state?.priority) {
-                return utils.sendError(node, msg, done, `Point Not Found: (${store})::${entry.path}`, msg.pointId);
+                return utils.sendError(node, msg, done, `Point Not Found: (${store})::${entry.path}`, pointId);
             }
 
             const value = msg.value === "null" || msg.value === null ? null : msg.value;
             const dataType = state.metadata?.type;
             if (value !== null && dataType && typeof value !== dataType) {
-                return utils.sendError(node, msg, done, `Type Mismatch: Expected ${dataType}`, msg.pointId);
+                return utils.sendError(node, msg, done, `Type Mismatch: Expected ${dataType}`, pointId);
             }
 
-            const priority = parseInt(msg.priority, 10);
-            if (isNaN(priority) || priority < 1 || priority > 16) {
-                return utils.sendError(node, msg, done, `Invalid Priority: ${msg.priority} (must be 1-16)`, msg.pointId);
+            const priority = msg.priority === "fallback" ? "fallback" : Number(msg.priority);
+            if (priority !== "fallback" && (!Number.isInteger(priority) || priority < 1 || priority > 16)) {
+                return utils.sendError(node, msg, done, `Invalid Priority: ${msg.priority} (must be 1-16 or fallback)`, pointId);
             }
 
-            state.priority[priority] = value;
+            if (priority === "fallback") state.fallback = value;
+            else state.priority[priority] = value;
             const result = utils.getHighestPriority(state);
             state.value = result.value;
             state.activePriority = result.priority;
             state.metadata.lastSet = new Date().toISOString();
             await utils.setGlobalState(node, entry.path, store, state);
             RED.events.emit("bldgblocks:global:value-changed", { key: entry.path, store, data: state });
-            utils.sendSuccess(node, { ...state }, done, `Wrote: P${priority}:${value} > Active: ${state.activePriority}:${state.value}`, msg.pointId, "ring");
+            const requestedPriority = priority === "fallback" ? "fallback" : `P${priority}`;
+            utils.sendSuccess(node, { ...msg, ...state, action: "write", requestId: msg.requestId }, done, `Wrote: ${requestedPriority}:${value} > Active: ${state.activePriority}:${state.value}`, pointId, "ring");
         }
 
         async function discover(msg, send, done) {

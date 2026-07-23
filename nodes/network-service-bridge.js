@@ -22,6 +22,14 @@ module.exports = function(RED) {
             received: 0
         };
 
+        const removePendingRequest = function(requestId) {
+            const pending = node.pendingRequests[requestId];
+            if (!pending) return null;
+            if (pending.timeout) clearTimeout(pending.timeout);
+            delete node.pendingRequests[requestId];
+            return pending;
+        };
+
         // ====================================================================
         // Helper: Update status
         // ====================================================================
@@ -101,38 +109,37 @@ module.exports = function(RED) {
             updateStatus();
             
             // Timeout: if no response after 10 seconds, clean up
-            setTimeout(() => {
-                if (node.pendingRequests[data.requestId]) {
-                    const pending = node.pendingRequests[data.requestId];
-                    delete node.pendingRequests[data.requestId];
+            node.pendingRequests[data.requestId].timeout = setTimeout(() => {
+                const pending = removePendingRequest(data.requestId);
+                if (pending) {
                     
                     if (pending.isStartupPhase) {
                         // During startup: still notify point-read to reset isPollPending,
                         // but suppress error logging (network may still be coming online)
                         RED.events.emit('pointReference:response', {
-                            sourceNodeId: data.sourceNodeId,
-                            pointId: data.pointId,
+                            sourceNodeId: pending.sourceNodeId,
+                            pointId: pending.pointId,
                             value: null,
                             error: true,
                             errorMessage: "Startup timeout",
-                            requestId: data.requestId,
+                            requestId: pending.requestId,
                             isStartupPhase: true
                         });
                         return;
                     }
                     
-                    const errorText = `Read timeout for point #${data.pointId}`;
+                    const errorText = `Read timeout for point #${pending.pointId}`;
                     utils.setStatusWarn(node, errorText);
                     node.error(errorText);  // Show in debug panel
                     
                     // Notify point-reference of timeout
                     RED.events.emit('pointReference:response', {
-                        sourceNodeId: data.sourceNodeId,
-                        pointId: data.pointId,
+                        sourceNodeId: pending.sourceNodeId,
+                        pointId: pending.pointId,
                         value: null,
                         error: true,
                         errorMessage: "Read timeout",
-                        requestId: data.requestId
+                        requestId: pending.requestId
                     });
                 }
             }, 10000);
@@ -192,34 +199,33 @@ module.exports = function(RED) {
             updateStatus();
             
             // Timeout: if no response after 10 seconds, clean up
-            setTimeout(() => {
-                if (node.pendingRequests[data.requestId]) {
-                    const pending = node.pendingRequests[data.requestId];
-                    delete node.pendingRequests[data.requestId];
+            node.pendingRequests[data.requestId].timeout = setTimeout(() => {
+                const pending = removePendingRequest(data.requestId);
+                if (pending) {
                     
                     if (pending.isStartupPhase) {
                         // During startup: still notify point-write to reset pending state,
                         // but suppress error logging
                         RED.events.emit('pointWrite:response', {
                             sourceNodeId: pending.sourceNodeId,
-                            pointId: data.pointId,
+                            pointId: pending.pointId,
                             error: "Startup timeout",
-                            requestId: data.requestId,
+                            requestId: pending.requestId,
                             isStartupPhase: true
                         });
                         return;
                     }
                     
-                    const errorText = `Write timeout for point #${data.pointId}`;
+                    const errorText = `Write timeout for point #${pending.pointId}`;
                     utils.setStatusWarn(node, errorText);
                     node.error(errorText);  // Show in debug panel
                     
                     // Notify point-write of timeout
                     RED.events.emit('pointWrite:response', {
                         sourceNodeId: pending.sourceNodeId,
-                        pointId: data.pointId,
+                        pointId: pending.pointId,
                         error: "Write timeout",
-                        requestId: data.requestId
+                        requestId: pending.requestId
                     });
                 }
             }, 10000);
@@ -252,12 +258,11 @@ module.exports = function(RED) {
             node.stats.sent++;
             updateStatus();
 
-            setTimeout(() => {
-                const pending = node.pendingRequests[data.requestId];
+            node.pendingRequests[data.requestId].timeout = setTimeout(() => {
+                const pending = removePendingRequest(data.requestId);
                 if (!pending) {
                     return;
                 }
-                delete node.pendingRequests[data.requestId];
                 RED.events.emit('networkPointDiscover:response', {
                     sourceNodeId: pending.sourceNodeId,
                     error: true,
@@ -289,8 +294,8 @@ module.exports = function(RED) {
             // The remote endpoint must return the requestId it received.
             const discoveryRequestId = msg.requestId;
             const discoveryPending = discoveryRequestId && node.pendingRequests[discoveryRequestId];
-            if (discoveryPending && (msg.networkProperties || msg.action === "discover")) {
-                delete node.pendingRequests[discoveryPending.requestId];
+            if (discoveryPending?.action === "discover" && msg.action === "discover" && msg.networkProperties && typeof msg.networkProperties === "object") {
+                removePendingRequest(discoveryPending.requestId);
                 const discoveryError = msg.status?.code === "error";
                 if (!discoveryError) {
                     node.stats.received++;
@@ -327,26 +332,29 @@ module.exports = function(RED) {
             const isValidResponse = responsePointId !== undefined && !isNaN(responsePointId);
             
             if (isValidResponse) {
-                // Find ALL matching pending requests by pointId
-                // Multiple nodes might be waiting for the same point
-                const matchingRequests = [];
-                
-                for (const [reqId, reqData] of Object.entries(node.pendingRequests)) {
-                    if (reqData.pointId === responsePointId) {
-                        matchingRequests.push({
-                            requestId: reqId,
-                            sourceNodeId: reqData.sourceNodeId,
-                            isWrite: reqData.isWrite,
-                            isStartupPhase: reqData.isStartupPhase  // Preserve startup phase flag
-                        });
-                    }
+                const responsePending = msg.requestId && node.pendingRequests[msg.requestId];
+                if (!responsePending) {
+                    node.trace(`Ignoring response with unknown request ID: ${msg.requestId || "missing"}`);
+                    if (done) done();
+                    return;
                 }
+                if (responsePending.pointId !== responsePointId || (responsePending.isWrite ? msg.action !== "write" : msg.action !== "read")) {
+                    node.trace(`Ignoring mismatched response for request ${msg.requestId}`);
+                    if (done) done();
+                    return;
+                }
+
+                // A read result is valid for every outstanding read of the same point.
+                // Write confirmations are always routed to the one originating request.
+                const matchingRequests = responsePending.isWrite
+                    ? [responsePending]
+                    : Object.values(node.pendingRequests).filter(request => !request.isWrite && request.pointId === responsePointId);
                 
                 if (matchingRequests.length > 0) {
                     // Remove all matched requests from pending BEFORE notifying
                     // (prevents race conditions if notification triggers new requests)
                     for (const match of matchingRequests) {
-                        delete node.pendingRequests[match.requestId];
+                        removePendingRequest(match.requestId);
                     }
                     
                     // Now notify all waiting nodes
@@ -416,7 +424,9 @@ module.exports = function(RED) {
             }
 
             if (msg.action === "clearPending") {
-                node.pendingRequests = {};
+                for (const requestId of Object.keys(node.pendingRequests)) {
+                    removePendingRequest(requestId);
+                }
                 utils.setStatusOK(node, "Pending requests cleared");
                 if (done) done();
                 return;
@@ -474,7 +484,9 @@ module.exports = function(RED) {
             }
 
             // Clear pending requests on close
-            node.pendingRequests = {};
+            for (const requestId of Object.keys(node.pendingRequests)) {
+                removePendingRequest(requestId);
+            }
             // Remove event listeners
             RED.events.off('pointReference:read', readRequestHandler);
             RED.events.off('pointWrite:write', writeRequestHandler);

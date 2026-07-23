@@ -39,6 +39,7 @@ module.exports = function(RED) {
         node.bridgeNodeId = config.bridgeNodeId;
         node.pendingRequestId = null;
         node.discoveryResult = null;
+        node.requestSequence = 0;
 
         const triggerDiscovery = function() {
             if (node.pendingRequestId) {
@@ -49,7 +50,7 @@ module.exports = function(RED) {
                 utils.setStatusError(node, "bridge missing");
                 return;
             }
-            const requestId = `${node.id}_discover_${Date.now()}`;
+            const requestId = `${node.id}_discover_${Date.now()}_${++node.requestSequence}`;
             node.pendingRequestId = requestId;
             RED.events.emit('networkPointDiscover:request', {
                 sourceNodeId: node.id,

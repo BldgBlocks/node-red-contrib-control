@@ -32,6 +32,8 @@ module.exports = function(RED) {
         node.pendingSince = null;
         node.pendingTimeoutMs = 12000;
         node.pendingTimer = null;
+        node.requestSequence = 0;
+        node.initialStatusTimer = null;
 
         // ====================================================================
         // Helper: Format status text
@@ -89,7 +91,7 @@ module.exports = function(RED) {
             utils.setStatusUnchanged(node, `Fetching... ${getStatusText()}`);
             
             // Send read request to bridge node via event (cross-flow communication)
-            const requestId = `${node.id}_${node.pointId}_${Date.now()}`;
+            const requestId = `${node.id}_${node.pointId}_${Date.now()}_${++node.requestSequence}`;
             node.pendingRequestId = requestId;
             node.pendingSince = Date.now();
 
@@ -184,6 +186,9 @@ module.exports = function(RED) {
             if (data.sourceNodeId !== node.id) {
                 return;
             }
+            if (data.requestId !== node.pendingRequestId) {
+                return;
+            }
             
             node.isPollPending = false;
             node.pendingRequestId = null;
@@ -191,6 +196,10 @@ module.exports = function(RED) {
             if (node.pendingTimer) {
                 clearTimeout(node.pendingTimer);
                 node.pendingTimer = null;
+            }
+            if (node.initialStatusTimer) {
+                clearTimeout(node.initialStatusTimer);
+                node.initialStatusTimer = null;
             }
             
             // Check for error response
@@ -271,7 +280,8 @@ module.exports = function(RED) {
 
         // Update status again after a short delay to allow registry nodes to initialize
         // This solves the race condition where this node loads before point-register nodes
-        setTimeout(() => {
+        node.initialStatusTimer = setTimeout(() => {
+            node.initialStatusTimer = null;
             const text = getStatusText();
             // Only update if we are still in "waiting" or "initial" state (no value yet)
             if (node.cache.value === null) {

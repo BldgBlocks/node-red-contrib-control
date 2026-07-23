@@ -41,9 +41,9 @@ Provides the server-side network API for a selected point registry. Route incomi
 ### Inputs
 : action (string) : `read`, `write`, `discover`, or `help`.
 : pointId (number) : Required by `read` and `write`.
-: priority (number) : Required by `write`; valid values are 1 through 16.
-: value (any) : Required by `write`; use `null` or `"null"` to release the priority.
-: requestId (string) : Optional correlation ID. It is preserved by `discover` responses.
+: priority (number|string) : Required by `write`; valid values are 1 through 16 or `fallback`. The default value cannot be changed over the network.
+: value (any) : Required by `write`; use `null` or `"null"` to release the selected priority or fallback.
+: requestId (string) : Required for bridge-facing traffic. It is returned unchanged by all responses.
 
 ### Outputs
 : read (object) : The requested point state, with a `status` object.

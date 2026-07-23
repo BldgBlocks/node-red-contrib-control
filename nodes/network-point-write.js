@@ -27,6 +27,7 @@ module.exports = function(RED) {
         let pendingWrite = null;
         let lastWriteTime = null;
         let lastWriteValue = null;
+        let requestSequence = 0;
 
         // ====================================================================
         // Helper: Get status text
@@ -45,6 +46,7 @@ module.exports = function(RED) {
             // Only process responses for this node
             if (response.sourceNodeId !== node.id) return;
             if (response.pointId !== node.pointId) return;
+            if (response.requestId !== pendingWrite) return;
 
             pendingWrite = null;
 
@@ -136,7 +138,7 @@ module.exports = function(RED) {
                         return;
                     }
 
-                    const requestId = `${node.id}-${Date.now()}`;
+                    const requestId = `${node.id}-${Date.now()}-${++requestSequence}`;
                     pendingWrite = requestId;
                     lastWriteValue = null;
 
@@ -189,7 +191,7 @@ module.exports = function(RED) {
             lastWriteValue = writeValue;
 
             // Generate unique request ID
-            const requestId = `${node.id}-${Date.now()}`;
+            const requestId = `${node.id}-${Date.now()}-${++requestSequence}`;
             pendingWrite = requestId;
 
             // Show pending status

@@ -55,6 +55,7 @@ describe("network-point-discover", function() {
                 const resultAPromise = waitForMessage(discoverAOut);
                 const resultBPromise = waitForMessage(discoverBOut);
                 bridge.receive({
+                    action: "discover",
                     requestId: requests[1].requestId,
                     networkProperties: {
                         default: {
@@ -70,6 +71,7 @@ describe("network-point-discover", function() {
                     }
                 });
                 bridge.receive({
+                    action: "discover",
                     requestId: requests[0].requestId,
                     networkProperties: { persistent: {} }
                 });
