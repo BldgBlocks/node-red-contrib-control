@@ -36,8 +36,20 @@
             $("#node-input-bridgeNodeId").typedInput({ types: [{ value: "bridge", options: bridges }] });
             $("#node-config-find-bridge").on("click", function() { if (node.bridgeNodeId) RED.viewport.reveal(node.bridgeNodeId); });
             const resultsLink = $("#node-config-view-results");
-            if (node.id) resultsLink.attr("href", `network-point-discover/${node.id}/results`);
-            else resultsLink.hide();
+            if (node.id) {
+                resultsLink.on("click", function(event) {
+                    event.preventDefault();
+                    const resultsWindow = window.open("", "_blank");
+                    $.get(`network-point-discover/${node.id}/results`)
+                        .done(function(html) {
+                            resultsWindow.location = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+                        })
+                        .fail(function() {
+                            resultsWindow.close();
+                            RED.notify("Unable to load discovery results.", "error");
+                        });
+                });
+            } else resultsLink.hide();
         }
     });
 </script>
