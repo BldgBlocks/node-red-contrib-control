@@ -83,6 +83,11 @@
         <label for="node-input-initWindow" title="Initialization window to collect inputs before mode selection (seconds, non-negative number)"><i class="fa fa-hourglass-start"></i> Init Window</label>
         <input type="text" id="node-input-initWindow" placeholder="10">
     </div>
+    <div class="form-row">
+        <label for="node-input-persistState" title="Restore the last heating or cooling mode after a Node-RED restart"><i class="fa fa-save"></i> Restore Mode</label>
+        <input type="checkbox" id="node-input-persistState" style="display: inline-block; width: auto; vertical-align: top;">
+        <span style="margin-left: 6px;">Save last auto mode</span>
+    </div>
     <div class="form-row split-only" style="display: none;">
         <div id="initWindow-warning" style="color: red; display: none; margin-top: 5px;">
             Invalid
@@ -148,6 +153,7 @@
             maxTempSetpoint: { value: "90" },
             maxTempSetpointType: { value: "num"},
             initWindow: { value: "10" },
+            persistState: { value: true },
             operationMode: { value: "auto" },
             operationModeType: { value: "dropdown" },
         },
@@ -372,6 +378,8 @@ All parameters support typed inputs (static value, `msg`, `flow`, or `global`).
 
 ### Details
 On startup, the node waits for `initWindow` seconds to let sensors stabilize before selecting the initial mode. During this period, temperature is cached but no output is sent.
+
+**Restore Mode** is enabled by default. The node saves its most recent heating or cooling mode in `~/.node-red/.bldgblocks/control/changeover-<node-id>.json` (or the configured Node-RED user directory). After restart, this restored mode is retained through the initialization period when temperature is inside the deadband. This avoids incorrectly defaulting to heating after an active cooling cycle, while the initialization period still protects against unstable sensors. Disable it to always use the default startup mode.
 
 The `extent` parameter widens the switching thresholds beyond the base deadband or setpoints. In single mode it expands the deadband outward from `setpoint ± deadband/2`; in split mode it expands beyond the separate heating and cooling setpoints. This prevents nuisance mode changes from overshoot and allows sharing the same setpoint values with other nodes while having independent switching buffers.
 

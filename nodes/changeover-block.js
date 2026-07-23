@@ -18,6 +18,9 @@
 // ============================================================================
 
 module.exports = function(RED) {
+    const fs = require("fs");
+    const os = require("os");
+    const path = require("path");
     const utils = require('./utils')(RED);
 
     const VALID_MODES = ["auto", "heat", "cool", "off"];
@@ -51,6 +54,7 @@ module.exports = function(RED) {
         node.minTempSetpoint = num(config.minTempSetpoint, 55);
         node.maxTempSetpoint = num(config.maxTempSetpoint, 90);
         node.initWindow = num(config.initWindow, 10);
+        node.persistState = config.persistState !== false;
 
         // Enum typed inputs: when type is dynamic (msg/flow/global), config value
         // holds the property PATH, not a valid enum value — default safely.
@@ -74,6 +78,62 @@ module.exports = function(RED) {
         let conditionStartTime = null;
         let pendingMode = null;
         const initStartTime = Date.now() / 1000;
+        const userDir = RED.settings.userDir || process.env.NODE_RED_HOME || path.join(os.homedir(), ".node-red");
+        const stateDir = path.join(userDir, ".bldgblocks", "control");
+        const stateFile = path.join(stateDir, `changeover-${node.id}.json`);
+        let stateWritePromise = Promise.resolve();
+
+        // Kept on the node for diagnostics and tests. State is deliberately a
+        // small, node-owned file rather than Node-RED context: it is restored
+        // before the first input, independent of the configured context store.
+        node.stateFile = stateFile;
+
+        function restoreState() {
+            if (!node.persistState) return Promise.resolve();
+
+            return fs.promises.readFile(stateFile, "utf8")
+                .then(data => {
+                    const saved = JSON.parse(data);
+                    if (saved && (saved.currentMode === "heating" || saved.currentMode === "cooling")) {
+                        node.currentMode = saved.currentMode;
+                    }
+                    if (saved && (saved.lastAutoMode === "heating" || saved.lastAutoMode === "cooling")) {
+                        lastAutoMode = saved.lastAutoMode;
+                    } else {
+                        rememberAutoMode(node.currentMode);
+                    }
+                })
+                .catch(err => {
+                    if (err.code !== "ENOENT") {
+                        node.warn(`Unable to restore saved state: ${err.message}`);
+                    }
+                });
+        }
+
+        function persistState() {
+            if (!node.persistState) return stateWritePromise;
+
+            const state = {
+                version: 1,
+                currentMode: node.currentMode,
+                lastAutoMode,
+                savedAt: new Date().toISOString()
+            };
+            const tempFile = `${stateFile}.tmp`;
+
+            stateWritePromise = stateWritePromise
+                .then(() => fs.promises.mkdir(stateDir, { recursive: true }))
+                .then(() => fs.promises.writeFile(tempFile, JSON.stringify(state), "utf8"))
+                .then(() => fs.promises.rename(tempFile, stateFile))
+                .catch(err => {
+                    node.warn(`Unable to save state: ${err.message}`);
+                });
+            return stateWritePromise;
+        }
+
+        // Every message waits for restoration so a fast temperature input
+        // cannot accidentally use the default heating state after a restart.
+        const stateReady = restoreState();
 
         // ====================================================================
         // Typed-input evaluation helpers
@@ -135,6 +195,7 @@ module.exports = function(RED) {
             const outputMsg = commandMsg || {};
             node.send(buildOutputs(outputMsg));
             updateStatus();
+            persistState();
 
             return {
                 ok: true,
@@ -166,6 +227,7 @@ module.exports = function(RED) {
                 node.send(buildOutputs(commandMsg));
             }
             updateStatus();
+            persistState();
 
             return {
                 ok: true,
@@ -185,6 +247,8 @@ module.exports = function(RED) {
         // ====================================================================
         node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
+
+            await stateReady;
 
             if (!msg) {
                 utils.setStatusError(node, "invalid message");
@@ -366,6 +430,7 @@ module.exports = function(RED) {
             // ----------------------------------------------------------------
             send(buildOutputs(msg));
             updateStatus();
+            persistState();
             if (done) done();
         });
 
@@ -559,10 +624,15 @@ module.exports = function(RED) {
         // ====================================================================
         // Cleanup
         // ====================================================================
-        node.on("close", function(done) {
+        node.on("close", function(removed, done) {
+            if (typeof removed === "function") {
+                done = removed;
+            }
             node.triggerBypass = null;
             node.triggerForceMode = null;
-            done();
+            persistState()
+                .then(() => done())
+                .catch(() => done());
         });
     }
 

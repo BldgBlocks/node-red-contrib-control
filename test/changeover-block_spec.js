@@ -14,6 +14,7 @@ const SINGLE_DEFAULTS = {
     minTempSetpoint: "55", minTempSetpointType: "num",
     maxTempSetpoint: "90", maxTempSetpointType: "num",
     initWindow: "0",
+    persistState: false,
     operationMode: "auto", operationModeType: "dropdown",
     inputProperty: "payload",
 };
