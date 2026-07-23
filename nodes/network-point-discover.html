@@ -1,0 +1,57 @@
+<script type="text/html" data-template-name="network-point-discover">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Network discovery">
+    </div>
+    <div class="form-row">
+        <label for="node-input-bridgeNodeId"><i class="fa fa-link"></i> Network Bridge</label>
+        <input type="text" id="node-input-bridgeNodeId" style="width: calc(70% - 45px);">
+        <button id="node-config-find-bridge" class="editor-button" style="margin-left: 5px; width: 40px;" title="Find Bridge Node"><i class="fa fa-search"></i></button>
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-table"></i> Results</label>
+        <a id="node-config-view-results" href="#" target="_blank">Open latest discovery</a>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("network-point-discover", {
+        category: "bldgblocks network",
+        color: "#3090C7",
+        defaults: { name: { value: "" }, bridgeNodeId: { value: "", required: true } },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: "trigger discovery",
+        outputLabels: "networkProperties",
+        icon: "font-awesome/fa-search",
+        paletteLabel: "network point discover",
+        label: function() { return this.name || "network point discover"; },
+        oneditprepare: function() {
+            const node = this;
+            const bridges = [];
+            RED.nodes.eachNode(function(candidate) {
+                if (candidate.type === "network-service-bridge") bridges.push({ value: candidate.id, label: candidate.name || "(unnamed bridge)" });
+            });
+            bridges.sort((left, right) => left.label.localeCompare(right.label));
+            $("#node-input-bridgeNodeId").typedInput({ types: [{ value: "bridge", options: bridges }] });
+            $("#node-config-find-bridge").on("click", function() { if (node.bridgeNodeId) RED.viewport.reveal(node.bridgeNodeId); });
+            const resultsLink = $("#node-config-view-results");
+            if (node.id) resultsLink.attr("href", `network-point-discover/${node.id}/results`);
+            else resultsLink.hide();
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="network-point-discover">
+Manually requests the network point registry from the selected network bridge.
+
+### Inputs
+: action (string) : Send `discover`, or send any message without an action, to start discovery.
+
+### Outputs
+: payload (object) : The discovered `networkProperties`, grouped by scope.
+: action (string) : `discoverResult`.
+
+### Results
+After a successful discovery, edit the node and select **Open latest discovery** to view its records in a browser table.
+</script>

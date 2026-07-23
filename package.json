@@ -88,6 +88,7 @@
       "network-service-bridge": "nodes/network-service-bridge.js",
       "network-point-register": "nodes/network-point-register.js",
       "network-point-read": "nodes/network-point-read.js",
+      "network-point-discover": "nodes/network-point-discover.js",
       "network-point-write": "nodes/network-point-write.js",
       "alarm-collector": "nodes/alarm-collector.js",
       "alarm-config": "nodes/alarm-config.js",

@@ -228,6 +228,50 @@ module.exports = function(RED) {
         RED.events.on('pointWrite:write', writeRequestHandler);
 
         // ====================================================================
+        // Listen for manual point discovery requests.
+        // Discovery results are correlated by requestId because they do not
+        // contain an individual point ID.
+        // ====================================================================
+        const discoveryRequestHandler = function(data) {
+            if (data.bridgeNodeId !== node.id) {
+                return;
+            }
+
+            node.pendingRequests[data.requestId] = {
+                requestId: data.requestId,
+                timestamp: Date.now(),
+                sourceNodeId: data.sourceNodeId,
+                action: "discover"
+            };
+
+            node.send({
+                action: "discover",
+                requestId: data.requestId,
+                timestamp: Date.now()
+            });
+            node.stats.sent++;
+            updateStatus();
+
+            setTimeout(() => {
+                const pending = node.pendingRequests[data.requestId];
+                if (!pending) {
+                    return;
+                }
+                delete node.pendingRequests[data.requestId];
+                RED.events.emit('networkPointDiscover:response', {
+                    sourceNodeId: pending.sourceNodeId,
+                    error: true,
+                    errorMessage: "Discovery timeout",
+                    requestId: pending.requestId
+                });
+                utils.setStatusWarn(node, "Discovery timeout");
+                updateStatus();
+            }, 10000);
+        };
+
+        RED.events.on('networkPointDiscover:request', discoveryRequestHandler);
+
+        // ====================================================================
         // Main message handler - ONLY processes WebSocket responses
         // Read/write requests come via events, not wired input
         // ====================================================================
@@ -237,6 +281,29 @@ module.exports = function(RED) {
             // Guard against invalid msg
             if (!msg) {
                 utils.setStatusError(node, "invalid message");
+                if (done) done();
+                return;
+            }
+
+            // Discovery replies contain registry data rather than a pointId.
+            // The remote endpoint must return the requestId it received.
+            const discoveryRequestId = msg.requestId;
+            const discoveryPending = discoveryRequestId && node.pendingRequests[discoveryRequestId];
+            if (discoveryPending && (msg.networkProperties || msg.action === "discover")) {
+                delete node.pendingRequests[discoveryPending.requestId];
+                const discoveryError = msg.status?.code === "error";
+                if (!discoveryError) {
+                    node.stats.received++;
+                }
+                RED.events.emit('networkPointDiscover:response', {
+                    sourceNodeId: discoveryPending.sourceNodeId,
+                    error: discoveryError,
+                    errorMessage: msg.status?.message || "",
+                    requestId: discoveryPending.requestId,
+                    message: msg,
+                    timestamp: Date.now()
+                });
+                updateStatus();
                 if (done) done();
                 return;
             }
@@ -386,6 +453,13 @@ module.exports = function(RED) {
                         requestId: pending.requestId,
                         isStartupPhase: false
                     });
+                } else if (pending.action === "discover") {
+                    RED.events.emit('networkPointDiscover:response', {
+                        sourceNodeId: pending.sourceNodeId,
+                        error: true,
+                        errorMessage: "Bridge closed",
+                        requestId: pending.requestId
+                    });
                 } else {
                     RED.events.emit('pointReference:response', {
                         sourceNodeId: pending.sourceNodeId,
@@ -404,6 +478,7 @@ module.exports = function(RED) {
             // Remove event listeners
             RED.events.off('pointReference:read', readRequestHandler);
             RED.events.off('pointWrite:write', writeRequestHandler);
+            RED.events.off('networkPointDiscover:request', discoveryRequestHandler);
             done();
         });
 
