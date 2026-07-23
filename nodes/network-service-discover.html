@@ -1,0 +1,60 @@
+<script type="text/html" data-template-name="network-service-discover">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Network service discovery">
+    </div>
+    <div class="form-row">
+        <label for="node-input-contextStores"><i class="fa fa-database"></i> Context Stores</label>
+        <input type="text" id="node-input-contextStores" placeholder="default,persistent">
+    </div>
+    <div class="form-tips">
+        Enter the comma-separated global context store names to scan for network points.
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("network-service-discover", {
+        category: "bldgblocks network",
+        color: "#3090C7",
+        defaults: {
+            name: { value: "" },
+            contextStores: { value: "default,persistent", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: "discover request",
+        outputLabels: "discovery response",
+        icon: "font-awesome/fa-search",
+        paletteLabel: "network service discover",
+        label: function() {
+            return this.name || "network service discover";
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="network-service-discover">
+Returns the network point metadata available on this Node-RED runtime.
+
+Wire this node on the remote/server side of a network connection. It accepts the discovery request from `network-point-discover` and preserves its `requestId` so the originating client can correlate the response.
+
+### Properties
+: Context Stores (string) : Comma-separated names of global context stores to scan, such as `default,persistent`.
+
+### Inputs
+: action (string) : Must be `discover`.
+: requestId (string) : Correlation identifier from the requesting client; it is returned unchanged.
+
+### Outputs
+: action (string) : `discover`.
+: requestId (string) : The original discovery request identifier.
+: networkProperties (object) : Network-enabled global values grouped by context store.
+
+### Details
+The node scans the configured global context stores. A value is included when it has both `metadata` and `network` properties, as produced by `network-point-register`.
+
+### Status
+- Green (dot): Ready for discovery requests.
+- Blue (dot): Discovery response sent.
+- Yellow (ring): A non-discovery message was ignored.
+- Red (ring): Invalid input message.
+</script>

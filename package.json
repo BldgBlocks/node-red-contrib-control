@@ -86,6 +86,7 @@
       "network-service-write": "nodes/network-service-write.js",
       "network-service-registry": "nodes/network-service-registry.js",
       "network-service-bridge": "nodes/network-service-bridge.js",
+      "network-service-discover": "nodes/network-service-discover.js",
       "network-point-register": "nodes/network-point-register.js",
       "network-point-read": "nodes/network-point-read.js",
       "network-point-discover": "nodes/network-point-discover.js",
