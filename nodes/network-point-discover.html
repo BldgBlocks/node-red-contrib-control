@@ -25,7 +25,10 @@
         outputLabels: "networkProperties",
         icon: "font-awesome/fa-search",
         paletteLabel: "network point discover",
-        label: function() { return this.name || "network point discover"; },
+        label: function() {
+            const bridgeName = this.bridgeNodeId ? ` → ${RED.nodes.node(this.bridgeNodeId)?.name || "bridge"}` : "";
+            return this.name ? `${this.name}${bridgeName}` : `network point discover${bridgeName}`;
+        },
         oneditprepare: function() {
             const node = this;
             const bridges = [];
