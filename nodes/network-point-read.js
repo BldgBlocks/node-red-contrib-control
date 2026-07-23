@@ -28,6 +28,10 @@ module.exports = function(RED) {
         };
         
         node.isPollPending = false;
+        node.pendingRequestId = null;
+        node.pendingSince = null;
+        node.pendingTimeoutMs = 12000;
+        node.pendingTimer = null;
 
         // ====================================================================
         // Helper: Format status text
@@ -60,7 +64,25 @@ module.exports = function(RED) {
         // ====================================================================
         const triggerRead = function() {
             if (node.isPollPending) {
-                return;  // Already waiting for response
+                const pendingAgeMs = node.pendingSince ? (Date.now() - node.pendingSince) : 0;
+                if (pendingAgeMs < node.pendingTimeoutMs) {
+                    return;  // Already waiting for response
+                }
+
+                // Recovery path: previous request was never released.
+                node.isPollPending = false;
+                node.pendingRequestId = null;
+                node.pendingSince = null;
+                if (node.pendingTimer) {
+                    clearTimeout(node.pendingTimer);
+                    node.pendingTimer = null;
+                }
+                utils.setStatusWarn(node, `Recovered stale pending read (${pendingAgeMs}ms)`);
+            }
+
+            if (!node.bridgeNodeId) {
+                utils.setStatusError(node, "bridge missing");
+                return;
             }
             
             node.isPollPending = true;
@@ -68,6 +90,20 @@ module.exports = function(RED) {
             
             // Send read request to bridge node via event (cross-flow communication)
             const requestId = `${node.id}_${node.pointId}_${Date.now()}`;
+            node.pendingRequestId = requestId;
+            node.pendingSince = Date.now();
+
+            node.pendingTimer = setTimeout(() => {
+                if (!node.isPollPending || node.pendingRequestId !== requestId) {
+                    return;
+                }
+                node.isPollPending = false;
+                node.pendingRequestId = null;
+                node.pendingSince = null;
+                node.pendingTimer = null;
+                utils.setStatusWarn(node, `Local read timeout #${node.pointId}`);
+            }, node.pendingTimeoutMs);
+
             RED.events.emit('pointReference:read', {
                 sourceNodeId: node.id,
                 bridgeNodeId: node.bridgeNodeId,
@@ -122,8 +158,14 @@ module.exports = function(RED) {
             // Handle configuration commands
             // ================================================================
             if (msg.action === "resetCache") {
-                node.cache = { value: null, timestamp: null };
+                node.cache = { value: null, name: null, timestamp: null };
                 node.isPollPending = false;
+                node.pendingRequestId = null;
+                node.pendingSince = null;
+                if (node.pendingTimer) {
+                    clearTimeout(node.pendingTimer);
+                    node.pendingTimer = null;
+                }
                 utils.setStatusOK(node, "Cache reset");
                 if (done) done();
                 return;
@@ -144,6 +186,12 @@ module.exports = function(RED) {
             }
             
             node.isPollPending = false;
+            node.pendingRequestId = null;
+            node.pendingSince = null;
+            if (node.pendingTimer) {
+                clearTimeout(node.pendingTimer);
+                node.pendingTimer = null;
+            }
             
             // Check for error response
             if (data.error) {
@@ -211,6 +259,10 @@ module.exports = function(RED) {
         node.on("close", function(done) {
             // Remove event listener
             RED.events.off('pointReference:response', responseHandler);
+            if (node.pendingTimer) {
+                clearTimeout(node.pendingTimer);
+                node.pendingTimer = null;
+            }
             done();
         });
 

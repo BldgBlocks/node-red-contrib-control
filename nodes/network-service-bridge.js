@@ -8,7 +8,8 @@ module.exports = function(RED) {
         // ====================================================================
         // Initialize configuration
         // ====================================================================
-        node.startupDelay = parseInt(config.startupDelay) || 30;  // Delay in seconds
+        const parsedStartupDelay = parseInt(config.startupDelay, 10);
+        node.startupDelay = isNaN(parsedStartupDelay) ? 30 : parsedStartupDelay;  // Delay in seconds
         node.startupTime = Date.now();  // Track when node was deployed
         node.startupComplete = false;
 
@@ -19,13 +20,6 @@ module.exports = function(RED) {
         node.stats = {
             sent: 0,
             received: 0
-        };
-
-        // ====================================================================
-        // Helper: Generate request ID
-        // ====================================================================
-        const generateRequestId = function(pointId) {
-            return `${pointId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         };
 
         // ====================================================================
@@ -381,6 +375,30 @@ module.exports = function(RED) {
                 clearTimeout(node.startupTimer);
                 node.startupTimer = null;
             }
+
+            // Flush pending requests so callers do not remain stuck waiting.
+            for (const pending of Object.values(node.pendingRequests)) {
+                if (pending.isWrite) {
+                    RED.events.emit('pointWrite:response', {
+                        sourceNodeId: pending.sourceNodeId,
+                        pointId: pending.pointId,
+                        error: "Bridge closed",
+                        requestId: pending.requestId,
+                        isStartupPhase: false
+                    });
+                } else {
+                    RED.events.emit('pointReference:response', {
+                        sourceNodeId: pending.sourceNodeId,
+                        pointId: pending.pointId,
+                        value: null,
+                        error: true,
+                        errorMessage: "Bridge closed",
+                        requestId: pending.requestId,
+                        isStartupPhase: false
+                    });
+                }
+            }
+
             // Clear pending requests on close
             node.pendingRequests = {};
             // Remove event listeners
