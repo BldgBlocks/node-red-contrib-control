@@ -1,6 +1,6 @@
 {
   "name": "@bldgblocks/node-red-contrib-control",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Sedona-inspired control nodes for Node-RED",
   "keywords": [
     "node-red",
