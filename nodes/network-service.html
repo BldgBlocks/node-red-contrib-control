@@ -1,0 +1,62 @@
+<script type="text/html" data-template-name="network-service">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Network service">
+    </div>
+    <div class="form-row">
+        <label for="node-input-registry"><i class="fa fa-book"></i> Registry</label>
+        <input type="text" id="node-input-registry">
+    </div>
+    <div class="form-tips">
+        Processes <code>read</code>, <code>write</code>, <code>discover</code>, and <code>help</code> actions using the selected registry.
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("network-service", {
+        category: "bldgblocks network",
+        color: "#3090C7",
+        defaults: {
+            name: { value: "" },
+            registry: { value: "", type: "network-service-registry", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: "network action",
+        outputLabels: "network response",
+        icon: "font-awesome/fa-server",
+        paletteLabel: "network service",
+        label: function() {
+            return this.name || "network service";
+        }
+    });
+</script>
+
+<script type="text/markdown" data-help-name="network-service">
+Provides the server-side network API for a selected point registry. Route incoming network messages directly to this node; its `action` property selects the operation.
+
+### Properties
+: Registry (config) : The network point registry served by this node.
+
+### Inputs
+: action (string) : `read`, `write`, `discover`, or `help`.
+: pointId (number) : Required by `read` and `write`.
+: priority (number) : Required by `write`; valid values are 1 through 16.
+: value (any) : Required by `write`; use `null` or `"null"` to release the priority.
+: requestId (string) : Optional correlation ID. It is preserved by `discover` responses.
+
+### Outputs
+: read (object) : The requested point state, with a `status` object.
+: write (object) : The updated point state, with a `status` object.
+: discover (object) : The original request plus `networkProperties`, grouped by context store.
+: help (object) : `payload` and `help` contain descriptions and examples for all supported actions.
+
+### Details
+`discover` enumerates the points registered in the selected registry, so it reports only points served by this service. The node reads the corresponding global state to return each point's network metadata.
+
+### Status
+- Green (dot): Ready or help returned.
+- Blue (dot): Discovery response sent.
+- Blue (ring): Read or write response sent.
+- Red (ring): Invalid input, unavailable registry, or operation error.
+</script>
