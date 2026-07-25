@@ -9,6 +9,28 @@ describe("priority-block", function() {
         helper.unload().then(() => done()).catch(done);
     });
 
+    it("should map a nested message property to a priority slot", function(done) {
+        const flow = buildFlow("priority-block", {
+            operationMode: "map",
+            mappings: [{ property: "payload.temperature", slot: "priority15" }]
+        });
+
+        helper.load(priorityNode, flow, function() {
+            const n1 = helper.getNode("n1");
+            const out = helper.getNode("out");
+            const promise = waitForMessage(out);
+
+            n1.receive({ payload: { temperature: 72.5 }, topic: "zone-1" });
+
+            promise.then(msg => {
+                assert.strictEqual(msg.payload, 72.5);
+                assert.strictEqual(msg.topic, "zone-1");
+                assert.strictEqual(msg.diagnostics.activePriority, "priority15");
+                done();
+            }).catch(done);
+        });
+    });
+
     it("should accept string values in priority slots", function(done) {
         const flow = buildFlow("priority-block");
 

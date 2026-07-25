@@ -9,6 +9,11 @@ module.exports = function(RED) {
         // Initialize runtime state
         // Initialize state
         node.name = config.name;
+        node.operationMode = config.operationMode === "map" ? "map" : "context";
+        node.mappings = Array.isArray(config.mappings) ? config.mappings.filter(mapping => {
+            return mapping && typeof mapping.property === "string" && mapping.property.trim() &&
+                (/^priority([1-9]|1[0-6])$/.test(mapping.slot) || mapping.slot === "fallback");
+        }).map(mapping => ({ property: mapping.property.trim(), slot: mapping.slot })) : [];
 
         // Initialize state from context or defaults
         let priorities = context.get("priorities") || {
@@ -43,22 +48,55 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Validate payload
-            if (!msg.hasOwnProperty("payload")) {
-                utils.setStatusError(node, "missing payload");
-                if (done) done();
-                return;
-            }
+            if (node.operationMode === "map") {
+                const updates = [];
+                for (const mapping of node.mappings) {
+                    const mappedValue = RED.util.getMessageProperty(msg, mapping.property);
+                    if (mappedValue === undefined) continue;
 
-            if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
-                utils.setStatusError(node, "missing or invalid context");
-                if (done) done();
-                return;
-            }
+                    const value = normalizeValue(mappedValue);
+                    if (value === undefined) {
+                        utils.setStatusError(node, `invalid ${mapping.property}`);
+                        if (done) done();
+                        return;
+                    }
+                    updates.push({ slot: mapping.slot, value });
+                }
 
-            const contextMsg = msg.context;
+                if (updates.length === 0) {
+                    utils.setStatusWarn(node, "no mapped properties found");
+                    if (done) done();
+                    return;
+                }
 
-            if (contextMsg === "clear") {
+                for (const update of updates) {
+                    if (update.slot === "fallback") {
+                        fallbackValue = update.value;
+                    } else {
+                        priorities[update.slot] = update.value;
+                    }
+                    messages[update.slot] = update.value === null ? null : RED.util.cloneMessage(msg);
+                }
+                context.set("priorities", priorities);
+                context.set("fallbackValue", fallbackValue);
+                context.set("messages", messages);
+            } else {
+                // Validate legacy context-mode messages.
+                if (!msg.hasOwnProperty("payload")) {
+                    utils.setStatusError(node, "missing payload");
+                    if (done) done();
+                    return;
+                }
+
+                if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
+                    utils.setStatusError(node, "missing or invalid context");
+                    if (done) done();
+                    return;
+                }
+
+                const contextMsg = msg.context;
+
+                if (contextMsg === "clear") {
                 // Clear all priority slots with one command; default and fallback remain untouched.
                 for (let i = 1; i <= 16; i++) {
                     const key = `priority${i}`;
@@ -68,35 +106,36 @@ module.exports = function(RED) {
                 context.set("priorities", priorities);
                 context.set("messages", messages);
                 utils.setStatusOK(node, "priority slots cleared");
-            } else {
-                const value = normalizeValue(msg.payload);
-                if (value === undefined) {
-                    utils.setStatusError(node, `invalid ${contextMsg}`);
-                    if (done) done();
-                    return;
-                }
-
-                if (/^priority([1-9]|1[0-6])$/.test(contextMsg)) {
-                    priorities[contextMsg] = value;
-                    messages[contextMsg] = value === null ? null : RED.util.cloneMessage(msg);
-                    context.set("priorities", priorities);
-                    context.set("messages", messages);
-                    const priorityText = value === null ? `${contextMsg} relinquished` : `${contextMsg}: ${formatValue(value)}`;
-                    utils.setStatusOK(node, priorityText);
-                } else if (contextMsg === "fallback") {
-                    fallbackValue = value;
-                    messages[contextMsg] = value === null ? null : RED.util.cloneMessage(msg);
-                    context.set("fallbackValue", fallbackValue);
-                    context.set("messages", messages);
-                    const fallbackText = value === null ? "fallback relinquished" : `fallback: ${formatValue(value)}`;
-                    utils.setStatusOK(node, fallbackText);
-                } else if (contextMsg === "default") {
-                    // Preserve established default behavior contract: runtime messages do not modify default.
-                    utils.setStatusWarn(node, "default is fixed");
                 } else {
-                    utils.setStatusWarn(node, "unknown context");
-                    if (done) done("Unknown context");
-                    return;
+                    const value = normalizeValue(msg.payload);
+                    if (value === undefined) {
+                        utils.setStatusError(node, `invalid ${contextMsg}`);
+                        if (done) done();
+                        return;
+                    }
+
+                    if (/^priority([1-9]|1[0-6])$/.test(contextMsg)) {
+                        priorities[contextMsg] = value;
+                        messages[contextMsg] = value === null ? null : RED.util.cloneMessage(msg);
+                        context.set("priorities", priorities);
+                        context.set("messages", messages);
+                        const priorityText = value === null ? `${contextMsg} relinquished` : `${contextMsg}: ${formatValue(value)}`;
+                        utils.setStatusOK(node, priorityText);
+                    } else if (contextMsg === "fallback") {
+                        fallbackValue = value;
+                        messages[contextMsg] = value === null ? null : RED.util.cloneMessage(msg);
+                        context.set("fallbackValue", fallbackValue);
+                        context.set("messages", messages);
+                        const fallbackText = value === null ? "fallback relinquished" : `fallback: ${formatValue(value)}`;
+                        utils.setStatusOK(node, fallbackText);
+                    } else if (contextMsg === "default") {
+                        // Preserve established default behavior contract: runtime messages do not modify default.
+                        utils.setStatusWarn(node, "default is fixed");
+                    } else {
+                        utils.setStatusWarn(node, "unknown context");
+                        if (done) done("Unknown context");
+                        return;
+                    }
                 }
             }
 
@@ -152,6 +191,7 @@ module.exports = function(RED) {
 
                 // Return the original message if available, otherwise a new message
                 const output = selectedMessage ? RED.util.cloneMessage(selectedMessage) : { payload: selectedValue };
+                output.payload = selectedValue;
                 output.diagnostics = { activePriority };
                 return output;
             }
