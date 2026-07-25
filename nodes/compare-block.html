@@ -24,6 +24,7 @@
             <input type="checkbox" id="node-input-lessThan" style="width: auto; margin-right: 4px;"> Less than
         </label>
     </div>
+    <input type="hidden" id="node-input-outputs">
 </script>
 
 <!-- JavaScript Section: Registers the node and handles editor logic -->
@@ -35,14 +36,13 @@
             name: { value: "" },
             inputProperty: { value: "payload" },
             setpoint: { value: 50, required: true, validate: function(v) { return !isNaN(+v) && isFinite(+v); } },
+            outputs: { value: 3 },
             greaterThan: { value: true },
             equalTo: { value: true },
             lessThan: { value: true }
         },
         inputs: 1,
-        outputs: function() {
-            return [this.greaterThan, this.equalTo, this.lessThan].filter(value => value !== false).length;
-        },
+        outputs: 3,
         outputLabels: function(index) {
             return ["greater than", "equal to", "less than"]
                 .filter((label, comparisonIndex) => [this.greaterThan, this.equalTo, this.lessThan][comparisonIndex] !== false)[index];
@@ -70,16 +70,17 @@
         oneditprepare: function() {
             const comparisonCheckboxes = $("#node-input-greaterThan, #node-input-equalTo, #node-input-lessThan");
 
-            function requireOneOutput() {
+            function updateOutputs() {
                 comparisonCheckboxes.prop("disabled", false);
                 const selected = comparisonCheckboxes.filter(":checked");
                 if (selected.length === 1) {
                     selected.prop("disabled", true);
                 }
+                $("#node-input-outputs").val(selected.length);
             }
 
-            comparisonCheckboxes.on("change", requireOneOutput);
-            requireOneOutput();
+            comparisonCheckboxes.on("change", updateOutputs);
+            updateOutputs();
         }
     });
 </script>
