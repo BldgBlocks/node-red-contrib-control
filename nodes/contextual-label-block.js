@@ -21,13 +21,21 @@ module.exports = function(RED) {
                 return;
             }
 
+            const inputValue = RED.util.getMessageProperty(msg, node.inputProperty);
+            if (inputValue === undefined) {
+                utils.setStatusError(node, `missing ${node.inputProperty}`);
+                if (done) done();
+                return;
+            }
+            msg.payload = inputValue;
+
             // Set or remove context property
             if (node.removeLabel) {
                 delete msg.context;
-                utils.setStatusChanged(node, `${msg[node.inputProperty]} -> removed`);
+                utils.setStatusChanged(node, `${inputValue} -> removed`);
             } else {
                 msg.context = node.contextPropertyName;
-                utils.setStatusChanged(node, `${msg[node.inputProperty]} -> ${node.contextPropertyName}`);
+                utils.setStatusChanged(node, `${inputValue} -> ${node.contextPropertyName}`);
             }
 
             send(msg);

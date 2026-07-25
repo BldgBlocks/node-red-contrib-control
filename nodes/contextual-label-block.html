@@ -4,7 +4,7 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-inputProperty" title="Message property to read label from"><i class="fa fa-folder-open"></i> Input Property</label>
+        <label for="node-input-inputProperty" title="Message property to move to msg.payload"><i class="fa fa-folder-open"></i> Input Property</label>
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
@@ -51,14 +51,15 @@ RED.nodes.registerType("contextual-label-block", {
 Sets or removes the msg.context property in a message.
 
 ### Inputs
-: payload (any) : Input message payload, passed through unchanged.
+: configured input property (any) : Value to move to `msg.payload`. Nested paths such as `payload.temperature` are supported.
 
 ### Outputs
 : context (string) : Configured context property (e.g., `priority`, `clear`, `in1`) if set, or absent if removed.
-: payload (any) : Original message object with context added or deleted.
+: payload (any) : Value extracted from the configured input property.
+: *other* (any) : Other message properties are preserved.
 
 ### Details
-Either sets `msg.context` to a configured property (e.g., `priority`, `clear`, `in1`) or removes `msg.context` based on the `Remove Context` toggle.
+Moves the configured input property to `msg.payload`, then either sets `msg.context` to a configured value (e.g., `priority15`, `clear`, `in1`) or removes `msg.context` based on the `Remove Context` toggle.
 
 ### Status
 - Green (dot): Configuration updates
