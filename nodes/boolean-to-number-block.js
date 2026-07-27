@@ -29,22 +29,22 @@ module.exports = function(RED) {
 
             // Validate and convert input
             const inputDisplay = inputValue === null ? "null" : String(inputValue);
+            let outputValue;
             if (inputValue === null) {
-                msg.payload = node.nullToZero ? 0 : -1;
-                utils.setStatusChanged(node, `${inputDisplay} -> ${msg.payload}`);
-                send(msg);
+                outputValue = node.nullToZero ? 0 : -1;
             } else if (typeof inputValue === "boolean") {
-                msg.payload = inputValue ? 1 : 0;
-                utils.setStatusChanged(node, `${inputDisplay} -> ${msg.payload}`);
-                send(msg);
+                outputValue = inputValue ? 1 : 0;
             } else if (typeof inputValue === "number" && (inputValue === 0 || inputValue === 1)) {
-                msg.payload = inputValue === 1;
-                utils.setStatusChanged(node, `${inputDisplay} -> ${msg.payload}`);
-                send(msg);
+                outputValue = inputValue === 1;
             } else {
                 utils.setStatusError(node, "invalid input type");
+                if (done) done();
+                return;
             }
 
+            RED.util.setMessageProperty(msg, node.inputProperty, outputValue);
+            utils.setStatusChanged(node, `${inputDisplay} -> ${outputValue}`);
+            send(msg);
             if (done) done();
         });
 

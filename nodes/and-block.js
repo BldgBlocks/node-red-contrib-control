@@ -38,7 +38,7 @@ module.exports = function(RED) {
                 node.mappings.forEach(mapping => {
                     const value = RED.util.getMessageProperty(msg, mapping.property);
                     if (value !== undefined) {
-                        node.inputs[mapping.input - 1] = Boolean(value);
+                        node.inputs[mapping.input - 1] = mapping.negate ? !Boolean(value) : Boolean(value);
                         updated = true;
                     }
                 });

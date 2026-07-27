@@ -67,6 +67,16 @@
                     style: "width: 70px; margin-left: 6px;",
                     title: "Virtual input number"
                 }).val(mapping.input || 1).appendTo($item);
+                $("<label>", {
+                    style: "margin-left: 8px; white-space: nowrap;",
+                    title: "Invert this mapped value"
+                }).append(
+                    $("<input>", {
+                        type: "checkbox",
+                        class: "node-input-mapping-negate"
+                    }).prop("checked", Boolean(mapping.negate)),
+                    " Negate"
+                ).appendTo($item);
                 $("<a>", { href: "#", class: "red-ui-button red-ui-button-small", style: "margin-left: 5px;" })
                     .html('<i class="fa fa-remove"></i>')
                     .on("click", function(event) {
@@ -90,7 +100,8 @@
             this.mappings = $("#node-input-mapping-container .node-input-mapping-row").map(function() {
                 const property = $(this).find(".node-input-mapping-property").val().trim();
                 const input = parseInt($(this).find(".node-input-mapping-input").val(), 10);
-                return property && input >= 1 && input <= slots ? { property, input } : null;
+                const negate = $(this).find(".node-input-mapping-negate").prop("checked");
+                return property && input >= 1 && input <= slots ? { property, input, negate } : null;
             }).get().filter(Boolean).sort((left, right) => left.property.localeCompare(right.property));
         }
     });
@@ -109,7 +120,7 @@ Computes the logical OR of multiple boolean inputs, outputting a new message wit
 ### Details
 Evaluates the logical OR of a fixed number of boolean inputs (`slots` ≥ 2, set in editor). 
 
-In **Map message properties** mode, configure each incoming property and its virtual input number. A message may update several mapped inputs, and multiple properties may map to the same input. The mapping list is kept alphabetical by property name.
+In **Map message properties** mode, configure each incoming property and its virtual input number. Select **Negate** to invert that mapped boolean value. A message may update several mapped inputs, and multiple properties may map to the same input. The mapping list is kept alphabetical by property name.
 
 In **Context (legacy)** mode, each slot is updated via `msg.context = "inX"` (for example, `"in1"`, `"in2"`) with `msg.payload` converted to boolean.
 
