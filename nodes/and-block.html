@@ -53,31 +53,36 @@
             const $mappingRow = $("#node-input-mappings-row");
 
             function addMapping(mapping) {
-                const $item = $("<li>", { class: "node-input-mapping-row" }).appendTo($container);
+                const $item = $("<li>", {
+                    class: "node-input-mapping-row",
+                    style: "display: flex; align-items: center; gap: 5px; width: 100%; box-sizing: border-box; flex-wrap: nowrap;"
+                }).appendTo($container);
                 $("<input>", {
                     type: "text",
                     class: "node-input-mapping-property",
-                    placeholder: "schedule"
+                    placeholder: "schedule",
+                    style: "flex: 1 1 80px; min-width: 0;"
                 }).val(mapping.property || "").appendTo($item);
                 $("<input>", {
                     type: "number",
                     class: "node-input-mapping-input",
                     min: 1,
                     step: 1,
-                    style: "width: 70px; margin-left: 6px;",
+                    style: "width: 50px; flex: 0 0 50px;",
                     title: "Virtual input number"
                 }).val(mapping.input || 1).appendTo($item);
                 $("<label>", {
-                    style: "margin-left: 8px; white-space: nowrap;",
+                    style: "display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; margin: 0; white-space: nowrap;",
                     title: "Invert this mapped value"
                 }).append(
                     $("<input>", {
                         type: "checkbox",
-                        class: "node-input-mapping-negate"
+                        class: "node-input-mapping-negate",
+                        style: "width: auto; margin: 0;"
                     }).prop("checked", Boolean(mapping.negate)),
-                    " Negate"
+                    "Negate"
                 ).appendTo($item);
-                $("<a>", { href: "#", class: "red-ui-button red-ui-button-small", style: "margin-left: 5px;" })
+                $("<a>", { href: "#", class: "red-ui-button red-ui-button-small", style: "flex: 0 0 auto; margin: 0;" })
                     .html('<i class="fa fa-remove"></i>')
                     .on("click", function(event) {
                         event.preventDefault();
