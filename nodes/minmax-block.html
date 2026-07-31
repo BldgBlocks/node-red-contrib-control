@@ -7,8 +7,8 @@
     <div class="form-row">
         <label for="node-input-mode" title="Select the clamp direction"><i class="fa fa-sort-amount-asc"></i> Mode</label>
         <select id="node-input-mode">
-            <option value="minimum">Minimum</option>
-            <option value="maximum">Maximum</option>
+            <option value="min">Minimum</option>
+            <option value="max">Maximum</option>
         </select>
     </div>
     <div id="node-input-min-row" class="form-row">
@@ -30,7 +30,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            mode: { value: "minimum" },
+            mode: { value: "min" },
             min: { value: 0, required: true },
             minType: { value: "num" },
             max: { value: 100, required: true },
@@ -43,7 +43,7 @@
         icon: "font-awesome/fa-sort-amount-asc",
         paletteLabel: "min/max clamp",
         label: function() {
-            return this.name || `${this.mode || "minimum"} clamp`;
+            return this.name || `${this.mode || "min"} clamp`;
         },
         oneditprepare: function() {
             const node = this;
@@ -58,7 +58,7 @@
                 typeField: "#node-input-maxType"
             }).typedInput("type", node.maxType || "num").typedInput("value", node.max);
             $("#node-input-mode").on("change", function() {
-                const isMinimum = $(this).val() === "minimum";
+                const isMinimum = $(this).val() === "min";
                 $("#node-input-min-row").toggle(isMinimum);
                 $("#node-input-max-row").toggle(!isMinimum);
             }).trigger("change");
