@@ -9,6 +9,7 @@ module.exports = function(RED) {
         node.inputs = Array(parseInt(config.slots) || 2).fill(false);
         node.slots = parseInt(config.slots);
         node.operationMode = config.operationMode === "map" ? "map" : "context";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.mappings = Array.isArray(config.mappings) ? config.mappings.filter(mapping => {
             return mapping && typeof mapping.property === "string" && mapping.property.trim() &&
                 utils.validateSlotIndex(`in${mapping.input}`, node.slots).valid;
@@ -96,7 +97,9 @@ module.exports = function(RED) {
                         lastOutputValue = result;
                         
                         // Send output to allow all downstream branches to update
-                        send({ payload: result });
+                        const output = {};
+                        RED.util.setMessageProperty(output, node.outputProperty, result, true);
+                        send(output);
                     }
                     
             lastResult = result;

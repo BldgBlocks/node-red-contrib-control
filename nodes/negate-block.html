@@ -7,6 +7,10 @@
         <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
+    <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
 </script>
 
 <script type="text/javascript">
@@ -15,7 +19,8 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            inputProperty: { value: "payload" }
+            inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true }
         },
         inputs: 1,
         outputs: 1,
@@ -36,18 +41,19 @@ Negates a number or boolean input value.
 : input-property (number | boolean) : Value to negate (number or boolean), read from the configured Input Property.
 
 ### Outputs
-: payload (number | boolean) : Negated value (-number or !boolean).
+: outputProperty (number | boolean) : Negated value (-number or !boolean), written to the configured Output Property.
 
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: outputProperty (string) : Message property to write the result to (default: `payload`). Supports nested properties (e.g., `result.value`).
 
 ### Details
 Negates a number or boolean value in a passthrough manner, updating the original message.
 - Reads input from the message property specified in the **Input Property** field (default: `msg.payload`)
 - For numbers, outputs the negative (e.g., 5 becomes -5)
 - For booleans, outputs the inverse (e.g., true becomes false)
-- Output is always written to `msg.payload`
+- Writes output to the message property specified in the **Output Property** field (default: `msg.payload`)
 - Preserves other message properties (e.g., `msg.topic`, `msg.context`)
 
 ### Status

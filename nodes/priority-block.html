@@ -11,6 +11,15 @@
             <option value="context">Context (legacy)</option>
         </select>
     </div>
+    <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the selected value to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
+        <label for="node-input-defaultValue" title="Fixed value used when no priority or fallback slot is active"><i class="fa fa-undo"></i> Default</label>
+        <input type="text" id="node-input-defaultValue" placeholder="e.g. 0 or false">
+        <input type="hidden" id="node-input-defaultValueType">
+    </div>
     <div id="node-input-mappings-row" class="form-row">
         <label><i class="fa fa-exchange"></i> Mappings</label>
         <ol id="node-input-mapping-container"></ol>
@@ -20,12 +29,22 @@
 
 <!-- JavaScript Section: Registers the node and handles editor logic -->
 <script type="text/javascript">
+    (function() {
+    function compareMappings(left, right) {
+        const slotOrder = slot => slot === "fallback" ? 17 : Number(slot.replace("priority", ""));
+        const slotDifference = slotOrder(left.slot) - slotOrder(right.slot);
+        return slotDifference || left.property.localeCompare(right.property);
+    }
+
     RED.nodes.registerType("priority-block", {
         category: "bldgblocks control",
         color: "#301934",
         defaults: {
             name: { value: "" },
             operationMode: { value: "map" },
+            outputProperty: { value: "payload", required: true },
+            defaultValue: { value: "", required: true },
+            defaultValueType: { value: "num", required: true },
             mappings: { value: [] }
         },
         inputs: 1,
@@ -41,14 +60,23 @@
             const node = this;
             const $container = $("#node-input-mapping-container");
             const $mappingRow = $("#node-input-mappings-row");
+            const markDirty = () => RED.nodes.dirty(true);
 
+            if (!node.outputProperty || !node.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
+            $("#node-input-defaultValue").typedInput({
+                default: "num",
+                types: ["str", "num", "bool", "json"],
+                typeField: "#node-input-defaultValueType"
+            }).typedInput("type", node.defaultValueType || "num").typedInput("value", node.defaultValue);
             function addMapping(mapping) {
                 const $item = $("<li>", { class: "node-input-mapping-row" }).appendTo($container);
                 $("<input>", {
                     type: "text",
                     class: "node-input-mapping-property",
                     placeholder: "payload.temperature"
-                }).val(mapping.property || "").appendTo($item);
+                }).val(mapping.property || "").on("input", markDirty).appendTo($item);
 
                 const $slot = $("<select>", {
                     class: "node-input-mapping-slot",
@@ -59,21 +87,23 @@
                     $("<option>", { value: `priority${priority}`, text: `priority${priority}` }).appendTo($slot);
                 }
                 $("<option>", { value: "fallback", text: "fallback" }).appendTo($slot);
-                $slot.val(mapping.slot || "priority1");
+                $slot.val(mapping.slot || "priority1").on("change", markDirty);
 
                 $("<a>", { href: "#", class: "red-ui-button red-ui-button-small", style: "margin-left: 5px;" })
                     .html('<i class="fa fa-remove"></i>')
                     .on("click", function(event) {
                         event.preventDefault();
                         $item.remove();
+                        markDirty();
                     })
                     .appendTo($item);
             }
 
-            (node.mappings || []).slice().sort((left, right) => left.property.localeCompare(right.property)).forEach(addMapping);
+            (node.mappings || []).slice().sort(compareMappings).forEach(addMapping);
             $("#node-input-add-mapping").on("click", function(event) {
                 event.preventDefault();
                 addMapping({ property: "", slot: "priority1" });
+                markDirty();
             });
             $("#node-input-operationMode").on("change", function() {
                 $mappingRow.toggle($(this).val() === "map");
@@ -84,9 +114,10 @@
                 const property = $(this).find(".node-input-mapping-property").val().trim();
                 const slot = $(this).find(".node-input-mapping-slot").val();
                 return property ? { property, slot } : null;
-            }).get().filter(Boolean).sort((left, right) => left.property.localeCompare(right.property));
+            }).get().filter(Boolean).sort(compareMappings);
         }
     });
+    })();
 </script>
 
 <!-- Help Section -->
@@ -95,10 +126,11 @@ Implements a priority array with 16 levels, default, and fallback.
 
 ### Inputs
 : map mode (default) : Each configured message property updates its mapped priority slot.
+: default : Fixed value used when no priority or fallback slot is active.
 : context mode : `context` is the command/slot identifier and `payload` is the slot value.
 
 #### Map mode
-Configure a message property and target slot for each input. Nested properties such as `payload.temperature` are supported. The mapped value is stored in its slot; `null` or an empty string relinquishes it. A message may update multiple mapped slots.
+Configure a message property and target slot for each input. Nested properties such as `payload.temperature` are supported. The mapped value is stored in its slot; `null` or an empty string relinquishes it. A message may update multiple mapped slots. Mappings are ordered by priority number, followed by `fallback`; mappings sharing a slot are alphabetical by property name.
 
 #### Context mode
 : context (string) : Command/slot identifier.
@@ -113,16 +145,16 @@ Configure a message property and target slot for each input. Nested properties s
     - Object-based clear payloads are not supported.
 
 ### Outputs
-: payload (any) : Value from highest non-null slot (`priority1` to `fallback`), or `null` if none set.
+: configured output property (any) : Value from highest non-null slot (`priority1` to `fallback`), or `null` if none set. Defaults to `msg.payload`.
 : diagnostics.activePriority (string) : Active slot (`"priority1"` to `"priority16"`, `"default"`, `"fallback"`, or `null`).
 : *other* (any) : the original message is preserved.
 
 ### Details
-Manages a priority array with 16 slots (`priority1` to `priority16`), `default`, and `fallback`. 
+Manages a priority array with 16 slots (`priority1` to `priority16`), a fixed configurable `default`, and `fallback`. 
 
-Forwards the original message from the highest non-null slot (`priority1` highest, `fallback` lowest), moves the selected value to `msg.payload`, and adds `msg.diagnostics.activePriority`.
+Forwards the original message from the highest non-null slot (`priority1` highest, `fallback` lowest), writes the selected value to **Output Property**, and adds `msg.diagnostics.activePriority`. For example, `result.value` writes to `msg.result.value`.
 
-If no slots are set, outputs `{ payload null, diagnostics { activePriority null } }`. 
+If no runtime slots are set, the configured default is output. If the default is empty, outputs `{ payload null, diagnostics { activePriority null } }`.
 In map mode, mapped `null` or empty-string values relinquish individual slots. In context mode, set runtime slots via `msg.context` + `msg.payload` and clear all priorities with `msg.context = "clear"`.
 `default` is treated as fixed and is not changed by runtime messages.
 

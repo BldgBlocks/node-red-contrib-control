@@ -6,10 +6,29 @@ module.exports = function(RED) {
         const node = this;
         const context = this.context();
 
+        function parseDefaultValue(value, type) {
+            if (value === "" || value === undefined || value === null) return null;
+            if (type === "num") {
+                const parsed = Number(value);
+                return Number.isNaN(parsed) ? null : parsed;
+            }
+            if (type === "bool") return value === true || value === "true";
+            if (type === "json") {
+                try {
+                    return JSON.parse(value);
+                } catch (error) {
+                    return null;
+                }
+            }
+            return String(value);
+        }
+
         // Initialize runtime state
         // Initialize state
         node.name = config.name;
         node.operationMode = config.operationMode === "map" ? "map" : "context";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
+        node.defaultValue = parseDefaultValue(config.defaultValue, config.defaultValueType);
         node.mappings = Array.isArray(config.mappings) ? config.mappings.filter(mapping => {
             return mapping && typeof mapping.property === "string" && mapping.property.trim() &&
                 (/^priority([1-9]|1[0-6])$/.test(mapping.slot) || mapping.slot === "fallback");
@@ -22,8 +41,9 @@ module.exports = function(RED) {
             priority9: null, priority10: null, priority11: null, priority12: null,
             priority13: null, priority14: null, priority15: null, priority16: null
         };
-        let defaultValue = context.get("defaultValue") || null;
-        let fallbackValue = context.get("fallbackValue") || null;
+        let defaultValue = node.defaultValue;
+        let fallbackValue = context.get("fallbackValue");
+        if (fallbackValue === undefined) fallbackValue = null;
         let messages = context.get("messages") || {
             priority1: null, priority2: null, priority3: null, priority4: null,
             priority5: null, priority6: null, priority7: null, priority8: null,
@@ -142,7 +162,8 @@ module.exports = function(RED) {
             // Output highest priority message
             const currentOutput = evaluatePriority();
             send(currentOutput);
-            const outDisplay = currentOutput.payload === null ? "null" : typeof currentOutput.payload === "number" ? currentOutput.payload.toFixed(2) : currentOutput.payload;
+            const outputValue = RED.util.getMessageProperty(currentOutput, node.outputProperty);
+            const outDisplay = outputValue === null ? "null" : typeof outputValue === "number" ? outputValue.toFixed(2) : outputValue;
             const statusText = `out: ${outDisplay}, slot: ${currentOutput.diagnostics.activePriority || "none"}`;
             utils.setStatusChanged(node, statusText);
 
@@ -190,8 +211,8 @@ module.exports = function(RED) {
                 }
 
                 // Return the original message if available, otherwise a new message
-                const output = selectedMessage ? RED.util.cloneMessage(selectedMessage) : { payload: selectedValue };
-                output.payload = selectedValue;
+                const output = selectedMessage ? RED.util.cloneMessage(selectedMessage) : {};
+                RED.util.setMessageProperty(output, node.outputProperty, selectedValue, true);
                 output.diagnostics = { activePriority };
                 return output;
             }

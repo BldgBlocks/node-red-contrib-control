@@ -14,6 +14,10 @@
             <option value="context">Context (legacy)</option>
         </select>
     </div>
+    <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
     <div id="node-input-mappings-row" class="form-row">
         <label><i class="fa fa-exchange"></i> Mappings</label>
         <ol id="node-input-mapping-container"></ol>
@@ -22,6 +26,12 @@
 </script>
 
 <script type="text/javascript">
+    (function() {
+    function compareMappings(left, right) {
+        const inputDifference = Number(left.input) - Number(right.input);
+        return inputDifference || left.property.localeCompare(right.property);
+    }
+
     RED.nodes.registerType("and-block", {
         category: "bldgblocks control",
         color: "#301934",
@@ -36,6 +46,7 @@
                 }
             },
             operationMode: { value: "map" },
+            outputProperty: { value: "payload", required: true },
             mappings: { value: [] }
         },
         inputs: 1,
@@ -51,6 +62,11 @@
             const node = this;
             const $container = $("#node-input-mapping-container");
             const $mappingRow = $("#node-input-mappings-row");
+            const markDirty = () => RED.nodes.dirty(true);
+
+            if (!node.outputProperty || !node.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
 
             function addMapping(mapping) {
                 const $item = $("<li>", {
@@ -62,7 +78,7 @@
                     class: "node-input-mapping-property",
                     placeholder: "schedule",
                     style: "flex: 1 1 80px; min-width: 0;"
-                }).val(mapping.property || "").appendTo($item);
+                }).val(mapping.property || "").on("input", markDirty).appendTo($item);
                 $("<input>", {
                     type: "number",
                     class: "node-input-mapping-input",
@@ -70,7 +86,7 @@
                     step: 1,
                     style: "width: 50px; flex: 0 0 50px;",
                     title: "Virtual input number"
-                }).val(mapping.input || 1).appendTo($item);
+                }).val(mapping.input || 1).on("change", markDirty).appendTo($item);
                 $("<label>", {
                     style: "display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; margin: 0; white-space: nowrap;",
                     title: "Invert this mapped value"
@@ -79,7 +95,7 @@
                         type: "checkbox",
                         class: "node-input-mapping-negate",
                         style: "width: auto; margin: 0;"
-                    }).prop("checked", Boolean(mapping.negate)),
+                    }).prop("checked", Boolean(mapping.negate)).on("change", markDirty),
                     "Negate"
                 ).appendTo($item);
                 $("<a>", { href: "#", class: "red-ui-button red-ui-button-small", style: "flex: 0 0 auto; margin: 0;" })
@@ -87,29 +103,31 @@
                     .on("click", function(event) {
                         event.preventDefault();
                         $item.remove();
+                        markDirty();
                     })
                     .appendTo($item);
             }
 
-            (node.mappings || []).slice().sort((left, right) => left.property.localeCompare(right.property)).forEach(addMapping);
+            (node.mappings || []).slice().sort(compareMappings).forEach(addMapping);
             $("#node-input-add-mapping").on("click", function(event) {
                 event.preventDefault();
                 addMapping({ property: "", input: 1 });
+                markDirty();
             });
             $("#node-input-operationMode").on("change", function() {
                 $mappingRow.toggle($(this).val() === "map");
             }).trigger("change");
         },
         oneditsave: function() {
-            const slots = parseInt($("#node-input-slots").val(), 10);
             this.mappings = $("#node-input-mapping-container .node-input-mapping-row").map(function() {
                 const property = $(this).find(".node-input-mapping-property").val().trim();
                 const input = parseInt($(this).find(".node-input-mapping-input").val(), 10);
                 const negate = $(this).find(".node-input-mapping-negate").prop("checked");
-                return property && input >= 1 && input <= slots ? { property, input, negate } : null;
-            }).get().filter(Boolean).sort((left, right) => left.property.localeCompare(right.property));
+                return property && input >= 1 ? { property, input, negate } : null;
+            }).get().filter(Boolean).sort(compareMappings);
         }
     });
+    })();
 </script>
 
 <script type="text/markdown" data-help-name="and-block">
@@ -120,12 +138,12 @@ Computes the logical AND of multiple boolean inputs, outputting a new message wi
 : context mode : `context` identifies the input slot (for example, `"in1"`, `"in2"`) and `payload` supplies its value.
 
 ### Outputs
-: payload (boolean) : `true` if all slots are `true`, `false` otherwise.
+: configured output property (boolean) : `true` if all slots are `true`, `false` otherwise. Defaults to `msg.payload`.
 
 ### Details
-Evaluates the logical AND of a fixed number of boolean inputs (`slots` ≥ 2, set in editor). 
+Evaluates the logical AND of a fixed number of boolean inputs (`slots` ≥ 2, set in editor). Configure **Output Property** to choose where the result is written (for example, `result` writes to `msg.result`).
 
-In **Map message properties** mode, configure each incoming property and its virtual input number. Select **Negate** to invert that mapped boolean value. A message may update several mapped inputs, and multiple properties may map to the same input. The mapping list is kept alphabetical by property name.
+In **Map message properties** mode, configure each incoming property and its virtual input number. Select **Negate** to invert that mapped boolean value. A message may update several mapped inputs, and multiple properties may map to the same input. Mappings are ordered by virtual input number, then alphabetically by property name. Mappings above the current slot count are retained for future use but do not affect output until the slot count includes them.
 
 In **Context (legacy)** mode, each slot is updated via `msg.context = "inX"` (for example, `"in1"`, `"in2"`) with `msg.payload` converted to boolean.
 

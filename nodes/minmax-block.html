@@ -5,13 +5,20 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-min" title="Minimum value for clamping the input number"><i class="fa fa-arrow-down"></i> Min</label>
-        <input type="text" id="node-input-min" placeholder="0" min="0" step="any">
+        <label for="node-input-mode" title="Select the clamp direction"><i class="fa fa-sort-amount-asc"></i> Mode</label>
+        <select id="node-input-mode">
+            <option value="minimum">Minimum</option>
+            <option value="maximum">Maximum</option>
+        </select>
+    </div>
+    <div id="node-input-min-row" class="form-row">
+        <label for="node-input-min" title="Minimum output value"><i class="fa fa-arrow-down"></i> Minimum</label>
+        <input type="text" id="node-input-min" placeholder="0">
         <input type="hidden" id="node-input-minType">
     </div>
-    <div class="form-row">
-        <label for="node-input-max" title="Maximum value for clamping the input number"><i class="fa fa-arrow-up"></i> Max</label>
-        <input type="text" id="node-input-max" placeholder="100" min="0" step="any">
+    <div id="node-input-max-row" class="form-row">
+        <label for="node-input-max" title="Maximum output value"><i class="fa fa-arrow-up"></i> Maximum</label>
+        <input type="text" id="node-input-max" placeholder="100">
         <input type="hidden" id="node-input-maxType">
     </div>
 </script>
@@ -23,65 +30,66 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            mode: { value: "minimum" },
             min: { value: 0, required: true },
-            max: { value: 100, required: true }
+            minType: { value: "num" },
+            max: { value: 100, required: true },
+            maxType: { value: "num" }
         },
         inputs: 1,
         outputs: 1,
         inputLabels: ["input"],
         outputLabels: ["output"],
-        icon: "font-awesome/fa-arrows-v",
-        paletteLabel: "minmax",
+        icon: "font-awesome/fa-sort-amount-asc",
+        paletteLabel: "min/max clamp",
         label: function() {
-            return this.name || "minmax";
+            return this.name || `${this.mode || "minimum"} clamp`;
         },
         oneditprepare: function() {
             const node = this;
-            
-            // Initialize typed inputs
             $("#node-input-min").typedInput({
                 default: "num",
                 types: ["num", "msg", "flow", "global"],
                 typeField: "#node-input-minType"
             }).typedInput("type", node.minType || "num").typedInput("value", node.min);
-
             $("#node-input-max").typedInput({
                 default: "num",
                 types: ["num", "msg", "flow", "global"],
                 typeField: "#node-input-maxType"
             }).typedInput("type", node.maxType || "num").typedInput("value", node.max);
-
+            $("#node-input-mode").on("change", function() {
+                const isMinimum = $(this).val() === "minimum";
+                $("#node-input-min-row").toggle(isMinimum);
+                $("#node-input-max-row").toggle(!isMinimum);
+            }).trigger("change");
         }
     });
 </script>
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="minmax-block">
-Clamps a numeric input to a configurable range.
+Clamps a numeric input to a selected minimum or maximum limit.
 
 ### Inputs
-: context (string) : Configures range (`"min"`, `"max"`). Unmatched values trigger warning.
-: payload (number) : Input number to clamp or new min/max value with `msg.context`.
+: context (string) : Updates the selected limit using `"min"` / `"minimum"` or `"max"` / `"maximum"`; `"setpoint"` also updates either selected limit.
+: payload (number) : Input number to clamp or the selected limit value when using a configuration context.
 
 ### Outputs
-: payload (number) : Input number clamped to `[min, max]`.
-: *other* (any) : All input properties preserved, including `msg.context`.
+: payload (number) : The clamped number.
 
 ### Properties
-: min (number) : Minimum value for clamping (≥ 0).
-: max (number) : Maximum value for clamping (≥ 0, ≥ min)..
+: mode : Select **Minimum** to enforce a lower bound or **Maximum** to enforce an upper bound.
+: minimum / maximum : The selected numeric clamp limit, supporting number, message, flow, and global values.
 
 ### Details
-Clamps `msg.payload` (a number) to the range `[min, max]`, forwarding the input message with updated `msg.payload`. 
-
-Ensures `min ≤ max` by adjusting the other value if needed (e.g., setting `min > max` sets `max = min`). 
+In **Minimum** mode, outputs below the configured limit are raised to that limit. In **Maximum** mode, outputs above the configured limit are lowered to that limit. The node forwards the input message with its `payload` replaced by the clamped result.
 
 ### Status
-- Green (dot): Configuration update
-- Blue (dot): State changed
-- Blue (ring): State unchanged
-- Red (ring): Error
-- Yellow (ring): Warning
+- Green (dot): Limit update
+- Blue (dot): Output changed
+- Blue (ring): Output unchanged
+- Red (ring): Invalid input or limit
+- Yellow (ring): Unknown context
 
 ### References
 - [Node-RED Documentation](https://nodered.org/docs/)

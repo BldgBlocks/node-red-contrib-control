@@ -44,6 +44,48 @@ describe("logical block mapping mode", function() {
         });
     });
 
+    it("writes the AND result to its configured output property", function(done) {
+        const flow = buildFlow("and-block", {
+            operationMode: "map",
+            outputProperty: "control.isEnabled",
+            mappings: [{ property: "schedule", input: 1 }, { property: "override", input: 2 }]
+        });
+        helper.load(andBlock, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            const message = collectMessages(output, 1);
+
+            node.receive({ schedule: true, override: true });
+
+            message.then(received => {
+                assert.strictEqual(received[0].control.isEnabled, true);
+                assert.strictEqual(received[0].payload, undefined);
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("writes the OR result to its configured output property", function(done) {
+        const flow = buildFlow("or-block", {
+            operationMode: "map",
+            outputProperty: "control.hasCall",
+            mappings: [{ property: "schedule", input: 1 }, { property: "override", input: 2 }]
+        });
+        helper.load(orBlock, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            const message = collectMessages(output, 1);
+
+            node.receive({ schedule: false, override: true });
+
+            message.then(received => {
+                assert.strictEqual(received[0].control.hasCall, true);
+                assert.strictEqual(received[0].payload, undefined);
+                done();
+            }).catch(done);
+        });
+    });
+
     it("preserves context routing for existing nodes", function(done) {
         const flow = buildFlow("or-block", { operationMode: "context" });
         helper.load(orBlock, flow, function() {

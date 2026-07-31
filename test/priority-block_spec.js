@@ -31,6 +31,30 @@ describe("priority-block", function() {
         });
     });
 
+    it("should write the selected value to the configured output property", function(done) {
+        const flow = buildFlow("priority-block", {
+            operationMode: "map",
+            outputProperty: "control.selected",
+            mappings: [{ property: "command.value", slot: "priority1" }]
+        });
+
+        helper.load(priorityNode, flow, function() {
+            const n1 = helper.getNode("n1");
+            const out = helper.getNode("out");
+            const promise = waitForMessage(out);
+
+            n1.receive({ command: { value: "occupied" }, payload: "original", topic: "zone-1" });
+
+            promise.then(msg => {
+                assert.strictEqual(msg.control.selected, "occupied");
+                assert.strictEqual(msg.payload, "original");
+                assert.strictEqual(msg.topic, "zone-1");
+                assert.strictEqual(msg.diagnostics.activePriority, "priority1");
+                done();
+            }).catch(done);
+        });
+    });
+
     it("should accept string values in priority slots", function(done) {
         const flow = buildFlow("priority-block");
 
@@ -81,6 +105,48 @@ describe("priority-block", function() {
             }).then(second => {
                 assert.strictEqual(second.payload, null);
                 assert.strictEqual(second.diagnostics.activePriority, null);
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("should use the configured default when no runtime slot is active", function(done) {
+        const flow = buildFlow("priority-block", { defaultValue: "0", defaultValueType: "num" });
+
+        helper.load(priorityNode, flow, function() {
+            const n1 = helper.getNode("n1");
+            const out = helper.getNode("out");
+
+            sendTagged(n1, "priority1", "active");
+
+            waitForMessage(out).then(() => {
+                sendTagged(n1, "priority1", "");
+                return waitForMessage(out);
+            }).then(msg => {
+                assert.strictEqual(msg.payload, 0);
+                assert.strictEqual(msg.diagnostics.activePriority, "default");
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("should prefer fallback and priority slots over the configured default", function(done) {
+        const flow = buildFlow("priority-block", { defaultValue: "default", defaultValueType: "str" });
+
+        helper.load(priorityNode, flow, function() {
+            const n1 = helper.getNode("n1");
+            const out = helper.getNode("out");
+
+            sendTagged(n1, "fallback", "fallback");
+
+            waitForMessage(out).then(msg => {
+                assert.strictEqual(msg.payload, "fallback");
+                assert.strictEqual(msg.diagnostics.activePriority, "fallback");
+                sendTagged(n1, "priority16", "priority");
+                return waitForMessage(out);
+            }).then(msg => {
+                assert.strictEqual(msg.payload, "priority");
+                assert.strictEqual(msg.diagnostics.activePriority, "priority16");
                 done();
             }).catch(done);
         });

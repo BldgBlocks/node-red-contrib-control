@@ -8,6 +8,7 @@ module.exports = function(RED) {
         
         // Initialize state
         node.inputProperty = config.inputProperty || "payload";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.lastOutput = null;
 
         node.on("input", function(msg, send, done) {
@@ -63,7 +64,7 @@ module.exports = function(RED) {
             }
 
             node.lastOutput = outputValue;
-            msg.payload = outputValue;
+            RED.util.setMessageProperty(msg, node.outputProperty, outputValue, true);
             send(msg);
 
             if (done) done();
