@@ -5,10 +5,11 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-mode" title="Select the clamp direction"><i class="fa fa-sort-amount-asc"></i> Mode</label>
+        <label for="node-input-mode" title="Select the clamp bounds"><i class="fa fa-sort-amount-asc"></i> Mode</label>
         <select id="node-input-mode">
             <option value="min">Minimum</option>
             <option value="max">Maximum</option>
+            <option value="minmax">Minimum and Maximum</option>
         </select>
     </div>
     <div id="node-input-min-row" class="form-row">
@@ -30,7 +31,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            mode: { value: "min" },
+            mode: { value: "minmax" },
             min: { value: 0, required: true },
             minType: { value: "num" },
             max: { value: 100, required: true },
@@ -43,7 +44,8 @@
         icon: "font-awesome/fa-sort-amount-asc",
         paletteLabel: "min/max clamp",
         label: function() {
-            return this.name || `${this.mode || "min"} clamp`;
+            const labels = { min: "min clamp", max: "max clamp", minmax: "min/max clamp" };
+            return this.name || labels[this.mode] || labels.minmax;
         },
         oneditprepare: function() {
             const node = this;
@@ -58,9 +60,9 @@
                 typeField: "#node-input-maxType"
             }).typedInput("type", node.maxType || "num").typedInput("value", node.max);
             $("#node-input-mode").on("change", function() {
-                const isMinimum = $(this).val() === "min";
-                $("#node-input-min-row").toggle(isMinimum);
-                $("#node-input-max-row").toggle(!isMinimum);
+                const mode = $(this).val();
+                $("#node-input-min-row").toggle(mode !== "max");
+                $("#node-input-max-row").toggle(mode !== "min");
             }).trigger("change");
         }
     });
@@ -68,21 +70,21 @@
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="minmax-block">
-Clamps a numeric input to a selected minimum or maximum limit.
+Clamps a numeric input to a selected minimum, maximum, or both limits.
 
 ### Inputs
-: context (string) : Updates the selected limit using `"min"` / `"minimum"` or `"max"` / `"maximum"`; `"setpoint"` also updates either selected limit.
+: context (string) : Updates a configured limit using `"min"` / `"minimum"` or `"max"` / `"maximum"`. `"setpoint"` updates the single selected limit in minimum or maximum mode.
 : payload (number) : Input number to clamp or the selected limit value when using a configuration context.
 
 ### Outputs
 : payload (number) : The clamped number.
 
 ### Properties
-: mode : Select **Minimum** to enforce a lower bound or **Maximum** to enforce an upper bound.
-: minimum / maximum : The selected numeric clamp limit, supporting number, message, flow, and global values.
+: mode : Select **Minimum**, **Maximum**, or **Minimum and Maximum** to constrain a range.
+: minimum / maximum : Numeric clamp limits, supporting number, message, flow, and global values.
 
 ### Details
-In **Minimum** mode, outputs below the configured limit are raised to that limit. In **Maximum** mode, outputs above the configured limit are lowered to that limit. The node forwards the input message with its `payload` replaced by the clamped result.
+In **Minimum** mode, outputs below the configured limit are raised to that limit. In **Maximum** mode, outputs above the configured limit are lowered to that limit. In **Minimum and Maximum** mode, the result is constrained to the configured inclusive range. The node forwards the input message with its `payload` replaced by the clamped result.
 
 ### Status
 - Green (dot): Limit update
