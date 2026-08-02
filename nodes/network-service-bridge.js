@@ -10,6 +10,10 @@ module.exports = function(RED) {
         // ====================================================================
         const parsedStartupDelay = parseInt(config.startupDelay, 10);
         node.startupDelay = isNaN(parsedStartupDelay) ? 30 : parsedStartupDelay;  // Delay in seconds
+        const parsedRequestTimeout = parseInt(config.requestTimeout, 10);
+        node.requestTimeout = Number.isInteger(parsedRequestTimeout) && parsedRequestTimeout > 0
+            ? parsedRequestTimeout
+            : 10000;
         node.startupTime = Date.now();  // Track when node was deployed
         node.startupComplete = false;
 
@@ -142,7 +146,7 @@ module.exports = function(RED) {
                         requestId: pending.requestId
                     });
                 }
-            }, 10000);
+            }, node.requestTimeout);
         };
         
         RED.events.on('pointReference:read', readRequestHandler);
@@ -228,7 +232,7 @@ module.exports = function(RED) {
                         requestId: pending.requestId
                     });
                 }
-            }, 10000);
+            }, node.requestTimeout);
         };
         
         RED.events.on('pointWrite:write', writeRequestHandler);
@@ -271,7 +275,7 @@ module.exports = function(RED) {
                 });
                 utils.setStatusWarn(node, "Discovery timeout");
                 updateStatus();
-            }, 10000);
+            }, node.requestTimeout);
         };
 
         RED.events.on('networkPointDiscover:request', discoveryRequestHandler);

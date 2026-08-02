@@ -1,4 +1,11 @@
 module.exports = function(RED) {
+    function parsePointId(value) {
+        if (value === null || value === undefined || (typeof value === "string" && !value.trim())) {
+            return null;
+        }
+        const pointId = typeof value === "number" ? value : Number(value);
+        return Number.isInteger(pointId) && pointId >= 0 ? pointId : null;
+    }
     
     function NetworkServiceRegistryNode(config) {
         RED.nodes.createNode(this, config);
@@ -12,8 +19,8 @@ module.exports = function(RED) {
         node.points = new Map();
 
         node.register = function(pointId, meta) {
-            const pid = parseInt(pointId);
-            if (isNaN(pid)) return false;
+            const pid = parsePointId(pointId);
+            if (pid === null) return false;
 
             if (node.points.has(pid)) {
                 const existing = node.points.get(pid);
@@ -29,14 +36,16 @@ module.exports = function(RED) {
         };
 
         node.unregister = function(pointId, nodeId) {
-            const pid = parseInt(pointId);
+            const pid = parsePointId(pointId);
+            if (pid === null) return;
             if (node.points.has(pid) && node.points.get(pid).nodeId === nodeId) {
                 node.points.delete(pid);
             }
         };
 
         node.lookup = function(pointId) {
-            return node.points.get(parseInt(pointId));
+            const pid = parsePointId(pointId);
+            return pid === null ? undefined : node.points.get(pid);
         };
     }
     RED.nodes.registerType("network-service-registry", NetworkServiceRegistryNode);
@@ -45,8 +54,12 @@ module.exports = function(RED) {
     // Route: /network-point-registry/check/<RegistryID>/<PointID>/<CurrentNodeID>
     RED.httpAdmin.get('/network-point-registry/check/:registryId/:pointId/:nodeId', RED.auth.needsPermission('network-point-registry.read'), function(req, res) {
         const registryId = req.params.registryId;
-        const checkId = parseInt(req.params.pointId);
+        const checkId = parsePointId(req.params.pointId);
         const checkNodeId = req.params.nodeId;
+
+        if (checkId === null) {
+            return res.json({ status: "invalid", details: null });
+        }
         
         // Find the specific Registry Config Node
         const regNode = RED.nodes.getNode(registryId);

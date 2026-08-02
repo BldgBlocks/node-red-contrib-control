@@ -74,6 +74,11 @@ module.exports = function(RED) {
             const result = utils.getHighestPriority(state);
             state.value = result.value;
             state.activePriority = result.priority;
+            state.metadata = state.metadata || {
+                path: entry.path,
+                store,
+                type: value === null ? undefined : typeof value
+            };
             state.metadata.lastSet = new Date().toISOString();
             await utils.setGlobalState(node, entry.path, store, state);
             RED.events.emit("bldgblocks:global:value-changed", { key: entry.path, store, data: state });
