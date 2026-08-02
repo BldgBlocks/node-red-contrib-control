@@ -60,6 +60,15 @@ function captureAlarmEvents(RED) {
     };
 }
 
+function testSetterNode(RED) {
+    function TestSetterNode(config) {
+        RED.nodes.createNode(this, config);
+        this.varName = config.varName;
+        this.storeName = config.storeName;
+    }
+    RED.nodes.registerType("test-setter", TestSetterNode);
+}
+
 /**
  * Send a payload and wait for the async input handler to complete.
  * The alarm-collector's on("input") is async (uses await evaluateNodeProperty),
@@ -104,6 +113,29 @@ describe("alarm-collector", function () {
             const n1 = helper.getNode("n1");
             assert.strictEqual(n1.hysteresisTime, 0.1);
             assert.strictEqual(n1.hysteresisTimeMs, 100);
+            done();
+        });
+    });
+
+    it("should preserve and apply a zero high threshold", function (done) {
+        const flow = buildAlarmFlow({
+            highThreshold: "0",
+            lowThreshold: "-10",
+            compareMode: "high-only",
+            hysteresisTime: "0"
+        });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
+            const node = helper.getNode("n1");
+            const capture = captureAlarmEvents(helper._RED);
+
+            assert.strictEqual(node.highThreshold, 0);
+            await sendAndSettle(node, 1);
+            await wait(10);
+
+            assert.strictEqual(node.alarmState, true);
+            assert.strictEqual(capture.events.length, 1);
+            assert.strictEqual(capture.events[0].highThreshold, 0);
+            capture.cleanup();
             done();
         });
     });
@@ -550,6 +582,77 @@ describe("alarm-collector", function () {
             assert.strictEqual(entry.status, "cleared", "registry should show cleared");
 
             done();
+        });
+    });
+
+    it("should monitor value changes from a selected setter node", function (done) {
+        const flow = buildAlarmFlow({
+            sourceNodeType: "setter",
+            sourceNode: "setter",
+            hysteresisTime: "0"
+        });
+        flow.push({
+            id: "setter",
+            z: "f1",
+            type: "test-setter",
+            varName: "zone.temperature",
+            storeName: "memory",
+            wires: []
+        });
+
+        helper.load([alarmConfigNode, alarmCollectorNode, testSetterNode], flow, async function () {
+            const node = helper.getNode("n1");
+            const capture = captureAlarmEvents(helper._RED);
+            helper._RED.events.emit("bldgblocks:global:value-changed", {
+                key: "zone.temperature",
+                store: "memory",
+                data: { value: 55 }
+            });
+            await wait(10);
+
+            assert.strictEqual(node.alarmState, true);
+            assert.strictEqual(node.currentValue, 55);
+            assert.strictEqual(capture.events.length, 1);
+            capture.cleanup();
+            done();
+        });
+    });
+
+    it("should resolve typed nested input and alarm message properties", function (done) {
+        const flow = buildAlarmFlow({
+            inputField: "readings.temperature",
+            inputFieldType: "msg",
+            highMessage: "messages.high",
+            highMessageType: "msg",
+            hysteresisTime: "0"
+        });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, async function () {
+            const node = helper.getNode("n1");
+            const capture = captureAlarmEvents(helper._RED);
+            node.receive({
+                readings: { temperature: 55 },
+                messages: { high: "Dynamic high temperature" }
+            });
+            await wait(15);
+
+            assert.strictEqual(node.currentValue, 55);
+            assert.strictEqual(capture.events.length, 1);
+            assert.strictEqual(capture.events[0].message, "Dynamic high temperature");
+            capture.cleanup();
+            done();
+        });
+    });
+
+    it("should unregister from alarm-config when closed", function (done) {
+        const flow = buildAlarmFlow();
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, function () {
+            const config = helper.getNode("ac1");
+            assert.ok(config.lookup("n1"));
+
+            helper.unload().then(() => {
+                assert.strictEqual(config.lookup("n1"), undefined);
+                done();
+            }).catch(done);
         });
     });
 

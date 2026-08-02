@@ -4,7 +4,7 @@ const alarmCollectorNode = require("../nodes/alarm-collector");
 const alarmConfigNode = require("../nodes/alarm-config");
 const alarmServiceNode = require("../nodes/alarm-service");
 
-function buildServiceFlow(overrides = {}) {
+function buildServiceFlow(overrides = {}, serviceOverrides = {}) {
     return [
         { id: "f1", type: "tab" },
         { id: "ac1", z: "f1", type: "alarm-config", name: "test-registry" },
@@ -44,7 +44,8 @@ function buildServiceFlow(overrides = {}) {
             name: "alarm-relay",
             filterTopic: "",
             filterPriority: "",
-            wires: [["out"]]
+            wires: [["out"]],
+            ...serviceOverrides
         },
         { id: "out", z: "f1", type: "helper" }
     ];
@@ -153,6 +154,102 @@ describe("alarm-service integration", function () {
             sendValue(collector, 40);
             const clearedMsg = await waitForMessage(out, 250);
             assert.strictEqual(clearedMsg.status.state, "cleared");
+            done();
+        });
+    });
+
+    it("should track collectors sharing a topic as separate active alarms", function (done) {
+        const flow = buildServiceFlow();
+        helper.load([alarmConfigNode, alarmCollectorNode, alarmServiceNode], flow, async function () {
+            const service = helper.getNode("svc");
+            const out = helper.getNode("out");
+            const eventName = "bldgblocks:alarms:state-change";
+            const baseEvent = {
+                topic: "Alarms_Shared",
+                priority: "high",
+                timestamp: new Date().toISOString(),
+                transition: "false → true"
+            };
+
+            let message = waitForMessage(out);
+            helper._RED.events.emit(eventName, { ...baseEvent, nodeId: "alarm-1", state: true });
+            await message;
+
+            message = waitForMessage(out);
+            helper._RED.events.emit(eventName, { ...baseEvent, nodeId: "alarm-2", state: true });
+            const second = await message;
+            assert.strictEqual(second.activeAlarmCount, 2);
+            assert.strictEqual(service.activeAlarms.size, 2);
+
+            message = waitForMessage(out);
+            helper._RED.events.emit(eventName, {
+                ...baseEvent,
+                nodeId: "alarm-1",
+                state: false,
+                transition: "true → false"
+            });
+            const cleared = await message;
+            assert.strictEqual(cleared.activeAlarmCount, 1);
+            assert.strictEqual(service.activeAlarms.size, 1);
+            done();
+        });
+    });
+
+    it("should apply topic and priority filters", function (done) {
+        const flow = buildServiceFlow({}, {
+            filterTopic: "Alarms_HVAC",
+            filterPriority: "urgent"
+        });
+        helper.load([alarmConfigNode, alarmCollectorNode, alarmServiceNode], flow, async function () {
+            const service = helper.getNode("svc");
+            const out = helper.getNode("out");
+            const eventName = "bldgblocks:alarms:state-change";
+            const baseEvent = {
+                nodeId: "alarm-1",
+                state: true,
+                timestamp: new Date().toISOString(),
+                transition: "false → true"
+            };
+
+            helper._RED.events.emit(eventName, { ...baseEvent, topic: "Alarms_Other", priority: "urgent" });
+            helper._RED.events.emit(eventName, { ...baseEvent, topic: "Alarms_HVAC", priority: "normal" });
+            await expectNoMessage(out, 50);
+            assert.strictEqual(service.activeAlarms.size, 0);
+
+            const message = waitForMessage(out);
+            helper._RED.events.emit(eventName, { ...baseEvent, topic: "Alarms_HVAC", priority: "urgent" });
+            const accepted = await message;
+            assert.strictEqual(accepted.activeAlarmCount, 1);
+            done();
+        });
+    });
+
+    it("should query all independently active alarm records", function (done) {
+        const flow = buildServiceFlow();
+        helper.load([alarmConfigNode, alarmCollectorNode, alarmServiceNode], flow, async function () {
+            const service = helper.getNode("svc");
+            const out = helper.getNode("out");
+            const eventName = "bldgblocks:alarms:state-change";
+            const baseEvent = {
+                topic: "Alarms_Shared",
+                priority: "high",
+                state: true,
+                timestamp: new Date().toISOString(),
+                transition: "false → true"
+            };
+
+            let message = waitForMessage(out);
+            helper._RED.events.emit(eventName, { ...baseEvent, nodeId: "alarm-1" });
+            await message;
+            message = waitForMessage(out);
+            helper._RED.events.emit(eventName, { ...baseEvent, nodeId: "alarm-2" });
+            await message;
+
+            message = waitForMessage(out);
+            service.receive({ context: "getStatus" });
+            const status = await message;
+            assert.strictEqual(status.activeCount, 2);
+            assert.deepStrictEqual(status.payload.map(alarm => alarm.nodeId).sort(), ["alarm-1", "alarm-2"]);
             done();
         });
     });

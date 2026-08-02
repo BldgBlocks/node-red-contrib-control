@@ -100,7 +100,10 @@ module.exports = function(RED) {
             const tagsString = Object.entries(tagsObj)
                 .map(([k, v]) => `${k.replace(/[, =]/g, '\\$&')}=${v.replace(/[, =]/g, '\\$&')}`)
                 .join(',');
-            const valueString = typeof formattedValue === 'string' ? `"${formattedValue}"` : formattedValue;
+            const escapedStringValue = typeof formattedValue === 'string'
+                ? formattedValue.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+                : formattedValue;
+            const valueString = typeof formattedValue === 'string' ? `"${escapedStringValue}"` : formattedValue;
             const line = `${escapedMeasurementName}${tagsString ? ',' + tagsString : ''} value=${valueString} ${timestamp}`;
 
             // Set initial status

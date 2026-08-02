@@ -39,8 +39,10 @@ module.exports = function(RED) {
         node.inputMode = config.inputMode || "value";
         node.inputField = config.inputField || "payload";
         node.alarmWhenTrue = config.alarmWhenTrue !== false;
-        node.highThreshold = parseFloat(config.highThreshold) || 85;
-        node.lowThreshold = parseFloat(config.lowThreshold) || 68;
+        const configuredHighThreshold = parseFloat(config.highThreshold);
+        const configuredLowThreshold = parseFloat(config.lowThreshold);
+        node.highThreshold = isNaN(configuredHighThreshold) ? 85 : configuredHighThreshold;
+        node.lowThreshold = isNaN(configuredLowThreshold) ? 68 : configuredLowThreshold;
         node.compareMode = config.compareMode || "either";
         node.hysteresisTime = hysteresisConfig.seconds;
         node.hysteresisTimeMs = hysteresisConfig.milliseconds;

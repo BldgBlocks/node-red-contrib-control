@@ -122,10 +122,10 @@ This config node is referenced by alarm-collector nodes and used by the alarm-se
 3. The alarm-service node listens to events from all collectors and uses this registry for state tracking
 
 ### API for Developers
-* `register(alarmName, meta)`: Register an alarm
-* `unregister(alarmName, nodeId)`: Remove an alarm
-* `lookup(alarmName)`: Find alarm details by name
-* `updateStatus(alarmName, status)`: Update alarm state
+* `register(nodeId, meta)`: Register or update an alarm by collector node ID
+* `unregister(nodeId)`: Remove an alarm by collector node ID
+* `lookup(nodeId)`: Find alarm details by collector node ID
+* `updateStatus(nodeId, status)`: Update alarm state by collector node ID
 * `getAll()`: Get all alarms
 
 ### References

@@ -30,8 +30,8 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Use topic as the key (allows multiple alarms with different topics)
-            const key = eventData.topic || `alarm_${eventData.nodeId}`;
+            const topicKey = eventData.topic || "alarm";
+            const key = eventData.nodeId ? `${topicKey}:${eventData.nodeId}` : topicKey;
 
             // Update active alarms map
             if (eventData.state === true) {
