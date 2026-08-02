@@ -115,7 +115,7 @@ module.exports = function(RED) {
 
             // Triangle wave calculation
             const triangleValue = node.phase < 0.5 ? 2 * node.phase : 2 * (1 - node.phase);
-            const amplitude = (node.upperLimit - node.lowerLimit) / 2;
+            const amplitude = node.upperLimit - node.lowerLimit;
             const value = node.lowerLimit + amplitude * triangleValue;
 
             // Output new message

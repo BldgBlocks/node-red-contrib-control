@@ -43,6 +43,8 @@
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
 
+    const optionalNumber = value => value === null || value === undefined || value === "" ? null : parseFloat(value);
+
     function PIDBlockNode(config) {
         RED.nodes.createNode(this, config);
 
@@ -69,8 +71,8 @@ module.exports = function(RED) {
         node.kd = parseFloat(config.kd);       // Derivative gain
         node.setpointRateLimit = config.setpointRateLimit ? parseFloat(config.setpointRateLimit) : 0;  // Max setpoint change per second
         node.deadband = parseFloat(config.deadband);     // Zone around setpoint where no output
-        node.outMin = config.outMin ? parseFloat(config.outMin) : null;  // Minimum output limit
-        node.outMax = config.outMax ? parseFloat(config.outMax) : null;  // Maximum output limit
+        node.outMin = optionalNumber(config.outMin);  // Minimum output limit
+        node.outMax = optionalNumber(config.outMax);  // Maximum output limit
         node.maxChange = parseFloat(config.maxChange);   // Maximum change per second (rate limiting)
         node.run = !!config.run;               // Controller enabled/disabled
         node.directAction = !!config.directAction;  // true=cooling (temp↑→out↑), false=heating (temp↑→out↓)
@@ -83,16 +85,16 @@ module.exports = function(RED) {
         let storekd = parseFloat(config.kd) || 0;
         let storesetpoint = parseFloat(config.setpoint) || 0;
         let storedeadband = parseFloat(config.deadband) || 0;
-        let storeOutMin = config.outMin ? parseFloat(config.outMin) : null;
-        let storeOutMax = config.outMax ? parseFloat(config.outMax) : null;
+        let storeOutMin = optionalNumber(config.outMin);
+        let storeOutMax = optionalNumber(config.outMax);
         let storemaxChange = parseFloat(config.maxChange) || 0;
         let storerun = !!config.run;  // convert to boolean
 
         // Integral constraint bounds - prevents integral wind-up
         // minInt/maxInt = output limits * (Kp * Ki) to keep integral gain in bounds
         let kpkiConst = storekp * storeki;
-        let minInt = kpkiConst === 0 ? 0 : (storeOutMin || -Infinity) * kpkiConst;
-        let maxInt = kpkiConst === 0 ? 0 : (storeOutMax || Infinity) * kpkiConst;
+        let minInt = kpkiConst === 0 ? 0 : (storeOutMin === null ? -Infinity : storeOutMin) * kpkiConst;
+        let maxInt = kpkiConst === 0 ? 0 : (storeOutMax === null ? Infinity : storeOutMax) * kpkiConst;
         let lastOutput = null;  // Track last output to avoid duplicate sends
 
         // =====================================================================
@@ -450,8 +452,8 @@ module.exports = function(RED) {
                     node.errorSum = node.errorSum * storeki / node.ki;
                 }
                 kpkiConst = node.kp * node.ki;
-                minInt = kpkiConst === 0 ? 0 : (node.outMin || -Infinity) * kpkiConst;
-                maxInt = kpkiConst === 0 ? 0 : (node.outMax || Infinity) * kpkiConst;
+                minInt = kpkiConst === 0 ? 0 : (node.outMin === null ? -Infinity : node.outMin) * kpkiConst;
+                maxInt = kpkiConst === 0 ? 0 : (node.outMax === null ? Infinity : node.outMax) * kpkiConst;
                 storekp = node.kp;
                 storeki = node.ki;
                 storeOutMin = node.outMin;
@@ -617,7 +619,8 @@ module.exports = function(RED) {
             //   - false (reverse action): error = setpoint - input (for heating applications)
             //   - true (direct action): error = input - setpoint (for cooling applications)
             // Clamp output to min/max bounds (hard limits)
-            pv = Math.min(Math.max(pv, node.outMin), node.outMax);
+            if (node.outMin !== null) pv = Math.max(pv, node.outMin);
+            if (node.outMax !== null) pv = Math.min(pv, node.outMax);
 
             // ================================================================
             // Rate-of-change limiting (maxChange) - prevents sudden jumps
@@ -625,13 +628,14 @@ module.exports = function(RED) {
             // maxChange = units per second (e.g., 10 = max 10 units/sec ramp)
             // ================================================================
             if (node.maxChange !== 0) {
+                const allowedChange = node.maxChange * interval;
                 // Check how much output would change this interval
                 if (node.result > pv) {
                     // Output would decrease - limit ramp down
-                    node.result = (node.result - pv > node.maxChange) ? node.result - node.maxChange : pv;
+                    node.result = (node.result - pv > allowedChange) ? node.result - allowedChange : pv;
                 } else {
                     // Output would increase - limit ramp up
-                    node.result = (pv - node.result > node.maxChange) ? node.result + node.maxChange : pv;
+                    node.result = (pv - node.result > allowedChange) ? node.result + allowedChange : pv;
                 }
             } else {
                 // No rate limiting - use PID output directly
@@ -640,7 +644,8 @@ module.exports = function(RED) {
             
             // Re-apply hard output limits after rate-of-change limiting
             // Ensures final result never exceeds configured bounds regardless of maxChange ramp
-            node.result = Math.min(Math.max(node.result, node.outMin), node.outMax);
+            if (node.outMin !== null) node.result = Math.max(node.result, node.outMin);
+            if (node.outMax !== null) node.result = Math.min(node.result, node.outMax);
 
             // Set output payload
             outputMsg.payload = node.result;

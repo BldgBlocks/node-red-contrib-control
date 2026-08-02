@@ -131,7 +131,7 @@ module.exports = function(RED) {
                     if (writeTimeout) clearTimeout(writeTimeout);
                     writeTimeout = setTimeout(() => {
                         saveMessage();
-                    }, writePeriod);
+                    }, node.writePeriod);
                 }
                 if (done) done();
                 return;
@@ -194,7 +194,7 @@ module.exports = function(RED) {
                         if (writeTimeout) clearTimeout(writeTimeout);
                         writeTimeout = setTimeout(() => {
                             saveMessage();
-                        }, writePeriod);
+                        }, node.writePeriod);
                     }
                     const outMsg = RED.util.cloneMessage(msg);
                     outMsg[node.transferProperty] = value;
