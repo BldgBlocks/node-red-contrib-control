@@ -8,6 +8,10 @@
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-conversion" title="Select the unit conversion to perform"><i class="fa fa-exchange"></i> Conversion</label>
         <select id="node-input-conversion">
             <optgroup label="Temperature">
@@ -67,6 +71,7 @@
         defaults: {
             name: { value: "" },
             inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true },
             conversion: { value: "C to F", required: true }
         },
         inputs: 1,
@@ -77,6 +82,11 @@
         paletteLabel: "convert",
         label: function() {
             return this.name || `Convert (${this.conversion})`;
+        },
+        oneditprepare: function() {
+            if (!this.outputProperty || !this.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
         },
         oneditvalidate: function() {
         const conversion = $("#node-input-conversion").val();
@@ -129,11 +139,12 @@ Converts numeric input from a configured property between various units.
 : context (string) : Configures the conversion (`"conversion"`). Unmatched values ignored.
 
 ### Outputs
-: payload (number) : Converted value (e.g., °C to °F, Pa to inH₂O).
+: outputProperty (number) : Converted value, written to the configured Output Property.
 
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: outputProperty (string) : Message property to write the result to (default: `payload`). Supports nested properties (e.g., `result.value`).
 : conversion (string) : Conversion type to apply (e.g., "F to C", "Pa to inH₂O").
 
 ### Details
@@ -150,7 +161,7 @@ Supported conversions include:
 - Angle: rad to deg, deg to rad
 - Time: s to min, min to s
 
-Output is always written to `msg.payload`.
+Output is written to the configured **Output Property** (default: `msg.payload`).
 
 ### Status
 - Green (dot): Configuration update

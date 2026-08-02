@@ -8,6 +8,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         node.maxValues = parseInt(config.sampleSize);
         node.inputProperty = config.inputProperty || "payload";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.values = []; // Queue for rolling window
         node.lastAvg = null;
         node.minValid = parseFloat(config.minValid);
@@ -162,7 +163,8 @@ module.exports = function(RED) {
                 utils.setStatusChanged(node, `out: ${avg !== null ? avg.toFixed(3) : "null"}`);
             }
             node.lastAvg = avg;
-            send({ payload: avg });
+            RED.util.setMessageProperty(msg, node.outputProperty, avg, true);
+            send(msg);
 
             if (done) done();
         });

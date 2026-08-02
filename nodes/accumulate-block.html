@@ -8,6 +8,10 @@
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the count to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-mode" title="Select accumulation mode"><i class="fa fa-cog"></i> Mode</label>
         <select id="node-input-mode">
             <option value="true">Accumulate True</option>
@@ -36,6 +40,7 @@
         defaults: {
             name: { value: "" },
             inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true },
             mode: { value: "true", required: true }
         },
         inputs: 1,
@@ -56,6 +61,10 @@
         oneditprepare: function() {
             const node = this;
             const $resetButton = $("#node-input-reset-count");
+
+            if (!node.outputProperty || !node.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
 
             $resetButton.on("click", function() {
                 $resetButton.prop("disabled", true);
@@ -83,11 +92,12 @@ Counts consecutive inputs from a configured property based on the selected mode,
 : context (string) : Configuration commands (`"reset"` to clear count).
 
 ### Outputs
-: payload (number) : Current count based on mode.
+: outputProperty (number) : Current count, written to the configured Output Property.
 
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: outputProperty (string) : Message property to write the count to (default: `payload`). Supports nested properties (e.g., `result.count`).
 : mode (string) : Accumulation mode (`"true"`, `"false"`, `"flows"`).
 
 ### Details

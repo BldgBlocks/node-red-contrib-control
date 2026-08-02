@@ -177,7 +177,7 @@ module.exports = function(RED) {
 
         const value = parseFloat(payload);
         
-        if (isNaN(value)) {
+        if (!Number.isFinite(value)) {
             return { valid: false, value: null, error: "invalid numeric payload" };
         }
 

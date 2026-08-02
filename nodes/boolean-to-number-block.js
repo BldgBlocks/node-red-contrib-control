@@ -9,6 +9,10 @@ module.exports = function(RED) {
         // Initialize state
         node.name = config.name;
         node.inputProperty = config.inputProperty || "payload";
+        const configuredOutputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim()
+            ? config.outputProperty.trim()
+            : null;
+        node.outputProperty = configuredOutputProperty || (Object.prototype.hasOwnProperty.call(config, "outputProperty") ? "payload" : node.inputProperty);
         node.nullToZero = Boolean(config.nullToZero);
 
         node.on("input", function(msg, send, done) {
@@ -42,7 +46,7 @@ module.exports = function(RED) {
                 return;
             }
 
-            RED.util.setMessageProperty(msg, node.inputProperty, outputValue);
+            RED.util.setMessageProperty(msg, node.outputProperty, outputValue, true);
             utils.setStatusChanged(node, `${inputDisplay} -> ${outputValue}`);
             send(msg);
             if (done) done();

@@ -8,6 +8,10 @@
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-sampleSize" title="Rolling window size (positive integer, e.g., 10)"><i class="fa fa-list-ol"></i> Window Size</label>
         <input type="number" id="node-input-sampleSize" placeholder="10" min="1" step="1">
     </div>
@@ -30,6 +34,7 @@
         defaults: {
             name: { value: "" },
             inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true },
             sampleSize: {
                 value: 10,
                 required: true,
@@ -51,6 +56,10 @@
         },
         oneditprepare: function() {
             const node = this;
+
+            if (!node.outputProperty || !node.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
 
             try {
                 // Initialize typed inputs
@@ -83,7 +92,7 @@ Computes a rolling average of numeric inputs within a valid range.
 : maxValid (number) : Maximum valid range for the input value.
 
 ### Outputs
-: payload (number | null) : Rolling average, or `null` if no valid inputs.
+: outputProperty (number | null) : Rolling average, written to the configured Output Property.
 
 ### Details
 Averages numeric input values read from the configured Input Property (default: `msg.payload`) over a rolling window (default: 10).
@@ -93,6 +102,7 @@ Resets state (`sum`, `count`) via `msg.context = "reset"` with `msg.payload = tr
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: outputProperty (string) : Message property to write the result to (default: `payload`). Supports nested properties (e.g., `result.value`).
 : sampleSize (number) : Number of values retained in the rolling window (≥ 1).
 : minValid (number) : Minimum accepted input value.
 : maxValid (number) : Maximum accepted input value.

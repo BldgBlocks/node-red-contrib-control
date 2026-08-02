@@ -9,6 +9,10 @@
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the converted value to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-nullToZero"><i class="fa fa-cog"></i> Null Mapping</label>
         <input type="checkbox" id="node-input-nullToZero" style="width: auto; margin-left: 10px;"> Map null to 0
     </div>
@@ -25,6 +29,7 @@
         defaults: {
             name: { value: "" },
             inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true },
             nullToZero: { value: false }
         },
         inputs: 1,
@@ -35,6 +40,11 @@
         paletteLabel: "boolean to number",
         label: function() {
             return this.name || "boolean to number";
+        },
+        oneditprepare: function() {
+            if (!this.outputProperty || !this.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
         }
     });
 </script>
@@ -48,11 +58,12 @@ numeric `0`/`1` values are converted back to `false`/`true`. Also handles `null`
 : input-property (boolean | number | null) : Value to convert, read from the configured Input Property.
 
 ### Outputs
-: configured input property (number | boolean) : Converted value written back to the configured Input Property — booleans become `0`/`1`, numbers `0`/`1` become `false`/`true`, `null` becomes `0` or `-1`.
+: outputProperty (number | boolean) : Converted value written to the configured Output Property.
 
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: outputProperty (string) : Message property to write the converted value to (default: `payload`). Supports nested properties (e.g., `result.value`).
 : nullToZero (boolean) : When checked, `null` maps to `0`; when unchecked, `null` maps to `-1`.
 
 ### Details
@@ -69,7 +80,7 @@ Automatically converts in both directions (read from the configured **Input Prop
 **Null handling:**
 - `null` → `0` (if **Null Mapping** is checked) or `-1` (if unchecked)
 
-The converted value is written back to the configured **Input Property**. All other message properties are passed through unchanged.
+The converted value is written to the configured **Output Property**. All other message properties are passed through unchanged. Existing flows created before Output Property was added continue writing in place until opened and saved; the editor populates the new field with `payload`.
 
 ### Status
 - Green (dot): Configuration update

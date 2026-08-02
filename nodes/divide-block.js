@@ -36,18 +36,18 @@ module.exports = function(RED) {
                 for (const mapping of node.mappings) {
                     const value = RED.util.getMessageProperty(msg, mapping.property);
                     if (value === undefined) continue;
-                    const numericValue = parseFloat(value);
-                    if (isNaN(numericValue)) {
+                    const numericValue = utils.validateNumericPayload(value);
+                    if (!numericValue.valid) {
                         utils.setStatusError(node, `invalid ${mapping.property}`);
                         if (done) done();
                         return;
                     }
-                    if (mapping.input > 1 && Math.abs(numericValue) < 1e-10) {
-                        utils.setStatusError(node, numericValue === 0 ? "divide by zero" : "divide by near-zero");
+                    if (mapping.input > 1 && Math.abs(numericValue.value) < 1e-10) {
+                        utils.setStatusError(node, numericValue.value === 0 ? "divide by zero" : "divide by near-zero");
                         if (done) done();
                         return;
                     }
-                    updates.push({ index: mapping.input - 1, value: numericValue });
+                    updates.push({ index: mapping.input - 1, value: numericValue.value });
                 }
                 if (updates.length === 0) {
                     utils.setStatusWarn(node, "no mapped properties found");
@@ -115,12 +115,13 @@ module.exports = function(RED) {
                     return;
                 }
                 const slotIndex = slotVal.index - 1;
-                let newValue = parseFloat(msg.payload);
-                if (isNaN(newValue)) {
+                const numericValue = utils.validateNumericPayload(msg.payload);
+                if (!numericValue.valid) {
                     utils.setStatusError(node, "invalid input");
                     if (done) done();
                     return;
                 }
+                const newValue = numericValue.value;
                 if (slotIndex > 0 && newValue === 0) {
                     utils.setStatusError(node, "divide by zero");
                     if (done) done();

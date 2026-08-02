@@ -216,6 +216,7 @@ module.exports = function(RED) {
         // Initialize state
         node.maxSamples = parseInt(config.sampleSize);
         node.inputProperty = config.inputProperty || "payload";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.samples = []; // Array of {timestamp: Date, value: number}
         node.units = config.units || "minutes"; // minutes, seconds, hours
         node.algorithm = normalizeAlgorithm(config.algorithm);
@@ -373,13 +374,6 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Check for missing payload
-            if (!msg.hasOwnProperty("payload")) {
-                utils.setStatusError(node, "missing payload");
-                if (done) done();
-                return;
-            }
-
             // Get input from configured property
             let input;
             try {
@@ -462,20 +456,19 @@ module.exports = function(RED) {
             node.lastRate = rate;
             
             // Enhanced output with metadata
-            const outputMsg = {
-                payload: rate,
-                rawRate: rawRate,
-                samples: node.samples.length,
-                units: `${unitsDisplay[node.units] || "/min"}`,
-                currentValue: inputValue,
-                timeSpan: timeSpanSeconds,
-                timeSpanUnits: timeSpanUnits,
-                estimatedValue: estimatedValue,
-                residual: residual,
-                method: node.algorithm,
-                warming: isWarming,
-                minimumWindowSpan: node.minimumWindowSpan
-            };
+            const outputMsg = msg;
+            RED.util.setMessageProperty(outputMsg, node.outputProperty, rate, true);
+            outputMsg.rawRate = rawRate;
+            outputMsg.samples = node.samples.length;
+            outputMsg.units = `${unitsDisplay[node.units] || "/min"}`;
+            outputMsg.currentValue = inputValue;
+            outputMsg.timeSpan = timeSpanSeconds;
+            outputMsg.timeSpanUnits = timeSpanUnits;
+            outputMsg.estimatedValue = estimatedValue;
+            outputMsg.residual = residual;
+            outputMsg.method = node.algorithm;
+            outputMsg.warming = isWarming;
+            outputMsg.minimumWindowSpan = node.minimumWindowSpan;
             
             send(outputMsg);
 

@@ -13,12 +13,26 @@ describe("extrema-block", function() {
             const first = waitForMessage(output);
             sendTagged(node, "in1", 12);
             first.then(message => {
-                assert.strictEqual(message.payload, 0);
+                assert.strictEqual(message.payload, 12);
                 const second = waitForMessage(output);
                 sendTagged(node, "in2", -3);
                 return second;
             }).then(message => {
                 assert.strictEqual(message.payload, -3);
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("does not include uninitialized zeroes in maximum calculations", function(done) {
+        const flow = buildFlow("extrema-block", { slots: 2, mode: "maximum", operationMode: "context" });
+        helper.load(extremaBlock, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            const result = waitForMessage(output);
+            sendTagged(node, "in1", -5);
+            result.then(message => {
+                assert.strictEqual(message.payload, -5);
                 done();
             }).catch(done);
         });

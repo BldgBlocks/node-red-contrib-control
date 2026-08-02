@@ -33,7 +33,19 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            keys: { value: "[]" },
+            keys: {
+                value: "[]",
+                validate: function(value) {
+                    try {
+                        const keys = JSON.parse(value || "[]");
+                        if (!Array.isArray(keys) || !keys.every(key => typeof key === "string" && key.trim())) return false;
+                        const normalized = keys.map(key => key.trim());
+                        return new Set(normalized).size === normalized.length;
+                    } catch (err) {
+                        return false;
+                    }
+                }
+            },
             selectedKey: { value: "" }
         },
         inputs: 1,
@@ -64,7 +76,7 @@
 
                 keysList.find(".enum-select-key-item").each(function() {
                     const value = $(this).find(".node-input-key-name").val().trim();
-                    if (value && !keys.includes(value)) {
+                    if (value) {
                         keys.push(value);
                     }
                 });
@@ -73,7 +85,7 @@
             }
 
             function refreshSelectedKeyOptions(preferredKey) {
-                const keys = getKeys();
+                const keys = [...new Set(getKeys())];
                 const existingValue = preferredKey !== undefined ? preferredKey : selectedKeyField.val();
 
                 selectedKeyField.empty();
@@ -101,6 +113,10 @@
                 keysList.append(row);
             }
 
+            function syncKeys() {
+                $("#node-input-keys").val(JSON.stringify(getKeys())).trigger("change");
+            }
+
             let keys = [];
 
             try {
@@ -119,16 +135,19 @@
                 evt.preventDefault();
                 addKeyRow("");
                 refreshSelectedKeyOptions();
+                syncKeys();
             });
 
             keysList.on("click", ".enum-select-delete-key", function(evt) {
                 evt.preventDefault();
                 $(this).closest(".enum-select-key-item").remove();
                 refreshSelectedKeyOptions();
+                syncKeys();
             });
 
             keysList.on("input", ".node-input-key-name", function() {
                 refreshSelectedKeyOptions();
+                syncKeys();
             });
         },
         oneditsave: function() {
@@ -136,7 +155,7 @@
 
             $("#node-input-keys-list .enum-select-key-item").each(function() {
                 const value = $(this).find(".node-input-key-name").val().trim();
-                if (value && !keys.includes(value)) {
+                if (value) {
                     keys.push(value);
                 }
             });

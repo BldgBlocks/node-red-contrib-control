@@ -56,6 +56,7 @@ module.exports = function(RED) {
         // ====================================================================
         node.name = config.name;
         node.inputProperty = config.inputProperty || "payload";  // Where to read input value from msg
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.dbBehavior = config.dbBehavior;  // "ReturnToZero" or "HoldLastResult" - what to do in deadband
         node.errorSum = 0;                     // Accumulated error for integral term (I in PID)
         node.lastError = 0;                    // Previous error value for derivative calculation
@@ -209,8 +210,9 @@ module.exports = function(RED) {
                 
                 if (!isNaN(results[3])) {
                     node.setpoint = results[3];
-                    // Sync raw value immediately so rate limiter has the correct target
-                    node.setpointRaw = results[3]; 
+                    if (utils.requiresEvaluation(config.setpointType)) {
+                        node.setpointRaw = results[3];
+                    }
                 }
     
             } catch (err) {
@@ -279,18 +281,21 @@ module.exports = function(RED) {
                         if (done) done();
                         return;
                     }
+                    if (msg.context === "outMin" && node.outMax != null && value >= node.outMax) {
+                        utils.setStatusError(node, "invalid output range");
+                        if (done) done();
+                        return;
+                    }
+                    if (msg.context === "outMax" && node.outMin != null && value <= node.outMin) {
+                        utils.setStatusError(node, "invalid output range");
+                        if (done) done();
+                        return;
+                    }
                     if (msg.context === "setpoint") {
                         // Store raw setpoint value for rate limiting
                         node.setpointRaw = value;
                     } else {
                         node[msg.context] = value;
-                    }
-                    if (msg.context === "outMin" || msg.context === "outMax") {
-                        if (node.outMin != null && node.outMax != null && node.outMax <= node.outMin) {
-                            utils.setStatusError(node, "invalid output range");
-                            if (done) done();
-                            return;
-                        }
                     }
                     utils.setStatusOK(node, `${msg.context}: ${value.toFixed(2)}`);
                     if (done) done();
@@ -330,8 +335,6 @@ module.exports = function(RED) {
                     utils.setStatusOK(node, "reset");
                     if (done) done();
                     return;
-                    if (done) done();
-                    return;
                 } else if (msg.context === "tune") {
                     if (typeof msg.payload !== "boolean" || !msg.payload) {
                         utils.setStatusError(node, "invalid tune command");
@@ -345,11 +348,9 @@ module.exports = function(RED) {
                     utils.setStatusBusy(node, "tune: starting relay auto-tuning...");
                     if (done) done();
                     return;
-                    if (done) done();
-                    return;
                 } else {
                     utils.setStatusWarn(node, "unknown context");
-                    if (done) done("Unknown context");
+                    if (done) done();
                     return;
                 }
                 if (done) done();
@@ -367,17 +368,16 @@ module.exports = function(RED) {
             } catch (err) {
                 inputValue = undefined;
             }
-            let input;
-            
             if (inputValue === undefined || inputValue === null) {
                 utils.setStatusError(node, "missing or invalid input property");
-                input = 0;  // Failsafe: output 0 instead of NaN
-            } else {
-                input = parseFloat(inputValue);
-                if (isNaN(input) || !isFinite(input)) {
-                    utils.setStatusError(node, "invalid input property");
-                    input = 0;  // Failsafe: output 0 instead of NaN
-                }
+                if (done) done();
+                return;
+            }
+            const input = parseFloat(inputValue);
+            if (isNaN(input) || !isFinite(input)) {
+                utils.setStatusError(node, "invalid input property");
+                if (done) done();
+                return;
             }
 
             // ================================================================
@@ -388,7 +388,13 @@ module.exports = function(RED) {
             let interval = (currentTime - node.lastTime) / 1000; // Convert to seconds
             node.lastTime = currentTime;
 
-            let outputMsg = { payload: 0 };
+            let outputValue = 0;
+            const outputMsg = RED.util.cloneMessage(msg);
+            const writeOutput = value => {
+                outputValue = value;
+                RED.util.setMessageProperty(outputMsg, node.outputProperty, value, true);
+            };
+            writeOutput(outputValue);
             outputMsg.diagnostics = { 
                 setpoint: node.setpoint,
                 interval,
@@ -427,14 +433,14 @@ module.exports = function(RED) {
                 // Reset derivative term to prevent kick when exiting deadband
                 // Without this, large derivative spike occurs on deadband exit
                 node.lastDError = 0;
-                outputMsg.payload = node.dbBehavior === "ReturnToZero" ? 0 : node.result;
-                const outputChanged = !lastOutput || lastOutput !== outputMsg.payload;
+                writeOutput(node.dbBehavior === "ReturnToZero" ? 0 : node.result);
+                const outputChanged = !lastOutput || lastOutput !== outputValue;
                 if (outputChanged) {
-                    lastOutput = outputMsg.payload;
-                    utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`);
+                    lastOutput = outputValue;
+                    utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${outputValue.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`);
                     send(outputMsg);
                 } else {
-                    utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: ${outputMsg.payload.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`);
+                    utils.setStatusUnchanged(node, `in: ${input.toFixed(2)}, out: ${outputValue.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`);
                 }
                 if (done) done();
                 return;
@@ -552,7 +558,7 @@ module.exports = function(RED) {
                     node.kd = 0.066 * node.kp * node.tuneData.Tu;
 
                     node.tuneMode = false;
-                    outputMsg.payload = 0;
+                    writeOutput(0);
                     outputMsg.tuneResult = {
                         method: 'relay-auto-tune',
                         Kp: node.kp,
@@ -648,13 +654,14 @@ module.exports = function(RED) {
             if (node.outMax !== null) node.result = Math.min(node.result, node.outMax);
 
             // Set output payload
-            outputMsg.payload = node.result;
+            outputValue = node.result;
             
             // Safety check: ensure payload is never NaN
-            if (isNaN(outputMsg.payload) || !isFinite(outputMsg.payload)) {
-                outputMsg.payload = 0;
+            if (isNaN(outputValue) || !isFinite(outputValue)) {
+                outputValue = 0;
                 utils.setStatusError(node, "NaN detected, output forced to 0");
             }
+            writeOutput(outputValue);
             
             // ================================================================
             // Include diagnostic information for debugging and monitoring
@@ -680,7 +687,7 @@ module.exports = function(RED) {
             utils.setStatusChanged(node, `in: ${input.toFixed(2)}, out: ${node.result.toFixed(2)}, setpoint: ${node.setpoint.toFixed(2)}`);
             
             // Track last output for comparison (optional, for flow logic)
-            lastOutput = outputMsg.payload;
+            lastOutput = outputValue;
 
             // Send output message with payload and diagnostics
             send(outputMsg);

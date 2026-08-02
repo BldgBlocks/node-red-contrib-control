@@ -8,6 +8,10 @@
         <label for="node-input-inputProperty" title="Message property to read input from"><i class="fa fa-folder-open"></i> Input Property</label>
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
+    <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
 </script>
 
 <!-- JavaScript Section: Registers the node and handles editor logic -->
@@ -17,7 +21,8 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
-            inputProperty: { value: "payload" }
+            inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true }
         },
         inputs: 1,
         outputs: 1,
@@ -27,6 +32,11 @@
         paletteLabel: "frequency",
         label: function() {
             return this.name || "frequency";
+        },
+        oneditprepare: function() {
+            if (!this.outputProperty || !this.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
         }
     });
 </script>
@@ -40,14 +50,19 @@ Measures pulse frequency from boolean rising edges.
 : payload (boolean) : Input boolean to detect rising edges (`true` for pulse).
 
 ### Outputs
-: payload (object) : Pulse rates `{ ppm, pph, ppd }` (pulses per minute, hour, day).
+: outputProperty (object) : Pulse statistics, written to the configured Output Property.
+
+### Properties
+: inputProperty (string) : Message property to read the boolean pulse from (default: `payload`).
+: outputProperty (string) : Message property to write pulse statistics to (default: `payload`). Supports nested properties.
 
 ### Details
-Measures pulse frequency from rising edges in `msg.payload` (boolean, `true` for pulse), outputting a message with 
-`msg.payload = { ppm, pph, ppd, duty }` (pulses per minute, hour, day, duty/hr) on the second and subsequent rising edges 
+Measures pulse frequency from rising edges in the configured input property, outputting `{ ppm, pph, ppd, dutyCycle, onTime }` to the configured output property on rising edges 
 (first edge sets baseline). Resets state via `msg.context = "reset"` with `msg.payload = true`.
 
 Outputs a duty cycle in percentage of the last 60 minutes that the signal has been true.
+
+Periods of 1 ms or longer are measured directly. Faster pulses are clamped to 1,000 pulses/second: 60,000 ppm, 3,600,000 pph, and 86,400,000 ppd.
 
 ### Status
 - Green (dot): Configuration

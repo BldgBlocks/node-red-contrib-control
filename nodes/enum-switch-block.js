@@ -8,7 +8,10 @@ module.exports = function(RED) {
         // Parse rules from config
         let rules = [];
         try {
-            rules = JSON.parse(config.rules || "[]");
+            const parsedRules = JSON.parse(config.rules || "[]");
+            rules = Array.isArray(parsedRules)
+                ? parsedRules.filter(rule => rule && Object.prototype.hasOwnProperty.call(rule, "value"))
+                : [];
         } catch (e) {
             node.error("Invalid rules configuration");
             rules = [];
@@ -87,8 +90,8 @@ module.exports = function(RED) {
                     const numericRuleValue = parseFloat(rule.value);
                     match = !isNaN(numericRuleValue) && matchAgainst === numericRuleValue;
                 } else if (typeof matchAgainst === 'boolean') {
-                    const boolRuleValue = rule.value.toLowerCase() === 'true';
-                    match = matchAgainst === boolRuleValue;
+                    const boolRuleValue = utils.validateBoolean(rule.value);
+                    match = boolRuleValue.valid && matchAgainst === boolRuleValue.value;
                 } else {
                     match = String(matchAgainst) === String(rule.value);
                 }

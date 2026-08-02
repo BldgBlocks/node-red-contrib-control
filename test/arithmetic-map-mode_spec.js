@@ -5,7 +5,8 @@ const arithmeticNodes = {
     "add-block": require("../nodes/add-block"),
     "subtract-block": require("../nodes/subtract-block"),
     "multiply-block": require("../nodes/multiply-block"),
-    "divide-block": require("../nodes/divide-block")
+    "divide-block": require("../nodes/divide-block"),
+    "modulo-block": require("../nodes/modulo-block")
 };
 
 describe("arithmetic map mode", function() {
@@ -15,7 +16,8 @@ describe("arithmetic map mode", function() {
         ["add-block", 10, 12],
         ["subtract-block", 10, 8],
         ["multiply-block", 10, 20],
-        ["divide-block", 10, 5]
+        ["divide-block", 10, 5],
+        ["modulo-block", 0, 0]
     ];
 
     cases.forEach(([type, firstExpected, finalExpected]) => {

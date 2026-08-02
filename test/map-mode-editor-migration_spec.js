@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 describe("map-mode editor migration", function() {
-    const nodeTypes = ["and", "or", "add", "subtract", "multiply", "divide"];
+    const nodeTypes = ["and", "or", "add", "subtract", "multiply", "divide", "modulo"];
 
     nodeTypes.forEach(type => {
         it(`defaults new ${type} nodes to map mode and migrates old nodes to context mode`, function() {

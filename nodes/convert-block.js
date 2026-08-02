@@ -45,6 +45,7 @@ module.exports = function(RED) {
         // Initialize runtime state
         // Initialize state
         node.inputProperty = config.inputProperty || "payload";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.conversion = validConversions.includes(config.conversion) ? config.conversion : "C to F";
 
         node.on("input", function(msg, send, done) {
@@ -276,20 +277,19 @@ module.exports = function(RED) {
             }
 
             // Format status numbers
-            let num = Number(msg.payload);
+            let num = Number(inputValue);
             let inDisplay = 0
             if (isNaN(num)) {
                 inDisplay = 0;
             } else {
                 inDisplay = num % 1 === 0 ? num : num.toFixed(2);
-                msg.payload = inDisplay;
             }
             const outDisplay = output % 1 === 0 ? output : output.toFixed(2);
 
             // Update status and send output
             utils.setStatusOK(node, `${outDisplay} ${outUnit}`);
 
-            msg.payload = output;
+            RED.util.setMessageProperty(msg, node.outputProperty, output, true);
             send(msg);
 
             if (done) done();

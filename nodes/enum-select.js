@@ -2,23 +2,28 @@ module.exports = function(RED) {
     const utils = require('./utils')(RED);
 
     function parseKeys(rawKeys) {
-        let parsedKeys = [];
+        let parsedKeys;
 
         try {
             parsedKeys = JSON.parse(rawKeys || "[]");
         } catch (err) {
-            parsedKeys = [];
+            return { valid: false, keys: [], error: "invalid keys configuration" };
         }
 
         if (!Array.isArray(parsedKeys)) {
-            return [];
+            return { valid: false, keys: [], error: "keys must be an array" };
         }
 
-        return [...new Set(
-            parsedKeys
-                .map(key => String(key).trim())
-                .filter(key => key.length > 0)
-        )];
+        if (!parsedKeys.every(key => typeof key === "string" && key.trim().length > 0)) {
+            return { valid: false, keys: [], error: "keys must be non-empty strings" };
+        }
+
+        const keys = parsedKeys.map(key => key.trim());
+        if (new Set(keys).size !== keys.length) {
+            return { valid: false, keys: [], error: "duplicate keys configured" };
+        }
+
+        return { valid: true, keys, error: null };
     }
 
     function formatValue(value) {
@@ -50,7 +55,9 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        node.keys = parseKeys(config.keys);
+        const parsedKeys = parseKeys(config.keys);
+        node.keys = parsedKeys.keys;
+        node.keysError = parsedKeys.error;
         node.cachedMessages = {};
         node.selectedKey = node.keys.includes(config.selectedKey)
             ? config.selectedKey
@@ -80,7 +87,9 @@ module.exports = function(RED) {
             return true;
         }
 
-        if (node.keys.length === 0) {
+        if (node.keysError) {
+            utils.setStatusError(node, node.keysError);
+        } else if (node.keys.length === 0) {
             utils.setStatusWarn(node, "no keys configured");
         } else {
             utils.setStatusOK(node, buildSwitchStatus(node.selectedKey));
@@ -97,6 +106,12 @@ module.exports = function(RED) {
 
             if (!msg.hasOwnProperty("context") || typeof msg.context !== "string") {
                 utils.setStatusError(node, "missing or invalid context");
+                if (done) done();
+                return;
+            }
+
+            if (node.keysError) {
+                utils.setStatusError(node, node.keysError);
                 if (done) done();
                 return;
             }

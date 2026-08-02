@@ -9,6 +9,7 @@ module.exports = function(RED) {
         // Initialize state
         node.name = config.name;
         node.inputProperty = config.inputProperty || "payload";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.mode = config.mode;
         node.count = 0;
         node.lastCount = null;
@@ -87,7 +88,8 @@ module.exports = function(RED) {
             if (node.lastCount !== node.count) {
                 node.lastCount = node.count;
                 utils.setStatusChanged(node, `out: ${node.count}`);
-                send({ payload: node.count });
+                RED.util.setMessageProperty(msg, node.outputProperty, node.count, true);
+                send(msg);
             } else {
                 utils.setStatusUnchanged(node, `out: ${node.count}`);
             }

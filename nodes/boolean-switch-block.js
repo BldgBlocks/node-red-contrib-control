@@ -6,7 +6,8 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize state from config (coerce to boolean)
-        node.state = !!config.state;
+        const initialState = utils.validateBoolean(config.state);
+        node.state = initialState.valid ? initialState.value : false;
         node.operationMode = config.operationMode === "map" ? "map" : "context";
         node.switchProperty = typeof config.switchProperty === "string" && config.switchProperty.trim() ?
             config.switchProperty.trim() : "switch";
@@ -30,7 +31,13 @@ module.exports = function(RED) {
             if (node.operationMode === "map") {
                 const switchValue = RED.util.getMessageProperty(msg, node.switchProperty);
                 if (switchValue !== undefined) {
-                    const newState = Boolean(switchValue);
+                    const boolVal = utils.validateBoolean(switchValue);
+                    if (!boolVal.valid) {
+                        utils.setStatusError(node, boolVal.error);
+                        if (done) done();
+                        return;
+                    }
+                    const newState = boolVal.value;
                     if (newState === node.state) {
                         utils.setStatusUnchanged(node, `switch: ${node.state}`);
                     } else {
@@ -69,7 +76,13 @@ module.exports = function(RED) {
                 }
 
                 case "switch": {
-                    const newState = !!msg.payload;
+                    const boolVal = utils.validateBoolean(msg.payload);
+                    if (!boolVal.valid) {
+                        utils.setStatusError(node, boolVal.error);
+                        if (done) done();
+                        return;
+                    }
+                    const newState = boolVal.value;
                     if (newState === node.state) {
                         utils.setStatusUnchanged(node, `state: ${node.state}`);
                     } else {

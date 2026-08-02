@@ -9,6 +9,10 @@
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the control output to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-kp" title="Proportional gain (number)"><i class="fa fa-sliders"></i> Kp</label>
         <input type="text" id="node-input-kp" placeholder="0" step="any">
         <input type="hidden" id="node-input-kpType">
@@ -79,6 +83,7 @@
         defaults: {
             name: { value: "" },
             inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true },
             kp: { value: 0, required: true },
             kpType: { value: "num" },
             ki: { value: 0, required: true },
@@ -113,6 +118,10 @@
         },
         oneditprepare: function() {
             const node = this;
+
+            if (!node.outputProperty || !node.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
 
             try {
                 // Initialize typed inputs
@@ -189,15 +198,17 @@
 Implements a PID controller with deadband, output limits, and tuning.
 
 ### Inputs
-: context (string) : Configures settings (`"setpoint"`, `"kp"`, `"ki"`, `"kd"`, `"deadband"`, `"dbBehavior"`, `"outMin"`, `"outMax"`, `"maxChange"`, `"directAction"`, `"run"`, `"reset"`, `"tune"`). Unmatched values trigger error.
+: context (string) : Configures settings (`"setpoint"`, `"kp"`, `"ki"`, `"kd"`, `"deadband"`, `"dbBehavior"`, `"outMin"`, `"outMax"`, `"maxChange"`, `"directAction"`, `"run"`, `"reset"`, `"tune"`). Unmatched values show a warning and are ignored.
 : payload (number | boolean | string) : Number for input/setpoint/kp/ki/kd/deadband/outMin/outMax/maxChange/tune kp, boolean for run/directAction/reset, string for dbBehavior (`"ReturnToZero"`, `"HoldLastResult"`).
 
 ### Outputs
-: payload (number) : PID control output.
+: outputProperty (number) : PID control output, written to the configured Output Property.
 : diagnostics (object) : `{ pGain, intGain, dGain, error, errorSum }`.
 : tuneResult (object) : `{ Kp, Ki, Kd, Ku, Tu }` when tuning completes.
 
 ### Properties
+: inputProperty (string) : Message property to read the process value from (default: `payload`). Supports nested properties.
+: outputProperty (string) : Message property to write the control output to (default: `payload`). Supports nested properties.
 : kp (number) : Proportional gain. Default: 0.
 : ki (number) : Integral gain. Default: 0.
 : kd (number) : Derivative gain. Default: 0.
@@ -214,7 +225,7 @@ Implements a PID controller with deadband, output limits, and tuning.
 ### Details
 
 **Core Algorithm**
-Calculates PID control output every cycle based on `msg.payload` (input), setpoint, and configurable gains (`kp`, `ki`, `kd`). Supports both **Direct Action** (cooling: error↑ → output↑) and **Reverse Action** (heating: error↑ → output↓) modes.
+Calculates PID control output every cycle based on the configured input property, setpoint, and configurable gains (`kp`, `ki`, `kd`). Supports both **Direct Action** (cooling: error↑ → output↑) and **Reverse Action** (heating: error↑ → output↓) modes.
 
 **Error Calculation**
 - Reverse Action (heating): `error = setpoint - input`

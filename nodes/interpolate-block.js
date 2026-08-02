@@ -9,15 +9,25 @@ module.exports = function(RED) {
         // Initialize state
         node.name = config.name;
         node.inputProperty = config.inputProperty || "payload";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.points = null;
         node.lastOutput = null;
+
+        function validPoints(points) {
+            if (!Array.isArray(points) || points.length < 2 ||
+                !points.every(point => typeof point.x === "number" && isFinite(point.x) &&
+                    typeof point.y === "number" && isFinite(point.y))) {
+                return false;
+            }
+            const direction = Math.sign(points[1].x - points[0].x);
+            return direction !== 0 && points.slice(1).every((point, index) =>
+                Math.sign(point.x - points[index].x) === direction);
+        }
 
         // Initialize points
         try {
             node.points = config.points ? JSON.parse(config.points) : [{ x: 0, y: 0 }, { x: 100, y: 100 }];
-            if (!Array.isArray(node.points) || node.points.length < 2 ||
-                !node.points.every(p => typeof p.x === "number" && !isNaN(p.x) &&
-                                                typeof p.y === "number" && !isNaN(p.y))) {
+            if (!validPoints(node.points)) {
                 node.points = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
                 utils.setStatusError(node, "invalid points, using default");
             } else {
@@ -53,9 +63,7 @@ module.exports = function(RED) {
                 if (msg.context === "points") {
                     try {
                         const newPoints = Array.isArray(msg.payload) ? msg.payload : JSON.parse(msg.payload);
-                        if (Array.isArray(newPoints) && newPoints.length >= 2 &&
-                            newPoints.every(p => typeof p.x === "number" && !isNaN(p.x) &&
-                                                typeof p.y === "number" && !isNaN(p.y))) {
+                        if (validPoints(newPoints)) {
                             node.points = newPoints;
                             utils.setStatusOK(node, `points: ${newPoints.length}`);
                         } else {
@@ -115,7 +123,8 @@ module.exports = function(RED) {
 
             if (!isUnchanged) {
                 node.lastOutput = outputValue;
-                send({ payload: outputValue });
+                RED.util.setMessageProperty(msg, node.outputProperty, outputValue, true);
+                send(msg);
             }
 
             if (done) done();

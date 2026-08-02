@@ -1,5 +1,7 @@
 module.exports = function(RED) {
     const utils = require('./utils')(RED);
+    const MIN_MEASURABLE_PERIOD_MS = 1;
+    const MAX_PULSES_PER_SECOND = 1000;
 
     function FrequencyBlockNode(config) {
         RED.nodes.createNode(this, config);
@@ -8,6 +10,7 @@ module.exports = function(RED) {
         // Initialize state
         node.name = config.name || "";
         node.inputProperty = config.inputProperty || "payload";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.lastIn = false;
         node.lastEdge = 0;
         node.completeCycle = false;
@@ -89,7 +92,7 @@ module.exports = function(RED) {
                     return;
                 } else {
                     utils.setStatusWarn(node, "unknown context");
-                    if (done) done("Unknown context");
+                    if (done) done();
                     return;
                 }
             }
@@ -143,19 +146,16 @@ module.exports = function(RED) {
                 if (!node.completeCycle) {
                     node.completeCycle = true;
                 } else {
-                    // Compute period in minutes
-                    let periodMs = now - node.lastEdge;
-                    let periodMin = periodMs / 60000;
-                    if (periodMin > 0.001) {
-                        // Minimum 0.6ms period (1000 pulses/sec)
+                    const periodMs = now - node.lastEdge;
+                    const periodMin = periodMs / 60000;
+                    if (periodMs >= MIN_MEASURABLE_PERIOD_MS) {
                         output.ppm = 1 / periodMin; // Pulses per minute
                         output.pph = output.ppm * 60; // Pulses per hour
                         output.ppd = output.ppm * 1440; // Pulses per day
                     } else {
-                        // Handle ultra-high frequency
-                        output.ppm = 1000;
-                        output.pph = 60000;
-                        output.ppd = 1440000;
+                        output.ppm = MAX_PULSES_PER_SECOND * 60;
+                        output.pph = MAX_PULSES_PER_SECOND * 3600;
+                        output.ppd = MAX_PULSES_PER_SECOND * 86400;
                     }
                     node.ppm = output.ppm;
                     node.pph = output.pph;
@@ -166,7 +166,8 @@ module.exports = function(RED) {
 
                 const edgeText = `input: ${inputValue}, ppm: ${output.ppm.toFixed(2)}, pph: ${output.pph.toFixed(2)}, ppd: ${output.ppd.toFixed(2)}, duty: ${output.dutyCycle}%`;
                 utils.setStatusChanged(node, edgeText);
-                send({ payload: output });
+                RED.util.setMessageProperty(msg, node.outputProperty, output, true);
+                send(msg);
             } else {
                 const noEdgeText = `input: ${inputValue}, ppm: ${node.ppm.toFixed(2)}, pph: ${node.pph.toFixed(2)}, ppd: ${node.ppd.toFixed(2)}, duty: ${output.dutyCycle}%`;
                 utils.setStatusUnchanged(node, noEdgeText);

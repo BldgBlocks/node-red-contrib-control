@@ -9,6 +9,10 @@
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-precision" title="Rounding precision (0.1 for tenths, 0.5 for halves, 1.0 for whole numbers)"><i class="fa fa-ruler"></i> Precision</label>
         <select id="node-input-precision">
             <option value="0.01">0.01 (hundreths)</option>
@@ -27,6 +31,7 @@
         defaults: {
             name: { value: "" },
             inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true },
             precision: { value: "0.01", required: true }
         },
         inputs: 1,
@@ -37,6 +42,11 @@
         paletteLabel: "round",
         label: function() {
             return this.name || "";
+        },
+        oneditprepare: function() {
+            if (!this.outputProperty || !this.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
         }
     });
 </script>
@@ -51,18 +61,19 @@ Rounds a float to the nearest configurable precision (tenth, half, or whole numb
 : payload (string, for `"precision"`) : Precision value
 
 ### Outputs
-: msg : Original message with `msg.payload` rounded to configured precision.
+: outputProperty (number) : Rounded value, written to the configured Output Property.
 
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: outputProperty (string) : Message property to write the result to (default: `payload`). Supports nested properties (e.g., `result.value`).
 : precision (string) : Rounding precision
 
 ### Details
 Rounds a float to the nearest hundreth (0.01), tenth (0.1), half (0.5), or whole number (1.0), set via editor or `msg.context = "precision"`.
 - Reads input from the message property specified in the **Input Property** field (default: `msg.payload`)
-- Output is always written to `msg.payload`
-- Operates as a passthrough node, modifying `msg.payload` and forwarding the original message
+- Writes output to the message property specified in the **Output Property** field (default: `msg.payload`)
+- Operates as a passthrough node, preserving other message properties
 - If input is not a finite number, the message is passed unchanged
 - Unknown `msg.context` values are ignored
 

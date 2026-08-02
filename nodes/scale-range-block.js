@@ -8,6 +8,7 @@ module.exports = function(RED) {
         // Initialize state
         node.name = config.name || "";
         node.inputProperty = config.inputProperty || "payload";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.inMin = parseFloat(config.inMin);
         node.inMax = parseFloat(config.inMax);
         node.outMin = parseFloat(config.outMin);
@@ -21,6 +22,11 @@ module.exports = function(RED) {
             node.inMax = 100.0;
             node.lastInput = 0.0;
             utils.setStatusError(node, "invalid input range");
+        }
+        if (!isFinite(node.outMin) || !isFinite(node.outMax)) {
+            node.outMin = 0.0;
+            node.outMax = 100.0;
+            utils.setStatusError(node, "invalid output range");
         }
 
         node.on("input", function(msg, send, done) {
@@ -59,11 +65,6 @@ module.exports = function(RED) {
                             if (done) done();
                             return;
                         }
-                        if (node.outMax <= node.outMin) {
-                            utils.setStatusError(node, "invalid output range");
-                            if (done) done();
-                            return;
-                        }
                         utils.setStatusOK(node, `${msg.context}: ${value.toFixed(2)}`);
                         shouldOutput = true;
                         break;
@@ -86,7 +87,7 @@ module.exports = function(RED) {
                 // Recalculate with last input after config update
                 if (shouldOutput) {
                     const out = calculate(node.lastInput, node.inMin, node.inMax, node.outMin, node.outMax, node.clamp);
-                    msg.payload = out;
+                    RED.util.setMessageProperty(msg, node.outputProperty, out, true);
                     utils.setStatusOK(node, `in: ${node.lastInput.toFixed(2)}, out: ${out.toFixed(2)}`);
                     send(msg);
                 }
@@ -113,7 +114,7 @@ module.exports = function(RED) {
                 return;
             }
             if (node.inMax <= node.inMin) {
-                utils.setStatusError(node, "inMinx must be < inMax");
+                utils.setStatusError(node, "inMin must be < inMax");
                 if (done) done();
                 return;
             }
@@ -121,7 +122,7 @@ module.exports = function(RED) {
             // Scale input
             node.lastInput = inputValue;
             const out = calculate(inputValue, node.inMin, node.inMax, node.outMin, node.outMax, node.clamp);
-            msg.payload = out;
+            RED.util.setMessageProperty(msg, node.outputProperty, out, true);
             utils.setStatusOK(node, `${out.toFixed(2)}`);
             send(msg);
 
@@ -132,7 +133,7 @@ module.exports = function(RED) {
         function calculate(input, inMin, inMax, outMin, outMax, clamp) {
             const scaleRatio = (outMax - outMin) / (inMax - inMin);
             let output = scaleRatio * (input - inMin) + outMin;
-            return clamp ? Math.max(outMin, Math.min(outMax, output)) : output;
+            return clamp ? Math.max(Math.min(outMin, outMax), Math.min(Math.max(outMin, outMax), output)) : output;
         }
 
         node.on("close", function(done) { 

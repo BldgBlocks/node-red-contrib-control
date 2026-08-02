@@ -6,7 +6,7 @@ module.exports = function(RED) {
         const node = this;
 
         node.slots = parseInt(config.slots, 10) || 2;
-        node.inputs = Array(node.slots).fill(0);
+        node.inputs = Array(node.slots).fill(null);
         node.mode = config.mode === "maximum" ? "maximum" : "minimum";
         node.operationMode = config.operationMode === "context" ? "context" : "map";
         node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
@@ -68,9 +68,10 @@ module.exports = function(RED) {
                 node.inputs[slot.index - 1] = numericValue.value;
             }
 
-            const result = node.mode === "maximum" ? Math.max(...node.inputs) : Math.min(...node.inputs);
+            const initializedInputs = node.inputs.filter(value => value !== null);
+            const result = node.mode === "maximum" ? Math.max(...initializedInputs) : Math.min(...initializedInputs);
             const isUnchanged = result === lastResult && node.inputs.every((value, index) => value === lastInputs[index]);
-            const statusText = `in: [${node.inputs.join(", ")}], ${node.mode}: ${result}`;
+            const statusText = `in: [${node.inputs.map(value => value === null ? "-" : value).join(", ")}], ${node.mode}: ${result}`;
             if (isUnchanged) utils.setStatusUnchanged(node, statusText);
             else utils.setStatusChanged(node, statusText);
 

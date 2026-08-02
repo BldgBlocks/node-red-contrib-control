@@ -8,6 +8,10 @@
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-points" title="Default points table for interpolation (array of {x, y} objects, ≥2 points)"><i class="fa fa-table"></i> Points</label>
         <textarea id="node-input-points" placeholder='[{"x": 0, "y": 0}, {"x": 100, "y": 100}]' style="height: 100px;"></textarea>
     </div>
@@ -20,15 +24,19 @@
         defaults: {
             name: { value: "" },
             inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true },
             points: {
                 value: JSON.stringify([{ x: 0, y: 0 }, { x: 100, y: 100 }], null, 2),
                 required: true,
                 validate: function(v) {
                     try {
                         const points = JSON.parse(v);
-                        return Array.isArray(points) && points.length >= 2 &&
-                               points.every(p => typeof p.x === "number" && !isNaN(p.x) &&
-                                                 typeof p.y === "number" && !isNaN(p.y));
+                        if (!Array.isArray(points) || points.length < 2 ||
+                            !points.every(p => typeof p.x === "number" && isFinite(p.x) &&
+                                typeof p.y === "number" && isFinite(p.y))) return false;
+                        const direction = Math.sign(points[1].x - points[0].x);
+                        return direction !== 0 && points.slice(1).every((point, index) =>
+                            Math.sign(point.x - points[index].x) === direction);
                     } catch (e) {
                         return false;
                     }
@@ -43,6 +51,11 @@
         paletteLabel: "interpolate",
         label: function() {
             return this.name ? `${this.name} (${this.points ? JSON.parse(this.points).length : 2})` : `interpolate (${this.points ? JSON.parse(this.points).length : 2})`;
+        },
+        oneditprepare: function() {
+            if (!this.outputProperty || !this.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
         }
     });
 </script>
@@ -56,21 +69,18 @@ Linearly interpolates numeric input from a configured property using a points ta
 : payload (array, for context) : Array of `{x, y}` objects for points configuration.
 
 ### Outputs
-: payload (number) : Interpolated output value.
+: outputProperty (number) : Interpolated value, written to the configured Output Property.
 
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
-: points (array) : Array of `{x, y}` objects defining the interpolation curve (minimum 2 points).
+: outputProperty (string) : Message property to write the result to (default: `payload`). Supports nested properties (e.g., `result.value`).
+: points (array) : Array of `{x, y}` objects with strictly increasing or strictly decreasing X coordinates (minimum 2 points).
 
 ### Details
 Linearly interpolates numeric input (read from the configured **Input Property**, default: `msg.payload`) using a configurable points table.
 Points can be updated dynamically via `msg.context = "points"` with an array of `{x, y}` objects in `msg.payload`.
 
-### Outputs
-: payload (number) : Interpolated output value.
-
-### Details
 Interpolates a numeric `msg.payload` using a table of `{x, y}` points. 
 
 Points are set via editor or `msg.context = "points"` with an array of ≥2 `{x, y}` objects (x and y as numbers). 

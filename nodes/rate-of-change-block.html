@@ -8,6 +8,10 @@
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the rate to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-sampleSize" title="Number of samples to track (minimum 2)"><i class="fa fa-list-ol"></i> Sample Size</label>
         <input type="number" id="node-input-sampleSize" placeholder="10" min="2" step="1">
     </div>
@@ -50,6 +54,7 @@
         defaults: {
             name: { value: "" },
             inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true },
             sampleSize: {
                 value: 10,
                 required: true,
@@ -78,6 +83,10 @@
         },
         oneditprepare: function() {
             const node = this;
+
+            if (!node.outputProperty || !node.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
 
             try {
                 // Initialize typed inputs
@@ -114,7 +123,7 @@ Calculates the rate of value change over time.
 : timestamp (optional) : Custom timestamp for the reading (ms since epoch).
 
 ### Outputs
-: payload (number | null) : Rate of change in value per time unit.
+: outputProperty (number | null) : Rate of change, written to the configured Output Property.
 : rawRate (number | null) : Unquantized slope estimate before warmup gating and output rounding.
 : samples (number) : Current number of samples in buffer.
 : units (string) : Rate units ("per second", "per minute", "per hour").
@@ -125,6 +134,7 @@ Calculates the rate of value change over time.
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read values from (default `payload`). Supports nested properties (e.g., `data.value`).
+: outputProperty (string) : Message property to write the rate to (default: `payload`). Supports nested properties (e.g., `result.rate`).
 : sampleSize (number) : Number of samples to maintain (≥ 2).
 : rateUnits (string) : Units for rate output (`"seconds"`, `"minutes"`, `"hours"`).
 : algorithm (string) : Estimator for the recent trend: `linear-regression`, `robust-slope`, or `alpha-beta`.

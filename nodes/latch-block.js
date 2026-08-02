@@ -7,7 +7,8 @@ module.exports = function(RED) {
         const node = this;
 
         // Initialize state from config
-        node.state = config.state;
+        const initialState = utils.validateBoolean(config.state);
+        node.state = initialState.valid ? initialState.value : false;
 
         // Set initial status
         utils.setStatusOK(node, `state: ${node.state}`);
@@ -31,11 +32,17 @@ module.exports = function(RED) {
 
             // Handle context commands
             switch (msg.context) {
-                case "set":
+                case "set": {
+                    const boolVal = utils.validateBoolean(msg.payload);
+                    if (!boolVal.valid) {
+                        utils.setStatusError(node, boolVal.error);
+                        if (done) done();
+                        return;
+                    }
                     if (node.state) {
                         utils.setStatusUnchanged(node, `state: ${node.state}`);
                     } else {
-                        if (msg.payload) {
+                        if (boolVal.value) {
                             node.state = true;
                             utils.setStatusChanged(node, `state: ${node.state}`);
                         } else {
@@ -45,11 +52,18 @@ module.exports = function(RED) {
                     // Output latch value regardless
                     send({ payload: node.state });
                     break;
-                case "reset":
+                }
+                case "reset": {
+                    const boolVal = utils.validateBoolean(msg.payload);
+                    if (!boolVal.valid) {
+                        utils.setStatusError(node, boolVal.error);
+                        if (done) done();
+                        return;
+                    }
                     if (node.state === false) {
                         utils.setStatusUnchanged(node, `state: ${node.state}`);
                     } else {
-                        if (msg.payload) {
+                        if (boolVal.value) {
                             node.state = false;
                             utils.setStatusChanged(node, `state: ${node.state}`);
                         } else {
@@ -58,6 +72,7 @@ module.exports = function(RED) {
                     }
                     send({ payload: node.state });
                     break;
+                }
                 default:
                     utils.setStatusWarn(node, "unknown context");
                     if (done) done("Unknown context");

@@ -71,6 +71,29 @@ describe("critical control regressions", function() {
         });
     });
 
+    it("writes PID output to a nested property and preserves the input message", function(done) {
+        const config = pidConfig({
+            inputProperty: "source.value",
+            outputProperty: "result.control"
+        });
+        helper.load(pidNode, buildFlow("pid-block", config), function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            node.lastTime = Date.now() - 1000;
+            const message = waitForMessage(output);
+
+            node.receive({ source: { value: 5 }, topic: "temperature" });
+
+            message.then(msg => {
+                assert.strictEqual(msg.result.control, 10);
+                assert.deepStrictEqual(msg.source, { value: 5 });
+                assert.strictEqual(msg.topic, "temperature");
+                assert.strictEqual(msg.payload, undefined);
+                done();
+            }).catch(done);
+        });
+    });
+
     it("schedules memory writes with the configured write period", function() {
         let MemoryConstructor;
         const context = { set: () => {} };

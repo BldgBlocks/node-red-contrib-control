@@ -1,5 +1,5 @@
 const assert = require("assert");
-const { helper, waitForMessage } = require("./test-helpers");
+const { helper, buildFlow, expectNoMessage, waitForMessage } = require("./test-helpers");
 const contextualLabelNode = require("../nodes/contextual-label-block");
 const priorityNode = require("../nodes/priority-block");
 
@@ -43,6 +43,50 @@ describe("contextual-label-block", function() {
                 assert.strictEqual(msg.diagnostics.activePriority, "priority15");
                 done();
             }).catch(done);
+        });
+    });
+
+    it("replaces an existing context label", function(done) {
+        const flow = buildFlow("contextual-label-block", {
+            contextPropertyName: "in2",
+            inputProperty: "source.value"
+        });
+        helper.load(contextualLabelNode, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            const message = waitForMessage(output);
+            node.receive({ context: "in1", source: { value: 7 }, topic: "source" });
+            message.then(msg => {
+                assert.strictEqual(msg.context, "in2");
+                assert.strictEqual(msg.payload, 7);
+                assert.strictEqual(msg.topic, "source");
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("removes an existing context label", function(done) {
+        const flow = buildFlow("contextual-label-block", { removeLabel: true });
+        helper.load(contextualLabelNode, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            const message = waitForMessage(output);
+            node.receive({ context: "in1", payload: 7 });
+            message.then(msg => {
+                assert.strictEqual(msg.context, undefined);
+                assert.strictEqual(msg.payload, 7);
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("does not emit when a nested input property is missing", function(done) {
+        const flow = buildFlow("contextual-label-block", { inputProperty: "source.value" });
+        helper.load(contextualLabelNode, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            node.receive({ source: {} });
+            expectNoMessage(output, 50).then(() => done()).catch(done);
         });
     });
 });

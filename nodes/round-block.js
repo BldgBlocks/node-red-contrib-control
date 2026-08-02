@@ -7,6 +7,7 @@ module.exports = function(RED) {
 
         // Initialize state
         node.inputProperty = config.inputProperty || "payload";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
         node.precision = config.precision;
 
         // Validate initial config
@@ -83,7 +84,7 @@ module.exports = function(RED) {
                 result = Math.round(inputValue);
             }
 
-            msg.payload = result;
+            RED.util.setMessageProperty(msg, node.outputProperty, result, true);
             utils.setStatusOK(node, `${result}`);
             send(msg);
             if (done) done();

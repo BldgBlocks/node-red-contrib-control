@@ -32,13 +32,13 @@ module.exports = function(RED) {
                 for (const mapping of node.mappings) {
                     const value = RED.util.getMessageProperty(msg, mapping.property);
                     if (value === undefined) continue;
-                    const numericValue = parseFloat(value);
-                    if (isNaN(numericValue)) {
+                    const numericValue = utils.validateNumericPayload(value);
+                    if (!numericValue.valid) {
                         utils.setStatusError(node, `invalid ${mapping.property}`);
                         if (done) done();
                         return;
                     }
-                    updates.push({ index: mapping.input - 1, value: numericValue });
+                    updates.push({ index: mapping.input - 1, value: numericValue.value });
                 }
                 if (updates.length === 0) {
                     utils.setStatusWarn(node, "no mapped properties found");
@@ -103,12 +103,13 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                let newValue = parseFloat(msg.payload);
-                if (isNaN(newValue)) {
+                const numericValue = utils.validateNumericPayload(msg.payload);
+                if (!numericValue.valid) {
                     utils.setStatusError(node, "invalid input");
                     if (done) done();
                     return;
                 }
+                const newValue = numericValue.value;
                 node.inputs[slotIndex] = newValue;
                 // Calculate sum
                 const sum = node.inputs.reduce((acc, val) => acc + val, 0);

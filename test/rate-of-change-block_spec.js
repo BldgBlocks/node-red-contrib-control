@@ -235,4 +235,113 @@ describe("rate-of-change-block", function() {
             })().catch(done);
         });
     });
+
+    it("should clear retained history on reset", function(done) {
+        const flow = buildFlow("rate-of-change-block", {
+            sampleSize: 4,
+            units: "seconds",
+            algorithm: "linear-regression",
+            minimumWindowSpan: 0,
+            minValid: -100,
+            minValidType: "num",
+            maxValid: 100,
+            maxValidType: "num"
+        });
+
+        helper.load(rateOfChangeNode, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+
+            (async () => {
+                let message = waitForMessage(output);
+                node.receive({ payload: 10, timestamp: 1000 });
+                await message;
+                await wait(10);
+
+                message = waitForMessage(output);
+                node.receive({ payload: 20, timestamp: 2000 });
+                const rising = await message;
+                assert.strictEqual(rising.payload, 10);
+                await wait(10);
+
+                node.receive({ context: "reset", payload: true });
+                await wait(10);
+                message = waitForMessage(output);
+                node.receive({ payload: 30, timestamp: 3000 });
+                const afterReset = await message;
+                assert.strictEqual(afterReset.payload, 0);
+                assert.strictEqual(afterReset.samples, 1);
+                assert.strictEqual(node.samples.length, 1);
+                done();
+            })().catch(done);
+        });
+    });
+
+    it("should apply runtime estimator configuration", function(done) {
+        const flow = buildFlow("rate-of-change-block", {
+            sampleSize: 4,
+            units: "minutes",
+            algorithm: "linear-regression",
+            minimumWindowSpan: 30,
+            minValid: -100,
+            minValidType: "num",
+            maxValid: 100,
+            maxValidType: "num"
+        });
+
+        helper.load(rateOfChangeNode, flow, function() {
+            const node = helper.getNode("n1");
+            (async () => {
+                for (const [context, payload] of [
+                    ["sampleSize", 2],
+                    ["units", "hours"],
+                    ["algorithm", "robust-slope"],
+                    ["minimumWindowSpan", 0]
+                ]) {
+                    node.receive({ context, payload });
+                    await wait(10);
+                }
+
+                assert.strictEqual(node.maxSamples, 2);
+                assert.strictEqual(node.units, "hours");
+                assert.strictEqual(node.algorithm, "robust-slope");
+                assert.strictEqual(node.minimumWindowSpan, 0);
+                done();
+            })().catch(done);
+        });
+    });
+
+    it("should preserve runtime configuration after invalid updates", function(done) {
+        const flow = buildFlow("rate-of-change-block", {
+            sampleSize: 4,
+            units: "minutes",
+            algorithm: "linear-regression",
+            minimumWindowSpan: 30,
+            minValid: -100,
+            minValidType: "num",
+            maxValid: 100,
+            maxValidType: "num"
+        });
+
+        helper.load(rateOfChangeNode, flow, function() {
+            const node = helper.getNode("n1");
+            (async () => {
+                for (const [context, payload] of [
+                    ["sampleSize", 1],
+                    ["units", "days"],
+                    ["algorithm", "unknown"],
+                    ["minimumWindowSpan", -1]
+                ]) {
+                    node.receive({ context, payload });
+                    await wait(10);
+                }
+
+                assert.strictEqual(node.maxSamples, 4);
+                assert.strictEqual(node.units, "minutes");
+                assert.strictEqual(node.algorithm, "linear-regression");
+                assert.strictEqual(node.minimumWindowSpan, 30);
+                done();
+            })().catch(done);
+        });
+    });
 });

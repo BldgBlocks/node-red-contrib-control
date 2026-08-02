@@ -458,8 +458,16 @@ Should async nodes queue the latest message instead of dropping messages while b
 - [x] **Skip**: preserve drop-while-busy behavior
 - [ ] **Other**:
 
-### Nested properties
-Should every node with configurable input properties write results back to that same property by default?
-- [ ] **Accept**
-- [ ] **Skip**
+### Input and output properties
+Should calculation/transformation nodes that expose `inputProperty` also expose a separate `outputProperty`, defaulting to `payload`?
+- [ ] **Accept**: standardize calculation/transformation nodes; `inputProperty` selects only what to read and `outputProperty` selects where the result is written
+- [ ] **Skip**: preserve each node's current output behavior
 - [x] **Other**: This is a inbetween feature as I have added things. I have recently started adding the output properties. I dont want to over complicate, but it was necessary in some cases so standardizing may be the way to go.
+
+Recommendation: **Accept**, scoped by node role rather than applied to every node with an input property.
+
+- Add `outputProperty` to primary-value calculators/transformers currently fixed to `payload`: `accumulate-block`, `average-block`, `boolean-to-number-block`, `convert-block`, `count-block`, `frequency-block`, `interpolate-block`, `pid-block`, `rate-of-change-block`, `round-block`, and `scale-range-block`.
+- Keep established payload/port contracts for decision and state nodes: `compare-block`, `edge-block`, `hysteresis-block`, and `oneshot-block`.
+- Keep established contracts for nodes whose purpose is routing, observation, serialization, or an external side effect: `changeover-block`, `contextual-label-block`, `global-setter`, `history-collector`, `network-point-write`, `on-change-block`, and `units-block`.
+- Preserve the original message and write only the result property unless a node's documented contract intentionally creates a new message.
+- Treat `boolean-to-number-block` as a migration case: it currently writes the converted value back to `inputProperty`, so existing deployed flows need backward-compatible handling when `outputProperty` is introduced.

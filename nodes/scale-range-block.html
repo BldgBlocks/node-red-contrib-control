@@ -9,6 +9,10 @@
         <input type="text" id="node-input-inputProperty" placeholder="payload">
     </div>
     <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div class="form-row">
         <label for="node-input-inMin" title="Minimum input value (number)"><i class="fa fa-arrow-down"></i> Input Min</label>
         <input type="number" id="node-input-inMin" placeholder="0.0" step="any">
     </div>
@@ -38,6 +42,7 @@
         defaults: {
             name: { value: "" },
             inputProperty: { value: "payload" },
+            outputProperty: { value: "payload", required: true },
             inMin: { value: 0.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
             inMax: { value: 100.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
             outMin: { value: 0.0, required: true, validate: function(v) { return !isNaN(parseFloat(v)) && isFinite(parseFloat(v)); } },
@@ -52,6 +57,11 @@
         paletteLabel: "scale range",
         label: function() {
             return this.name || "scale range";
+        },
+        oneditprepare: function() {
+            if (!this.outputProperty || !this.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
         }
     });
 </script>
@@ -65,11 +75,12 @@ Scales numeric input from one range to another.
 : context (string) : Configures settings (`"inMin"`, `"inMax"`, `"outMin"`, `"outMax"`, `"clamp"`). Unmatched values trigger error.
 
 ### Outputs
-: payload (number) : Scaled output value.
+: outputProperty (number) : Scaled value, written to the configured Output Property.
 
 ### Properties
 : name (string) : Display name in editor.
 : inputProperty (string) : Message property to read input from (default: `payload`). Supports nested properties (e.g., `data.value`).
+: outputProperty (string) : Message property to write the result to (default: `payload`). Supports nested properties (e.g., `result.value`).
 : inMin (number) : Minimum input value.
 : inMax (number) : Maximum input value (> inMin).
 : outMin (number) : Minimum output value.
@@ -81,7 +92,7 @@ Scales numeric input (read from the configured **Input Property**, default: `msg
 
 Formula: `outValue = outMin + (inValue - inMin) * (outMax - outMin) / (inMax - inMin)`
 
-Output is always written to `msg.payload`.
+Output is written to the configured **Output Property** (default: `msg.payload`). Reversed output ranges are supported; disabling Clamp permits projected values outside the configured output range.
 
 ### Status
 - Green (dot): Configuration update

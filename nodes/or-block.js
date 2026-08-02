@@ -39,8 +39,11 @@ module.exports = function(RED) {
                 node.mappings.forEach(mapping => {
                     const value = RED.util.getMessageProperty(msg, mapping.property);
                     if (value !== undefined) {
-                        node.inputs[mapping.input - 1] = mapping.negate ? !Boolean(value) : Boolean(value);
-                        updated = true;
+                        const boolVal = utils.validateBoolean(value);
+                        if (boolVal.valid) {
+                            node.inputs[mapping.input - 1] = mapping.negate ? !boolVal.value : boolVal.value;
+                            updated = true;
+                        }
                     }
                 });
                 if (!updated) {
@@ -65,7 +68,13 @@ module.exports = function(RED) {
                     if (done) done();
                     return;
                 }
-                node.inputs[slotVal.index - 1] = Boolean(msg.payload);
+                const boolVal = utils.validateBoolean(msg.payload);
+                if (!boolVal.valid) {
+                    utils.setStatusError(node, boolVal.error);
+                    if (done) done();
+                    return;
+                }
+                node.inputs[slotVal.index - 1] = boolVal.value;
             }
 
             const result = node.inputs.some(v => v === true);

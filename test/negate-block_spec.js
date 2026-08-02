@@ -1,5 +1,5 @@
 const assert = require("assert");
-const { helper, buildFlow, waitForMessage } = require("./test-helpers");
+const { helper, buildFlow, expectNoMessage, waitForMessage } = require("./test-helpers");
 const negateBlock = require("../nodes/negate-block");
 
 describe("negate-block", function() {
@@ -22,6 +22,33 @@ describe("negate-block", function() {
                 assert.strictEqual(result.payload, undefined);
                 done();
             }).catch(done);
+        });
+    });
+
+    it("negates boolean values and preserves message properties", function(done) {
+        const flow = buildFlow("negate-block");
+        helper.load(negateBlock, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            const message = waitForMessage(output);
+            node.receive({ payload: false, topic: "enabled" });
+            message.then(result => {
+                assert.strictEqual(result.payload, true);
+                assert.strictEqual(result.topic, "enabled");
+                done();
+            }).catch(done);
+        });
+    });
+
+    [null, "5", { value: 5 }].forEach(value => {
+        it(`rejects unsupported input ${JSON.stringify(value)}`, function(done) {
+            const flow = buildFlow("negate-block");
+            helper.load(negateBlock, flow, function() {
+                const node = helper.getNode("n1");
+                const output = helper.getNode("out");
+                node.receive({ payload: value });
+                expectNoMessage(output, 50).then(() => done()).catch(done);
+            });
         });
     });
 });
