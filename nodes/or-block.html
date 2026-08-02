@@ -64,6 +64,11 @@
             const $mappingRow = $("#node-input-mappings-row");
             const markDirty = () => RED.nodes.dirty(true);
 
+            if (node.operationMode !== "map" && node.operationMode !== "context") {
+                node.operationMode = "context";
+                $("#node-input-operationMode").val("context");
+            }
+
             if (!node.outputProperty || !node.outputProperty.trim()) {
                 $("#node-input-outputProperty").val("payload");
             }

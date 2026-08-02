@@ -8,6 +8,12 @@ module.exports = function(RED) {
         // Initialize state
         node.slots = parseInt(config.slots) || 2;
         node.inputs = Array(parseInt(config.slots) || 2).fill(0);
+        node.operationMode = config.operationMode === "map" ? "map" : "context";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
+        node.mappings = Array.isArray(config.mappings) ? config.mappings.filter(mapping => {
+            return mapping && typeof mapping.property === "string" && mapping.property.trim() &&
+                utils.validateSlotIndex(`in${mapping.input}`, node.slots).valid;
+        }) : [];
 
         let lastSum = null;
 
@@ -21,7 +27,36 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Check for required properties
+            if (node.operationMode === "map") {
+                const updates = [];
+                for (const mapping of node.mappings) {
+                    const value = RED.util.getMessageProperty(msg, mapping.property);
+                    if (value === undefined) continue;
+                    const numericValue = parseFloat(value);
+                    if (isNaN(numericValue)) {
+                        utils.setStatusError(node, `invalid ${mapping.property}`);
+                        if (done) done();
+                        return;
+                    }
+                    updates.push({ index: mapping.input - 1, value: numericValue });
+                }
+                if (updates.length === 0) {
+                    utils.setStatusWarn(node, "no mapped properties found");
+                    if (done) done();
+                    return;
+                }
+                updates.forEach(update => { node.inputs[update.index] = update.value; });
+                const sum = node.inputs.reduce((acc, value) => acc + value, 0);
+                const statusText = `in: [${node.inputs.join(", ")}], sum: ${sum.toFixed(2)}`;
+                sum === lastSum ? utils.setStatusUnchanged(node, statusText) : utils.setStatusChanged(node, statusText);
+                lastSum = sum;
+                const output = {};
+                RED.util.setMessageProperty(output, node.outputProperty, sum, true);
+                send(output);
+                if (done) done();
+                return;
+            }
+
             if (!msg.hasOwnProperty("context")) {
                 utils.setStatusError(node, "missing context");
                 if (done) done();
@@ -85,7 +120,9 @@ module.exports = function(RED) {
                     utils.setStatusChanged(node, statusText);
                 }
                 lastSum = sum;
-                send({ payload: sum });
+                const output = {};
+                RED.util.setMessageProperty(output, node.outputProperty, sum, true);
+                send(output);
                 if (done) done();
                 return;
             } else {

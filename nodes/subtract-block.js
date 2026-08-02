@@ -12,6 +12,12 @@ module.exports = function(RED) {
         node.slots = parseInt(config.slots);
         node.inputs = Array(parseInt(config.slots)).fill(0);
         node.lastResult = null;
+        node.operationMode = config.operationMode === "map" ? "map" : "context";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
+        node.mappings = Array.isArray(config.mappings) ? config.mappings.filter(mapping => {
+            return mapping && typeof mapping.property === "string" && mapping.property.trim() &&
+                utils.validateSlotIndex(`in${mapping.input}`, node.slots).valid;
+        }) : [];
 
         // Validate initial config
         if (isNaN(node.slots) || node.slots < 1) {
@@ -28,6 +34,36 @@ module.exports = function(RED) {
             // Guard against invalid msg
             if (!msg) {
                 utils.setStatusError(node, "invalid message");
+                if (done) done();
+                return;
+            }
+
+            if (node.operationMode === "map") {
+                const updates = [];
+                for (const mapping of node.mappings) {
+                    const value = RED.util.getMessageProperty(msg, mapping.property);
+                    if (value === undefined) continue;
+                    const numericValue = parseFloat(value);
+                    if (isNaN(numericValue)) {
+                        utils.setStatusError(node, `invalid ${mapping.property}`);
+                        if (done) done();
+                        return;
+                    }
+                    updates.push({ index: mapping.input - 1, value: numericValue });
+                }
+                if (updates.length === 0) {
+                    utils.setStatusWarn(node, "no mapped properties found");
+                    if (done) done();
+                    return;
+                }
+                updates.forEach(update => { node.inputs[update.index] = update.value; });
+                const result = node.inputs.reduce((acc, value, index) => index === 0 ? value : acc - value, 0);
+                const statusText = `in: [${node.inputs.join(", ")}], diff: ${result.toFixed(2)}`;
+                result === node.lastResult ? utils.setStatusUnchanged(node, statusText) : utils.setStatusChanged(node, statusText);
+                node.lastResult = result;
+                const output = {};
+                RED.util.setMessageProperty(output, node.outputProperty, result, true);
+                send(output);
                 if (done) done();
                 return;
             }
@@ -87,7 +123,9 @@ module.exports = function(RED) {
                 }
 
                 node.lastResult = result;
-                send({ payload: result });
+                const output = {};
+                RED.util.setMessageProperty(output, node.outputProperty, result, true);
+                send(output);
 
                 if (done) done();
                 return;

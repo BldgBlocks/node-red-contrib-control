@@ -7,9 +7,23 @@
         <label for="node-input-slots" title="Number of input slots (positive integer, e.g., 2)"><i class="fa fa-list-ol"></i> Slots</label>
         <input type="number" id="node-input-slots" placeholder="2" min="1" step="1">
     </div>
+    <div class="form-row">
+        <label for="node-input-operationMode" title="How incoming messages update virtual inputs"><i class="fa fa-random"></i> Operation</label>
+        <select id="node-input-operationMode"><option value="map">Map message properties</option><option value="context">Context (legacy)</option></select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write the result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
+    <div id="node-input-mappings-row" class="form-row">
+        <label><i class="fa fa-exchange"></i> Mappings</label><ol id="node-input-mapping-container"></ol>
+        <a href="#" id="node-input-add-mapping" class="red-ui-button" style="margin-top: 5px;">Add mapping</a>
+    </div>
 </script>
 
 <script type="text/javascript">
+    (function() {
+    function compareMappings(left, right) { return Number(left.input) - Number(right.input) || left.property.localeCompare(right.property); }
     RED.nodes.registerType("divide-block", {
         category: "bldgblocks control",
         color: "#301934",
@@ -19,7 +33,10 @@
                 value: 2,
                 required: true,
                 validate: function(v) { return !isNaN(parseInt(v)) && parseInt(v) > 1; }
-            }
+            },
+            operationMode: { value: "map" },
+            outputProperty: { value: "payload", required: true },
+            mappings: { value: [] }
         },
         inputs: 1,
         outputs: 1,
@@ -29,22 +46,50 @@
         paletteLabel: "divide",
         label: function() {
             return this.name ? `${this.name} (${this.slots})` : `divide (${this.slots})`;
-        }
+        },
+        oneditprepare: function() { prepareMappingEditor(this); },
+        oneditsave: saveMappings
     });
+    function prepareMappingEditor(node) {
+        const $container = $("#node-input-mapping-container");
+        const $mappingRow = $("#node-input-mappings-row");
+        const markDirty = () => RED.nodes.dirty(true);
+        if (node.operationMode !== "map" && node.operationMode !== "context") { node.operationMode = "context"; $("#node-input-operationMode").val("context"); }
+        if (!node.outputProperty || !node.outputProperty.trim()) $("#node-input-outputProperty").val("payload");
+        function addMapping(mapping) {
+            const $item = $("<li>", { style: "display:flex;align-items:center;gap:5px;width:100%;box-sizing:border-box;" }).appendTo($container);
+            $("<input>", { type: "text", class: "node-input-mapping-property", placeholder: "property", style: "flex:1 1 80px;min-width:0;" }).val(mapping.property || "").on("input", markDirty).appendTo($item);
+            $("<input>", { type: "number", class: "node-input-mapping-input", min: 1, step: 1, style: "width:50px;flex:0 0 50px;", title: "Virtual input number" }).val(mapping.input || 1).on("change", markDirty).appendTo($item);
+            $("<a>", { href: "#", class: "red-ui-button red-ui-button-small", style: "margin:0;" }).html('<i class="fa fa-remove"></i>').on("click", function(event) { event.preventDefault(); $item.remove(); markDirty(); }).appendTo($item);
+        }
+        (node.mappings || []).slice().sort(compareMappings).forEach(addMapping);
+        $("#node-input-add-mapping").on("click", function(event) { event.preventDefault(); addMapping({ property: "", input: 1 }); markDirty(); });
+        $("#node-input-operationMode").on("change", function() { $mappingRow.toggle($(this).val() === "map"); }).trigger("change");
+    }
+    function saveMappings() {
+        this.mappings = $("#node-input-mapping-container li").map(function() {
+            const property = $(this).find(".node-input-mapping-property").val().trim();
+            const input = parseInt($(this).find(".node-input-mapping-input").val(), 10);
+            return property && input >= 1 ? { property, input } : null;
+        }).get().filter(Boolean).sort(compareMappings);
+    }
+    })();
 </script>
 
 <script type="text/markdown" data-help-name="divide-block">
 Divides numeric inputs from multiple slots in sequence.
 
 ### Inputs
-: context (string) : Configuration commands - `"reset"`, `"slots"`, or identifies input slot (e.g., `"in1"`, `"in2"`).
-: payload (number | boolean) : Number for slot input, boolean for reset, integer for slots configuration.
+: map mode (default) : Each configured numeric message property updates its mapped virtual input.
+: context mode : `context` identifies `"reset"`, `"slots"`, or an input slot such as `"in1"`; `payload` supplies the value.
 
 ### Outputs
-: payload (number) : Result of dividing slots in sequence (in1 / in2 / ...).
+: configured output property (number) : Result of dividing slots in sequence (in1 / in2 / ...). Defaults to `msg.payload`.
 
 ### Details
-Divides numeric `msg.payload` values from slots identified by `msg.context` (e.g., `"in1"`, `"in2"`) in sequence. 
+In **Map message properties** mode, one message may update one or several configured slots. Values persist per slot when mapped properties arrive at different times.
+
+In **Context (legacy)** mode, numeric `msg.payload` values update slots identified by `msg.context` (e.g., `"in1"`, `"in2"`). Existing nodes use this mode when first opened after upgrading.
 
 Slots are set via editor or `msg.context = "slots"` with positive integer.
 

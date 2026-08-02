@@ -13,8 +13,12 @@
         </select>
     </div>
     <div class="form-row rate-limit-field">
-        <label for="node-input-rate" title="Rate of change (units per second, > 0)"><i class="fa fa-tachometer"></i> Rate (units/s)</label>
-        <input type="number" id="node-input-rate" placeholder="1" min="0.01" step="0.01">
+        <label for="node-input-rateUp" title="Rising rate of change (units per second, > 0)"><i class="fa fa-arrow-up"></i> Rate Up (units/s)</label>
+        <input type="number" id="node-input-rateUp" placeholder="1" min="0.01" step="0.01">
+    </div>
+    <div class="form-row rate-limit-field">
+        <label for="node-input-rateDown" title="Falling rate of change (units per second, > 0)"><i class="fa fa-arrow-down"></i> Rate Down (units/s)</label>
+        <input type="number" id="node-input-rateDown" placeholder="1" min="0.01" step="0.01">
     </div>
     <div class="form-row rate-limit-field">
         <label for="node-input-interval" title="Update interval (milliseconds, ≥ 10, integer)"><i class="fa fa-clock-o"></i> Interval (ms)</label>
@@ -34,7 +38,9 @@
         defaults: {
             name: { value: "" },
             mode: { value: "rate-limit", required: true, validate: function(v) { return ["rate-limit", "threshold", "full-value"].includes(v); } },
-            rate: { value: 1, required: false, validate: function(v) { return !v || (!isNaN(parseFloat(v)) && parseFloat(v) > 0 && isFinite(parseFloat(v))); } },
+            rate: { value: "", required: false, validate: function(v) { return !v || (!isNaN(parseFloat(v)) && parseFloat(v) > 0 && isFinite(parseFloat(v))); } },
+            rateUp: { value: "", required: false, validate: function(v) { return !v || (!isNaN(parseFloat(v)) && parseFloat(v) > 0 && isFinite(parseFloat(v))); } },
+            rateDown: { value: "", required: false, validate: function(v) { return !v || (!isNaN(parseFloat(v)) && parseFloat(v) > 0 && isFinite(parseFloat(v))); } },
             interval: { value: 100, required: false, validate: function(v) { return !v || (Number.isInteger(parseInt(v)) && parseInt(v) >= 10); } },
             threshold: { value: 5, required: false, validate: function(v) { return !v || (!isNaN(parseFloat(v)) && parseFloat(v) >= 0 && isFinite(parseFloat(v))); } }
         },
@@ -67,7 +73,7 @@
 Processes a numeric input value based on a selected mode and passes the original message.
 
 ### Inputs
-: context (string) : Configures settings (`"mode"`, `"rate"`, `"interval"`, `"threshold"`). Unmatched values trigger error.
+: context (string) : Configures settings (`"mode"`, `"rate"`, `"rateUp"`, `"rateDown"`, `"interval"`, `"threshold"`). Unmatched values trigger error.
 : payload (number | string | number) : Number to process, or value for configuration (string for mode, number for others).
 
 ### Outputs
@@ -76,13 +82,15 @@ Processes a numeric input value based on a selected mode and passes the original
 
 ### Properties
 : mode (string) : Processing mode.
-: rate (number) : Rate of change for rate-limit mode.
+: rateUp (number) : Rising rate of change for rate-limit mode.
+: rateDown (number) : Falling rate of change for rate-limit mode.
+: rate (number) : Legacy shared rate for both directions (optional).
 : interval (number) : Update interval for rate-limit mode.
 : threshold (number) : Threshold for output in threshold mode.
 
 ### Details
 Processes `msg.payload` (number) in one of three modes:
-- `Rate Limit` Limits rate of change to `rate` (units/s), updating every `interval` (ms) toward the input value.
+- `Rate Limit` Limits rise using `rateUp` and fall using `rateDown` (units/s), updating every `interval` (ms) toward the input value.
 - `Threshold` Outputs when input differs from last output by more than `threshold` (units).
 - `Full Value` Passes input unchanged.
 

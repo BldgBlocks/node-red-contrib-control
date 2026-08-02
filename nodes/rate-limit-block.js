@@ -4,11 +4,18 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
+        const isPositiveFinite = (value) => typeof value === "number" && isFinite(value) && value > 0;
+        const hasValue = (value) => value !== undefined && value !== null && value !== "";
+
         // Initialize runtime state
         // Initialize state
         node.name = config.name;
         node.mode = config.mode;
-        node.rate = parseFloat(config.rate);
+        const legacyRate = parseFloat(config.rate);
+        const configuredRateUp = parseFloat(config.rateUp);
+        const configuredRateDown = parseFloat(config.rateDown);
+        node.rateUp = isPositiveFinite(configuredRateUp) ? configuredRateUp : legacyRate;
+        node.rateDown = isPositiveFinite(configuredRateDown) ? configuredRateDown : legacyRate;
         node.interval = parseInt(config.interval);
         node.threshold = parseFloat(config.threshold);
         node.currentValue = 0;
@@ -17,8 +24,19 @@ module.exports = function(RED) {
         node.lastInputMsg = null;
 
         // Validate initial config
-        if (isNaN(node.rate) || node.rate <= 0 || !isFinite(node.rate)) {
-            node.rate = 1.0;
+        if (!isPositiveFinite(node.rateUp)) {
+            node.rateUp = 1.0;
+            if (hasValue(config.rateUp) || !isPositiveFinite(legacyRate)) {
+                utils.setStatusError(node, "invalid rateUp");
+            }
+        }
+        if (!isPositiveFinite(node.rateDown)) {
+            node.rateDown = 1.0;
+            if (hasValue(config.rateDown) || !isPositiveFinite(legacyRate)) {
+                utils.setStatusError(node, "invalid rateDown");
+            }
+        }
+        if (hasValue(config.rate) && !isPositiveFinite(legacyRate)) {
             utils.setStatusError(node, "invalid rate");
         }
         if (isNaN(node.interval) || node.interval < 10 || !Number.isInteger(node.interval)) {
@@ -35,7 +53,16 @@ module.exports = function(RED) {
         }
 
         // Set initial status
-        utils.setStatusOK(node, `${node.currentValue.toFixed(2)}`);
+        function setRateLimitStatus(prefix) {
+            const details = `cur:${node.currentValue.toFixed(2)} target:${node.targetValue.toFixed(2)} up:${node.rateUp.toFixed(2)} down:${node.rateDown.toFixed(2)}`;
+            utils.setStatusOK(node, prefix ? `${prefix} ${details}` : details);
+        }
+
+        if (node.mode === "rate-limit") {
+            setRateLimitStatus();
+        } else {
+            utils.setStatusOK(node, `${node.currentValue.toFixed(2)}`);
+        }
 
         let updateTimer = null;
 
@@ -44,10 +71,12 @@ module.exports = function(RED) {
             if (!node.lastInputMsg) return;
             const now = Date.now();
             const elapsed = (now - node.lastUpdate) / 1000; // Seconds
-            const maxChange = node.rate * elapsed;
+            const isRising = node.currentValue < node.targetValue;
+            const activeRate = isRising ? node.rateUp : node.rateDown;
+            const maxChange = activeRate * elapsed;
             let newValue = node.currentValue;
 
-            if (node.currentValue < node.targetValue) {
+            if (isRising) {
                 newValue = Math.min(node.currentValue + maxChange, node.targetValue);
             } else if (node.currentValue > node.targetValue) {
                 newValue = Math.max(node.currentValue - maxChange, node.targetValue);
@@ -58,7 +87,7 @@ module.exports = function(RED) {
                 node.lastUpdate = now;
                 const msg = RED.util.cloneMessage(node.lastInputMsg);
                 msg.payload = node.currentValue;
-                utils.setStatusOK(node, `${node.currentValue.toFixed(2)}`);
+                setRateLimitStatus();
                 node.send(msg);
             }
         }
@@ -97,17 +126,54 @@ module.exports = function(RED) {
                         }
                         node.mode = msg.payload;
                         startTimer();
-                        utils.setStatusOK(node, `mode: ${node.mode}`);
+                        if (node.mode === "rate-limit") {
+                            setRateLimitStatus("mode:rate-limit");
+                        } else {
+                            utils.setStatusOK(node, `mode: ${node.mode}`);
+                        }
                         break;
                     case "rate":
                         const rate = parseFloat(msg.payload);
-                        if (isNaN(rate) || rate <= 0 || !isFinite(rate)) {
+                        if (!isPositiveFinite(rate)) {
                             utils.setStatusError(node, "invalid rate");
                             if (done) done();
                             return;
                         }
-                        node.rate = rate;
-                        utils.setStatusOK(node, `rate: ${node.rate.toFixed(2)}`);
+                        node.rateUp = rate;
+                        node.rateDown = rate;
+                        if (node.mode === "rate-limit") {
+                            setRateLimitStatus("rate up/down updated");
+                        } else {
+                            utils.setStatusOK(node, `rate up/down: ${rate.toFixed(2)}`);
+                        }
+                        break;
+                    case "rateUp":
+                        const rateUp = parseFloat(msg.payload);
+                        if (!isPositiveFinite(rateUp)) {
+                            utils.setStatusError(node, "invalid rateUp");
+                            if (done) done();
+                            return;
+                        }
+                        node.rateUp = rateUp;
+                        if (node.mode === "rate-limit") {
+                            setRateLimitStatus("rateUp updated");
+                        } else {
+                            utils.setStatusOK(node, `rateUp: ${node.rateUp.toFixed(2)}`);
+                        }
+                        break;
+                    case "rateDown":
+                        const rateDown = parseFloat(msg.payload);
+                        if (!isPositiveFinite(rateDown)) {
+                            utils.setStatusError(node, "invalid rateDown");
+                            if (done) done();
+                            return;
+                        }
+                        node.rateDown = rateDown;
+                        if (node.mode === "rate-limit") {
+                            setRateLimitStatus("rateDown updated");
+                        } else {
+                            utils.setStatusOK(node, `rateDown: ${node.rateDown.toFixed(2)}`);
+                        }
                         break;
                     case "interval":
                         const interval = parseInt(msg.payload);
@@ -151,7 +217,7 @@ module.exports = function(RED) {
 
             if (node.mode === "rate-limit") {
                 node.targetValue = inputValue;
-                utils.setStatusOK(node, `target: ${node.targetValue.toFixed(2)}`);
+                setRateLimitStatus("target updated");
                 updateRateLimitOutput();
                 startTimer();
             } else if (node.mode === "threshold") {
