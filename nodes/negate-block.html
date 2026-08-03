@@ -30,6 +30,11 @@
         paletteLabel: "negate",
         label: function() {
             return this.name || "negate";
+        },
+        oneditprepare: function() {
+            if (!this.outputProperty || !this.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
         }
     });
 </script>

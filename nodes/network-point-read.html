@@ -69,7 +69,11 @@
             $("#node-input-bridgeNodeId").typedInput({
                 types: [{ value: "bridge", options: candidateNodes }]
             });
-$("#node-input-outputProperty").typedInput({
+            if (!node.outputProperty || !node.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
+
+            $("#node-input-outputProperty").typedInput({
                 types: ['msg']
             });
 
