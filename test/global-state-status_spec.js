@@ -1,5 +1,5 @@
 const assert = require("assert");
-const { helper, collectMessages, waitForMessage, wait } = require("./test-helpers");
+const { helper, collectMessages, expectNoMessage, waitForMessage, wait } = require("./test-helpers");
 const globalGetterNode = require("../nodes/global-getter");
 const globalSetterNode = require("../nodes/global-setter");
 
@@ -232,6 +232,113 @@ describe("global getter/setter status toggle", function() {
                 assert.strictEqual(msg.payload, 88);
                 assert.ok(status.last);
                 assert.strictEqual(status.last.text, "get: 88");
+                done();
+            })().catch(done);
+        });
+    });
+
+    it("should flow unchanged writes to reactive getters by default", function(done) {
+        const flow = [
+            { id: "f1", type: "tab" },
+            {
+                id: "setter",
+                z: "f1",
+                type: "global-setter",
+                path: "hvac/test/reactive-flow",
+                property: "payload",
+                defaultValue: 0,
+                defaultValueType: "num",
+                writePriority: "fallback",
+                writePriorityType: "dropdown",
+                wires: [[]]
+            },
+            {
+                id: "getter",
+                z: "f1",
+                type: "global-getter",
+                targetNode: "setter",
+                outputProperty: "payload",
+                outputPropertyType: "msg",
+                updates: "always",
+                detail: "getValue",
+                wires: [["getter-out"]]
+            },
+            { id: "getter-out", z: "f1", type: "helper" }
+        ];
+
+        helper.load([globalSetterNode, globalGetterNode], flow, function(err) {
+            if (err) {
+                done(err);
+                return;
+            }
+
+            const setter = helper.getNode("setter");
+            const getterOut = helper.getNode("getter-out");
+
+            (async () => {
+                await waitForMessage(getterOut, 1500);
+
+                let outputPromise = waitForMessage(getterOut, 1500);
+                setter.receive({ payload: 42 });
+                assert.strictEqual((await outputPromise).payload, 42);
+
+                outputPromise = waitForMessage(getterOut, 1500);
+                setter.receive({ payload: 42 });
+                assert.strictEqual((await outputPromise).payload, 42);
+                done();
+            })().catch(done);
+        });
+    });
+
+    it("should not flow unchanged writes to reactive getters when disabled", function(done) {
+        const flow = [
+            { id: "f1", type: "tab" },
+            {
+                id: "setter",
+                z: "f1",
+                type: "global-setter",
+                path: "hvac/test/reactive-no-flow",
+                property: "payload",
+                defaultValue: 0,
+                defaultValueType: "num",
+                writePriority: "fallback",
+                writePriorityType: "dropdown",
+                flowWithoutChange: false,
+                wires: [[]]
+            },
+            {
+                id: "getter",
+                z: "f1",
+                type: "global-getter",
+                targetNode: "setter",
+                outputProperty: "payload",
+                outputPropertyType: "msg",
+                updates: "always",
+                detail: "getValue",
+                wires: [["getter-out"]]
+            },
+            { id: "getter-out", z: "f1", type: "helper" }
+        ];
+
+        helper.load([globalSetterNode, globalGetterNode], flow, function(err) {
+            if (err) {
+                done(err);
+                return;
+            }
+
+            const setter = helper.getNode("setter");
+            const getterOut = helper.getNode("getter-out");
+
+            (async () => {
+                await waitForMessage(getterOut, 1500);
+
+                let outputPromise = waitForMessage(getterOut, 1500);
+                setter.receive({ payload: 42 });
+                assert.strictEqual((await outputPromise).payload, 42);
+
+                const noOutputPromise = expectNoMessage(getterOut, 500);
+                setter.receive({ payload: 42 });
+                await noOutputPromise;
                 done();
             })().catch(done);
         });

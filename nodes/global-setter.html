@@ -39,6 +39,11 @@
         <input type="checkbox" id="node-input-showStatus" style="display:inline-block; width:auto; vertical-align:middle;">
     </div>
 
+    <div class="form-row">
+        <label for="node-input-flowWithoutChange" title="Send the current state to reactive global-getter nodes when an incoming write leaves the active value unchanged."><i class="fa fa-random"></i> Flow w/o Change</label>
+        <input type="checkbox" id="node-input-flowWithoutChange" style="display:inline-block; width:auto; vertical-align:middle;">
+    </div>
+
     <div class="form-tips">
         <b>Note:</b> This node writes to the <b>Network Priority</b> slot (1-16), manually, by msg or flow. The actual value is determined by the highest active source: Priorities 1-16 → Fallback → Default.
     </div>
@@ -56,7 +61,8 @@
             defaultValueType: { value: "num", required: true },
             writePriority: { value: "fallback", required: true },
             writePriorityType: { value: "dropdown" },
-            showStatus: { value: true }
+            showStatus: { value: true },
+            flowWithoutChange: { value: true }
         },
         inputs: 1,
         outputs: 1,
@@ -158,6 +164,8 @@ Manage a global variable in a repeatable way.
 Global variables are meant to be retrieved in other places, this necessarily means managing the same string in multiple places. 
 
 This node allows you to set a global variable in one place, and retrieve it elsewhere using the `global-getter` node while supporting rename and deletion.
+
+**Flow w/o Change** (enabled by default) sends the current state to reactive `global-getter` nodes after every valid write, including writes that leave the active value unchanged. Disable it to limit reactive getter outputs to state changes.
 
 When this node is deleted or the flow is redeployed, it will automatically remove (prune) the variable from the selected Context Store.
 

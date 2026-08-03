@@ -12,6 +12,7 @@ module.exports = function(RED) {
         node.writePriority = config.writePriority;
         node.type = config.defaultValueType;
         node.showStatus = config.showStatus !== false;
+        node.flowWithoutChange = config.flowWithoutChange !== false;
         node.isBusy = false;
         
         if(!isNaN(node.defaultValue) && node.defaultValue !== "") node.defaultValue = Number(node.defaultValue);
@@ -254,6 +255,13 @@ module.exports = function(RED) {
                     const activeLabel = state.activePriority === 'default' ? 'default' : (state.activePriority === 'fallback' ? 'fallback' : `P${state.activePriority}`);
                     const noChangeText = buildStatusText("no change", writeSlotLabel, inputValue, activeLabel, state.value, state.units);
                     utils.setStatusUnchanged(node, noChangeText);
+                    if (node.flowWithoutChange) {
+                        RED.events.emit("bldgblocks:global:value-changed", {
+                            key: node.varName,
+                            store: node.storeName,
+                            data: state
+                        });
+                    }
                     // Pass message through even if no context change
                     send({ ...state });
                     if (done) done();
