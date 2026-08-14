@@ -29,13 +29,11 @@ module.exports = function(RED) {
             }
             msg.payload = inputValue;
 
+            utils.setStatusChanged(node, node.removeLabel ? "remove" : `set -> ${node.contextPropertyName}`);
+
             // Set or remove context property
             if (node.removeLabel) {
                 delete msg.context;
-                utils.setStatusChanged(node, `${inputValue} -> removed`);
-            } else {
-                msg.context = node.contextPropertyName;
-                utils.setStatusChanged(node, `${inputValue} -> ${node.contextPropertyName}`);
             }
 
             send(msg);
