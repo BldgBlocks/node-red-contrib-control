@@ -225,6 +225,8 @@ module.exports = function(RED) {
         node.minValid = parseFloat(config.minValid);
         node.maxValid = parseFloat(config.maxValid);
         node.alphaBetaState = createAlphaBetaState();
+        node.warmupStartedAt = null;
+        node.warmupComplete = node.minimumWindowSpan === 0;
 
         node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -313,6 +315,8 @@ module.exports = function(RED) {
                             node.samples = [];
                             node.lastRate = null;
                             node.alphaBetaState = createAlphaBetaState();
+                            node.warmupStartedAt = null;
+                            node.warmupComplete = node.minimumWindowSpan === 0;
                             utils.setStatusOK(node, "state reset");
                         }
                         break;
@@ -362,6 +366,8 @@ module.exports = function(RED) {
                             return;
                         }
                         node.minimumWindowSpan = normalizeMinimumWindowSpan(parsedMinimumWindowSpan);
+                        node.warmupComplete = node.minimumWindowSpan === 0;
+                        node.warmupStartedAt = node.samples.length ? node.samples[0].timestamp : null;
                         utils.setStatusOK(node, `warmup: ${node.minimumWindowSpan}s`);
                         break;
                     }
@@ -399,6 +405,9 @@ module.exports = function(RED) {
 
             // Add new sample
             node.samples.push({ timestamp: timestamp, value: inputValue });
+            if (node.warmupStartedAt === null || timestamp < node.warmupStartedAt) {
+                node.warmupStartedAt = timestamp;
+            }
             
             // Maintain sample window
             if (node.samples.length > node.maxSamples + 1) {
@@ -431,7 +440,12 @@ module.exports = function(RED) {
                 timeSpanUnits = calculation.timeSpanUnits;
             }
 
-            const isWarming = timeSpanSeconds < node.minimumWindowSpan;
+            const warmupElapsedSeconds = node.warmupStartedAt === null ? 0 :
+                Math.max(0, (timestamp - node.warmupStartedAt) / 1000);
+            if (!node.warmupComplete && warmupElapsedSeconds >= node.minimumWindowSpan) {
+                node.warmupComplete = true;
+            }
+            const isWarming = !node.warmupComplete;
             rate = isWarming ? 0 : quantizeRate(rawRate);
 
             const isUnchanged = rate === node.lastRate;
@@ -444,7 +458,7 @@ module.exports = function(RED) {
             };
 
             const statusText = isWarming
-                ? `rate: ${rate.toFixed(2)} ${unitsDisplay[node.units] || "/min"} [warming ${Math.round(timeSpanSeconds)}/${node.minimumWindowSpan}s]`
+                ? `rate: ${rate.toFixed(2)} ${unitsDisplay[node.units] || "/min"} [warming ${Math.round(warmupElapsedSeconds)}/${node.minimumWindowSpan}s]`
                 : `rate: ${rate.toFixed(2)} ${unitsDisplay[node.units] || "/min"}`;
 
             if (isUnchanged) {

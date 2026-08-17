@@ -147,6 +147,45 @@ describe("rate-of-change-block", function() {
         });
     });
 
+    it("should complete warmup when the retained sample window is shorter than the warmup span", function(done) {
+        const flow = buildFlow("rate-of-change-block", {
+            sampleSize: 10,
+            units: "minutes",
+            algorithm: "linear-regression",
+            minimumWindowSpan: 90,
+            minValid: -40,
+            minValidType: "num",
+            maxValid: 150,
+            maxValidType: "num"
+        });
+
+        helper.load(rateOfChangeNode, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            const base = Date.UTC(2026, 0, 1, 0, 0, 0);
+
+            (async () => {
+                const outputPromise = collectMessages(output, 24, 2000);
+
+                for (let index = 0; index < 24; index += 1) {
+                    node.receive({
+                        payload: 70 + index * 0.01,
+                        timestamp: base + index * 4000
+                    });
+                    await wait(10);
+                }
+
+                const messages = await outputPromise;
+                assert.strictEqual(messages[22].warming, true);
+                assert.strictEqual(messages[23].warming, false);
+                assert.ok(messages[23].payload > 0);
+                assert.strictEqual(messages[23].samples, 10);
+                assert.strictEqual(messages[23].timeSpan, 36);
+                done();
+            })().catch(done);
+        });
+    });
+
     it("should allow robust-slope mode to resist a single lower sample", function(done) {
         const flow = buildFlow("rate-of-change-block", {
             sampleSize: 32,

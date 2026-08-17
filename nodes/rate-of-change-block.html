@@ -138,7 +138,7 @@ Calculates the rate of value change over time.
 : sampleSize (number) : Number of samples to maintain (≥ 2).
 : rateUnits (string) : Units for rate output (`"seconds"`, `"minutes"`, `"hours"`).
 : algorithm (string) : Estimator for the recent trend: `linear-regression`, `robust-slope`, or `alpha-beta`.
-: minimumWindowSpan (number) : Minimum elapsed sample span in seconds before non-zero output is allowed.
+: minimumWindowSpan (number) : Minimum elapsed time from the first valid sample in seconds before non-zero output is allowed.
 
 ### Details
 Tracks value changes over a rolling window of samples and estimates rate with the selected windowed slope estimator.
@@ -149,7 +149,7 @@ Tracks value changes over a rolling window of samples and estimates rate with th
 
 `Alpha-Beta Tracker` is an optional momentum-based, stateful estimator. It preserves tracker-style behavior across messages, so once it gains momentum it can settle into a smooth trend, but it is more model-based than the two windowed slope options.
 
-The node emits immediately from the first valid sample. Public output starts at `0.00` and remains there while the retained sample span is below `Warmup Span`, even though `rawRate` may already be changing internally.
+The node emits immediately from the first valid sample. Public output starts at `0.00` and remains there until `Warmup Span` has elapsed, even if the rolling sample window covers less time. Warmup restarts only when the node is reset or redeployed.
 
 Useful for detecting system issues like rapid changes, droop, or anomalies.
 

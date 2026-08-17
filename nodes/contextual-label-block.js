@@ -34,6 +34,8 @@ module.exports = function(RED) {
             // Set or remove context property
             if (node.removeLabel) {
                 delete msg.context;
+            } else {
+                msg.context = node.contextPropertyName;
             }
 
             send(msg);
