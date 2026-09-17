@@ -15,4 +15,14 @@ describe("map-mode editor migration", function() {
             assert.match(html, /#node-input-operationMode/);
         });
     });
+
+    it("defaults enum-switch to configurable-property map mode", function() {
+        const html = fs.readFileSync(path.join(__dirname, "../nodes/enum-switch-block.html"), "utf8");
+
+        assert.match(html, /operationMode:\s*\{\s*value:\s*"map"\s*\}/);
+        assert.match(html, /id="node-input-property"/);
+        assert.match(html, /#node-input-map-property/);
+        assert.match(html, /#node-input-operationMode/);
+    });
+
 });

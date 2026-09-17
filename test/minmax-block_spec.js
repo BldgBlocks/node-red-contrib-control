@@ -1,5 +1,5 @@
 const assert = require("assert");
-const { helper, buildFlow, expectNoMessage, waitForMessage } = require("./test-helpers");
+const { helper, buildFlow, expectNoMessage, sendTagged, waitForMessage } = require("./test-helpers");
 const minmaxBlock = require("../nodes/minmax-block");
 
 describe("minmax-block", function() {
@@ -113,6 +113,46 @@ describe("minmax-block", function() {
                 return message;
             }).then(result => {
                 assert.strictEqual(result.payload, 50);
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("selects the minimum across cached context inputs", function(done) {
+        const flow = buildFlow("minmax-block", { mode: "select-min", slots: 3, operationMode: "context" });
+        helper.load(minmaxBlock, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            const first = waitForMessage(output);
+            sendTagged(node, "in1", 12);
+            first.then(message => {
+                assert.strictEqual(message.payload, 12);
+                const second = waitForMessage(output);
+                sendTagged(node, "in2", -3);
+                return second;
+            }).then(message => {
+                assert.strictEqual(message.payload, -3);
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("selects the maximum across mapped message properties", function(done) {
+        const flow = buildFlow("minmax-block", {
+            mode: "select-max",
+            slots: 2,
+            operationMode: "map",
+            outputProperty: "result",
+            mappings: [{ property: "supply", input: 1 }, { property: "return", input: 2 }]
+        });
+        helper.load(minmaxBlock, flow, function() {
+            const node = helper.getNode("n1");
+            const output = helper.getNode("out");
+            const result = waitForMessage(output);
+            node.receive({ supply: 48, return: 56 });
+            result.then(message => {
+                assert.strictEqual(message.result, 56);
+                assert.strictEqual(message.payload, undefined);
                 done();
             }).catch(done);
         });

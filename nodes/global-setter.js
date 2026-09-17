@@ -13,7 +13,9 @@ module.exports = function(RED) {
         node.type = config.defaultValueType;
         node.showStatus = config.showStatus !== false;
         node.flowWithoutChange = config.flowWithoutChange !== false;
+        node.outputDefaultOnLoad = config.outputDefaultOnLoad !== false;
         node.isBusy = false;
+        let initTimer = null;
         
         if(!isNaN(node.defaultValue) && node.defaultValue !== "") node.defaultValue = Number(node.defaultValue);
         if(node.defaultValue === "true") node.defaultValue = true;
@@ -106,7 +108,9 @@ module.exports = function(RED) {
                         store: node.storeName,
                         data: state
                     });
-                    node.send(state);
+                    if (node.outputDefaultOnLoad) {
+                        node.send(state);
+                    }
                 }, 500);
             } catch (err) {
                 // Silently fail or log if init fails (DB down on boot?)

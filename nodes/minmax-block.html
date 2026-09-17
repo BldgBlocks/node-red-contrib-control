@@ -5,22 +5,48 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-mode" title="Select the clamp bounds"><i class="fa fa-sort-amount-asc"></i> Mode</label>
+                <label for="node-input-mode" title="Select clamp or selector behavior"><i class="fa fa-sort-amount-asc"></i> Mode</label>
         <select id="node-input-mode">
-            <option value="min">Minimum</option>
-            <option value="max">Maximum</option>
-            <option value="minmax">Minimum and Maximum</option>
+                        <option value="min">Clamp Minimum</option>
+                        <option value="max">Clamp Maximum</option>
+                        <option value="minmax">Clamp Minimum and Maximum</option>
+                        <option value="select-min">Select Minimum</option>
+                        <option value="select-max">Select Maximum</option>
         </select>
     </div>
-    <div id="node-input-min-row" class="form-row">
+        <div id="node-input-clamp-rows">
+            <div id="node-input-min-row" class="form-row">
         <label for="node-input-min" title="Minimum output value"><i class="fa fa-arrow-down"></i> Minimum</label>
         <input type="text" id="node-input-min" placeholder="0">
         <input type="hidden" id="node-input-minType">
-    </div>
-    <div id="node-input-max-row" class="form-row">
+            </div>
+            <div id="node-input-max-row" class="form-row">
         <label for="node-input-max" title="Maximum output value"><i class="fa fa-arrow-up"></i> Maximum</label>
         <input type="text" id="node-input-max" placeholder="100">
         <input type="hidden" id="node-input-maxType">
+            </div>
+        </div>
+        <div id="node-input-selector-rows">
+            <div class="form-row">
+                <label for="node-input-slots" title="Number of cached numeric inputs"><i class="fa fa-list"></i> Inputs</label>
+                <input type="number" id="node-input-slots" min="2" step="1" placeholder="2">
+            </div>
+            <div class="form-row">
+                <label for="node-input-operationMode" title="How messages update cached inputs"><i class="fa fa-random"></i> Operation</label>
+                <select id="node-input-operationMode">
+                        <option value="map">Map message properties</option>
+                        <option value="context">Context</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label for="node-input-outputProperty" title="Message property for the selected result"><i class="fa fa-arrow-right"></i> Output Property</label>
+                <input type="text" id="node-input-outputProperty" placeholder="payload">
+            </div>
+            <div id="node-input-mappings-row" class="form-row">
+                <label><i class="fa fa-exchange"></i> Mappings</label>
+                <ol id="node-input-mapping-container"></ol>
+                <a href="#" id="node-input-add-mapping" class="red-ui-button" style="margin-top: 5px;">Add mapping</a>
+            </div>
     </div>
 </script>
 
@@ -35,7 +61,11 @@
             min: { value: 0, required: true },
             minType: { value: "num" },
             max: { value: 100, required: true },
-            maxType: { value: "num" }
+            maxType: { value: "num" },
+            slots: { value: 2, required: true },
+            operationMode: { value: "map" },
+            outputProperty: { value: "payload", required: true },
+            mappings: { value: [] }
         },
         inputs: 1,
         outputs: 1,
@@ -44,11 +74,39 @@
         icon: "font-awesome/fa-sort-amount-asc",
         paletteLabel: "min/max clamp",
         label: function() {
-            const labels = { min: "min clamp", max: "max clamp", minmax: "min/max clamp" };
+            const labels = { min: "min clamp", max: "max clamp", minmax: "min/max clamp", "select-min": "select min", "select-max": "select max", minimum: "select min", maximum: "select max" };
             return this.name || labels[this.mode] || labels.minmax;
         },
         oneditprepare: function() {
             const node = this;
+            const selectorModes = ["select-min", "select-max", "minimum", "maximum"];
+            const $selectorRows = $("#node-input-selector-rows");
+            const $clampRows = $("#node-input-clamp-rows");
+            const $mappingRow = $("#node-input-mappings-row");
+            const $container = $("#node-input-mapping-container");
+            const markDirty = () => RED.nodes.dirty(true);
+
+            function compareMappings(left, right) {
+                return Number(left.input) - Number(right.input) || left.property.localeCompare(right.property);
+            }
+
+            function addMapping(mapping) {
+                const $item = $("<li>", { class: "node-input-mapping-row", style: "display: flex; align-items: center; gap: 5px; width: 100%; box-sizing: border-box;" }).appendTo($container);
+                $("<input>", { type: "text", class: "node-input-mapping-property", placeholder: "temperature", style: "flex: 1 1 80px; min-width: 0;" }).val(mapping.property || "").on("input", markDirty).appendTo($item);
+                $("<input>", { type: "number", class: "node-input-mapping-input", min: 1, step: 1, style: "width: 50px; flex: 0 0 50px;", title: "Virtual input number" }).val(mapping.input || 1).on("change", markDirty).appendTo($item);
+                $("<a>", { href: "#", class: "red-ui-button red-ui-button-small", style: "flex: 0 0 auto;" }).html('<i class="fa fa-remove"></i>').on("click", function(event) {
+                    event.preventDefault();
+                    $item.remove();
+                    markDirty();
+                }).appendTo($item);
+            }
+
+            (node.mappings || []).slice().sort(compareMappings).forEach(addMapping);
+            $("#node-input-add-mapping").on("click", function(event) {
+                event.preventDefault();
+                addMapping({ property: "", input: 1 });
+                markDirty();
+            });
             $("#node-input-min").typedInput({
                 default: "num",
                 types: ["num", "msg", "flow", "global"],
@@ -61,27 +119,43 @@
             }).typedInput("type", node.maxType || "num").typedInput("value", node.max);
             $("#node-input-mode").on("change", function() {
                 const mode = $(this).val();
-                $("#node-input-min-row").toggle(mode !== "max");
-                $("#node-input-max-row").toggle(mode !== "min");
+                const isSelector = selectorModes.includes(mode);
+                $selectorRows.toggle(isSelector);
+                $clampRows.toggle(!isSelector);
+                $("#node-input-min-row").toggle(mode !== "max" && mode !== "select-min" && mode !== "select-max");
+                $("#node-input-max-row").toggle(mode !== "min" && mode !== "select-min" && mode !== "select-max");
+                $mappingRow.toggle(isSelector && $("#node-input-operationMode").val() === "map");
             }).trigger("change");
+            $("#node-input-operationMode").on("change", function() {
+                $mappingRow.toggle(selectorModes.includes($("#node-input-mode").val()) && $(this).val() === "map");
+            });
+        },
+        oneditsave: function() {
+            this.mappings = $("#node-input-mapping-container .node-input-mapping-row").map(function() {
+                const property = $(this).find(".node-input-mapping-property").val().trim();
+                const input = parseInt($(this).find(".node-input-mapping-input").val(), 10);
+                return property && input >= 1 ? { property, input } : null;
+            }).get().filter(Boolean);
         }
     });
 </script>
 
 <!-- Help Section -->
 <script type="text/markdown" data-help-name="minmax-block">
-Clamps a numeric input to a selected minimum, maximum, or both limits.
+Clamps a numeric input to a selected minimum, maximum, or both limits, or selects the minimum or maximum across cached virtual inputs.
 
 ### Inputs
 : context (string) : Updates a configured limit using `"min"` / `"minimum"` or `"max"` / `"maximum"`. `"setpoint"` updates the single selected limit in minimum or maximum mode.
-: payload (number) : Input number to clamp or the selected limit value when using a configuration context.
+: payload (number) : Input number to clamp, or the slot value when using selector context mode.
+: mapped properties (number) : In selector map mode, configured message properties update their virtual input slots.
 
 ### Outputs
-: payload (number) : The clamped number.
+: payload (number) : The clamped number or selected minimum/maximum.
 
 ### Properties
-: mode : Select **Minimum**, **Maximum**, or **Minimum and Maximum** to constrain a range.
+: mode : Select a clamp mode or **Select Minimum**/**Select Maximum** to reduce cached virtual inputs.
 : minimum / maximum : Numeric clamp limits, supporting number, message, flow, and global values.
+: inputs / mappings : Selector modes cache the configured number of virtual inputs. Map mode updates slots from message properties; context mode uses `msg.context` such as `"in1"` and `msg.payload`.
 
 ### Details
 In **Minimum** mode, outputs below the configured limit are raised to that limit. In **Maximum** mode, outputs above the configured limit are lowered to that limit. In **Minimum and Maximum** mode, the result is constrained to the configured inclusive range. The node forwards the input message with its `payload` replaced by the clamped result.

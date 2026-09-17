@@ -4,11 +4,18 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-operationMode" title="How the value to compare is selected"><i class="fa fa-random"></i> Operation</label>
+        <select id="node-input-operationMode">
+            <option value="map">Map message property</option>
+            <option value="context">Context (legacy)</option>
+        </select>
+    </div>
+    <div id="node-input-map-property" class="form-row">
         <label for="node-input-property" title="Property to evaluate"><i class="fa fa-code"></i> Property</label>
         <input type="text" id="node-input-property" placeholder="property">
         <input type="hidden" id="node-input-propertyType">
-        <input type="hidden" id="node-input-outputs">
     </div>
+    <input type="hidden" id="node-input-outputs">
     <div class="form-row">
         <label><i class="fa fa-cogs"></i> Rules</label>
         <div id="node-input-rules-container" style="border: 1px solid #999; padding: 5px; margin: 5px 0; max-height: 200px; overflow-y: auto;">
@@ -35,6 +42,7 @@
         color: "#301934",
         defaults: {
             name: { value: "" },
+            operationMode: { value: "map" },
             property: { value: "payload" },
             propertyType: { value: "msg" },
             rules: { value: "[]" },
@@ -71,6 +79,9 @@
                 types: ["msg", "flow", "global"],
                 typeField: "#node-input-propertyType"
             }).typedInput("type", node.propertyType || "msg").typedInput("value", node.property);
+            $("#node-input-operationMode").on("change", function() {
+                $("#node-input-map-property").toggle($(this).val() === "map");
+            }).trigger("change");
 
             // Parse existing rules
             let rules = [];
@@ -123,18 +134,25 @@
 Route input to the appropriate output based on switch values.
 
 ### Inputs
-: payload (string) : `string` for comparison.
+: map mode (default) : The configured property supplies the value compared against every rule.
+: context mode : `msg.context` supplies the value compared against every rule.
 
 ### Outputs
 : payload (boolean) : Boolean output based on matching switch value.
 
 ### Properties
-: slots (integer) : Number of input slots (≥ 2).
+: operation (string) : Select configurable-property map mode or legacy context mode.
+: property (typed) : In map mode, the incoming property to evaluate. For example, configure `msg.strategy` to evaluate `{ strategy: "occupied" }`.
+: rules (list) : Values to compare against, with one boolean output per rule.
 
 ### Details
 Similar to the NodeRED switch node, but single purpose, with the important difference:
 1. Outputting boolean based on matching string input.
 2. Updating all outputs `true`/`false` on each input message. (updating false being the key difference)
+
+In **Map message property** mode, set **Property** to any incoming field such as `switch`, `route`, `choice`, or `strategy`. A nested path is also supported. The node reads that property, compares its value to each configured rule, and emits `true` on the matching output and `false` on every other output.
+
+In **Context (legacy)** mode, the node performs the same comparisons using `msg.context`; the configured property is ignored.
 
 NodeRED `switch` node only outputs on matching cases, and does not update non-matching outputs unless you create opposing rules for each case, 
 which can be messy. Use case is to drive multiple boolean outputs based on a single string input, e.g., controlling visibility of multiple UI elements, 

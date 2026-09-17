@@ -5,14 +5,24 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        node.mode = ["min", "max", "minmax"].includes(config.mode) ? config.mode : "minmax";
+        node.mode = ["min", "max", "minmax", "select-min", "select-max", "minimum", "maximum"].includes(config.mode) ? config.mode : "minmax";
+        node.isSelector = ["select-min", "select-max", "minimum", "maximum"].includes(node.mode);
+        node.selectorMode = ["select-max", "maximum"].includes(node.mode) ? "maximum" : "minimum";
+        node.slots = Math.max(2, parseInt(config.slots, 10) || 2);
+        node.inputs = Array(node.slots).fill(null);
+        node.operationMode = config.operationMode === "map" ? "map" : "context";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
+        node.mappings = Array.isArray(config.mappings) ? config.mappings.filter(mapping => {
+            return mapping && typeof mapping.property === "string" && mapping.property.trim() &&
+                utils.validateSlotIndex(`in${mapping.input}`, node.slots).valid;
+        }) : [];
         node.min = parseFloat(config.min);
         node.max = parseFloat(config.max);
         node.isBusy = false;
 
         let lastOutput = null;
 
-        utils.setStatusOK(node, `${node.mode}: ${node.min} to ${node.max}`);
+        utils.setStatusOK(node, node.isSelector ? `${node.selectorMode}: ${node.slots} inputs` : `${node.mode}: ${node.min} to ${node.max}`);
 
         node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -30,12 +40,12 @@ module.exports = function(RED) {
                     return;
                 }
                 node.isBusy = true;
-                if (node.mode !== "max" && utils.requiresEvaluation(config.minType)) {
+                if (!node.isSelector && node.mode !== "max" && utils.requiresEvaluation(config.minType)) {
                     const evaluatedMin = await utils.evaluateNodeProperty(config.min, config.minType, node, msg);
                     const numericMin = parseFloat(evaluatedMin);
                     if (!isNaN(numericMin)) node.min = numericMin;
                 }
-                if (node.mode !== "min" && utils.requiresEvaluation(config.maxType)) {
+                if (!node.isSelector && node.mode !== "min" && utils.requiresEvaluation(config.maxType)) {
                     const evaluatedMax = await utils.evaluateNodeProperty(config.max, config.maxType, node, msg);
                     const numericMax = parseFloat(evaluatedMax);
                     if (!isNaN(numericMax)) node.max = numericMax;
@@ -48,10 +58,63 @@ module.exports = function(RED) {
                 node.isBusy = false;
             }
 
-            if ((node.mode !== "max" && isNaN(node.min)) ||
+            if (!node.isSelector && ((node.mode !== "max" && isNaN(node.min)) ||
                 (node.mode !== "min" && isNaN(node.max)) ||
-                (node.mode === "minmax" && node.min > node.max)) {
+                (node.mode === "minmax" && node.min > node.max))) {
                 utils.setStatusError(node, "invalid min/max");
+                if (done) done();
+                return;
+            }
+
+            if (node.isSelector) {
+                let updated = false;
+                if (node.operationMode === "map") {
+                    node.mappings.forEach(mapping => {
+                        const value = RED.util.getMessageProperty(msg, mapping.property);
+                        if (value === undefined) return;
+                        const numericValue = utils.validateNumericPayload(value);
+                        if (!numericValue.valid) {
+                            utils.setStatusError(node, `invalid ${mapping.property}`);
+                            return;
+                        }
+                        node.inputs[mapping.input - 1] = numericValue.value;
+                        updated = true;
+                    });
+                    if (!updated) {
+                        utils.setStatusWarn(node, "no mapped properties found");
+                        if (done) done();
+                        return;
+                    }
+                } else {
+                    if (!msg.hasOwnProperty("context") || !msg.hasOwnProperty("payload")) {
+                        utils.setStatusError(node, !msg.hasOwnProperty("context") ? "missing context" : "missing payload");
+                        if (done) done();
+                        return;
+                    }
+                    const slot = utils.validateSlotIndex(msg.context, node.slots);
+                    if (!slot.valid) {
+                        utils.setStatusWarn(node, "unknown context");
+                        if (done) done();
+                        return;
+                    }
+                    const numericValue = utils.validateNumericPayload(msg.payload);
+                    if (!numericValue.valid) {
+                        utils.setStatusError(node, numericValue.error);
+                        if (done) done();
+                        return;
+                    }
+                    node.inputs[slot.index - 1] = numericValue.value;
+                }
+
+                const initializedInputs = node.inputs.filter(value => value !== null);
+                const output = node.selectorMode === "maximum" ? Math.max(...initializedInputs) : Math.min(...initializedInputs);
+                const statusText = `[${node.inputs.map(value => value === null ? "-" : value).join(", ")}] -> ${output}`;
+                if (lastOutput === output) utils.setStatusUnchanged(node, statusText);
+                else utils.setStatusChanged(node, statusText);
+                lastOutput = output;
+                const outputMessage = {};
+                RED.util.setMessageProperty(outputMessage, node.outputProperty, output, true);
+                send(outputMessage);
                 if (done) done();
                 return;
             }

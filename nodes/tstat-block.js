@@ -231,6 +231,8 @@ module.exports = function(RED) {
                 heatingThreshold: effectiveThresholds.heatOn,
                 coolingThreshold: effectiveThresholds.coolOn,
                 callActive: false,
+                heatActive: false,
+                coolActive: false,
                 callMode: "off"
             };
 
@@ -532,6 +534,8 @@ module.exports = function(RED) {
                 heatingThreshold: effectiveThresholds.heatOn,
                 coolingThreshold: effectiveThresholds.coolOn,
                 callActive: outputAbove || outputBelow,
+                heatActive: outputBelow,
+                coolActive: outputAbove,
                 callMode: isOffState ? "off" : outputBelow ? "heating" : outputAbove ? "cooling" : "idle"
             };
 

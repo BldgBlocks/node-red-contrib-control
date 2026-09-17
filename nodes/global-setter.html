@@ -44,6 +44,11 @@
         <input type="checkbox" id="node-input-flowWithoutChange" style="display:inline-block; width:auto; vertical-align:middle;">
     </div>
 
+    <div class="form-row">
+        <label for="node-input-outputDefaultOnLoad" title="Send the initialized state out of this node after deployment."><i class="fa fa-sign-out"></i> Output on Load</label>
+        <input type="checkbox" id="node-input-outputDefaultOnLoad" style="display:inline-block; width:auto; vertical-align:middle;">
+    </div>
+
     <div class="form-tips">
         <b>Note:</b> This node writes to the <b>Network Priority</b> slot (1-16), manually, by msg or flow. The actual value is determined by the highest active source: Priorities 1-16 → Fallback → Default.
     </div>
@@ -62,7 +67,8 @@
             writePriority: { value: "fallback", required: true },
             writePriorityType: { value: "dropdown" },
             showStatus: { value: true },
-            flowWithoutChange: { value: true }
+            flowWithoutChange: { value: true },
+            outputDefaultOnLoad: { value: true }
         },
         inputs: 1,
         outputs: 1,
@@ -80,6 +86,10 @@
         paletteLabel: "global set",
         oneditprepare: function() {
             const node = this;
+
+            if (node.outputDefaultOnLoad === undefined) {
+                $("#node-input-outputDefaultOnLoad").prop("checked", true);
+            }
 
             // These are read as strings not evaluated typed-inputs.
             $("#node-input-path").typedInput({ types: ['global'] });

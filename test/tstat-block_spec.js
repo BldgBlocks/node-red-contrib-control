@@ -83,6 +83,23 @@ describe("tstat-block", function() {
             });
         });
 
+        it("should expose symmetric comfort activity flags", function(done) {
+            const flow = tstatFlow(SINGLE_DEFAULTS);
+
+            helper.load(tstatNode, flow, function() {
+                const n1 = helper.getNode("n1");
+                const promise = waitForMessage(helper.getNode("out"));
+                sendPayload(n1, 68);
+
+                promise.then(msg => {
+                    assert.strictEqual(msg.comfort.callActive, true);
+                    assert.strictEqual(msg.comfort.heatActive, true);
+                    assert.strictEqual(msg.comfort.coolActive, false);
+                    done();
+                }).catch(done);
+            });
+        });
+
         it("should keep below=false when temp is above on threshold", function(done) {
             // setpoint=70, diff=2 → on threshold = 69
             const flow = tstatFlow(SINGLE_DEFAULTS);

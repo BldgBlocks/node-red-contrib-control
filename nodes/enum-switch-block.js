@@ -17,6 +17,7 @@ module.exports = function(RED) {
             rules = [];
         }
 
+        node.operationMode = config.operationMode === "context" ? "context" : "map";
         node.isBusy = false;
         
         node.on("input", async function(msg, send, done) {
@@ -31,46 +32,55 @@ module.exports = function(RED) {
 
             let matchAgainst;
 
-            // Evaluate dynamic properties
-            try {
-
-                // Check busy lock
-                if (node.isBusy) {
-                    // Update status to let user know they are pushing too fast
-                    utils.setStatusBusy(node, "busy - dropped msg");
-                    if (done) done(); 
-                    return;
-                }
-
-                // Lock node during evaluation
-                node.isBusy = true;
-
-                // Begin evaluations
-                const evaluations = [];                    
-                
-                evaluations.push(
-                    utils.requiresEvaluation(config.propertyType) 
-                        ? utils.evaluateNodeProperty( config.property, config.propertyType, node, msg )
-                        : Promise.resolve(config.property),
-                );
-
-                const results = await Promise.all(evaluations);   
-
-                // Update runtime with evaluated values
-                matchAgainst = results[0];   
-
-                if (matchAgainst === undefined) {
-                    utils.setStatusError(node, "property evaluation failed");
+            if (node.operationMode === "context") {
+                if (!Object.prototype.hasOwnProperty.call(msg, "context") || typeof msg.context !== "string") {
+                    utils.setStatusError(node, "missing or invalid context");
                     if (done) done();
                     return;
                 }
-            } catch (err) {
-                node.error(`Error evaluating properties: ${err.message}`);
-                if (done) done();
-                return;
-            } finally {
-                // Release, all synchronous from here on
-                node.isBusy = false;
+                matchAgainst = msg.context;
+            } else {
+                // Evaluate dynamic properties
+                try {
+
+                    // Check busy lock
+                    if (node.isBusy) {
+                        // Update status to let user know they are pushing too fast
+                        utils.setStatusBusy(node, "busy - dropped msg");
+                        if (done) done();
+                        return;
+                    }
+
+                    // Lock node during evaluation
+                    node.isBusy = true;
+
+                    // Begin evaluations
+                    const evaluations = [];
+
+                    evaluations.push(
+                        utils.requiresEvaluation(config.propertyType)
+                            ? utils.evaluateNodeProperty( config.property, config.propertyType, node, msg )
+                            : Promise.resolve(config.property),
+                    );
+
+                    const results = await Promise.all(evaluations);
+
+                    // Update runtime with evaluated values
+                    matchAgainst = results[0];
+
+                    if (matchAgainst === undefined) {
+                        utils.setStatusError(node, "property evaluation failed");
+                        if (done) done();
+                        return;
+                    }
+                } catch (err) {
+                    node.error(`Error evaluating properties: ${err.message}`);
+                    if (done) done();
+                    return;
+                } finally {
+                    // Release, all synchronous from here on
+                    node.isBusy = false;
+                }
             }
 
             const outputs = [];

@@ -20,6 +20,60 @@ describe("global getter/setter status toggle", function() {
         helper.unload().then(() => done()).catch(done);
     });
 
+    it("should output the initialized state by default", function(done) {
+        const flow = [
+            { id: "f1", type: "tab" },
+            {
+                id: "setter",
+                z: "f1",
+                type: "global-setter",
+                path: "hvac/test/output-on-load-default",
+                property: "payload",
+                defaultValue: 7,
+                defaultValueType: "num",
+                writePriority: "fallback",
+                writePriorityType: "dropdown",
+                wires: [["out"]]
+            },
+            { id: "out", z: "f1", type: "helper" }
+        ];
+
+        helper.load([globalSetterNode], flow, function(err) {
+            if (err) return done(err);
+            const out = helper.getNode("out");
+            waitForMessage(out, 1500).then((msg) => {
+                assert.strictEqual(msg.payload, 7);
+                done();
+            }).catch(done);
+        });
+    });
+
+    it("should suppress initialized state output when disabled", function(done) {
+        const flow = [
+            { id: "f1", type: "tab" },
+            {
+                id: "setter",
+                z: "f1",
+                type: "global-setter",
+                path: "hvac/test/output-on-load-disabled",
+                property: "payload",
+                defaultValue: 7,
+                defaultValueType: "num",
+                writePriority: "fallback",
+                writePriorityType: "dropdown",
+                outputDefaultOnLoad: false,
+                wires: [["out"]]
+            },
+            { id: "out", z: "f1", type: "helper" }
+        ];
+
+        helper.load([globalSetterNode], flow, function(err) {
+            if (err) return done(err);
+            const out = helper.getNode("out");
+            expectNoMessage(out, 750).then(() => done()).catch(done);
+        });
+    });
+
     it("should suppress value text in global-setter status when showStatus is false", function(done) {
         const flow = [
             { id: "f1", type: "tab" },
