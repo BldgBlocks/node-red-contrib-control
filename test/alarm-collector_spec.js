@@ -140,6 +140,36 @@ describe("alarm-collector", function () {
         });
     });
 
+    it("should evaluate a JSONata input expression", function (done) {
+        const flow = buildAlarmFlow({
+            inputMode: "boolean",
+            inputField: "payload.call and $not(payload.status) ? true : false",
+            inputFieldType: "jsonata",
+            alarmWhenTrue: true,
+            hysteresisTime: "0"
+        });
+        helper.load([alarmConfigNode, alarmCollectorNode], flow, async function (err) {
+            if (err) return done(err);
+
+            try {
+                const node = helper.getNode("n1");
+                const capture = captureAlarmEvents(helper._RED);
+
+                node.receive({ payload: { call: true, status: false } });
+                await wait(15);
+
+                assert.strictEqual(node.inputFieldType, "jsonata");
+                assert.strictEqual(node.currentValue, true);
+                assert.strictEqual(node.alarmState, true);
+                assert.strictEqual(capture.events.length, 1);
+                capture.cleanup();
+                done();
+            } catch (testError) {
+                done(testError);
+            }
+        });
+    });
+
     it("should register with alarm-config at startup", function (done) {
         const flow = buildAlarmFlow();
         helper.load([alarmConfigNode, alarmCollectorNode], flow, function () {

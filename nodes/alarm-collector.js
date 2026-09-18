@@ -38,6 +38,7 @@ module.exports = function(RED) {
         node.alarmConfigId = config.alarmConfig;
         node.inputMode = config.inputMode || "value";
         node.inputField = config.inputField || "payload";
+        node.inputFieldType = config.inputFieldType || "msg";
         node.alarmWhenTrue = config.alarmWhenTrue !== false;
         const configuredHighThreshold = parseFloat(config.highThreshold);
         const configuredLowThreshold = parseFloat(config.lowThreshold);

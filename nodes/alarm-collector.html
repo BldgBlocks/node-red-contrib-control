@@ -232,9 +232,12 @@
             $("#node-input-sourceNode").on("change", updateInputFieldDisplay);
             updateInputFieldDisplay();
 
-            // Setup inputField typedInput with only msg type
+            // Setup inputField typedInput with message property or JSONata expression
             $("#node-input-inputField").typedInput({
-                types: ["msg"],
+                types: [
+                    "msg",
+                    "jsonata"
+                ],
                 typeField: "#node-input-inputFieldType"
             }).typedInput("type", node.inputFieldType || "msg").typedInput("value", node.inputField || "payload");
 
@@ -305,6 +308,8 @@ Monitors a condition and emits alarm events on state transitions.
 ### Modes
 
 **Boolean Trigger**: msg.payload = true/false triggers alarm after hysteresis time
+
+**Input Property**: Select `msg` for a fixed message property, or `JSONata` to calculate the alarm input from the message. For example, in Boolean Trigger mode, `payload.call and $not(payload.status) ? true : false` evaluates fields inside `msg.payload` and returns the alarm condition. JSONata uses `and`/`or` and functions such as `$not()`, not JavaScript `&&`/`||`/`!`.
 
 **Numeric Threshold**: msg.payload = number, evaluated against high/low thresholds with time + magnitude hysteresis
 
