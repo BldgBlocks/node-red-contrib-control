@@ -172,7 +172,8 @@
 </script>
 
 <script type="text/markdown" data-help-name="enum-select">
-Selects one input by enum key.
+Selects one input by enum key. The active key determines which flows pass through the node on the 'msg.context' 
+tagged virtual inputs.
 
 ### Inputs
 : context (string) : Use `"switch"` to change the active key, `"reset"` to clear stored values, or any configured key name such as `occupied` or `unoccupied`.
