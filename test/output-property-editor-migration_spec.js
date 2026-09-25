@@ -8,6 +8,7 @@ describe("output property editor migration", function() {
         "average-block",
         "boolean-to-number-block",
         "convert-block",
+        "enum-switch-block",
         "frequency-block",
         "interpolate-block",
         "modulo-block",

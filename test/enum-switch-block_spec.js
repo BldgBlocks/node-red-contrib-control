@@ -71,4 +71,31 @@ describe("enum-switch-block", function() {
             node.receive({ context: "occupied", payload: 72 });
         });
     });
+
+    it("writes each result to the configured output property", function(done) {
+        const flow = buildFlow({
+            operationMode: "map",
+            property: "strategy",
+            propertyType: "msg",
+            outputProperty: "result.match",
+            rules: JSON.stringify([{ value: "occupied" }, { value: "unoccupied" }]),
+            outputs: 2
+        });
+
+        helper.load(enumSwitchNode, flow, function() {
+            const node = helper.getNode("n1");
+            const firstOutput = helper.getNode("out1");
+            const secondOutput = helper.getNode("out2");
+
+            Promise.all([waitForMessage(firstOutput), waitForMessage(secondOutput)]).then(([first, second]) => {
+                assert.strictEqual(first.result.match, false);
+                assert.strictEqual(second.result.match, true);
+                assert.strictEqual(first.payload, 72);
+                assert.strictEqual(second.payload, 72);
+                done();
+            }).catch(done);
+
+            node.receive({ strategy: "unoccupied", payload: 72 });
+        });
+    });
 });

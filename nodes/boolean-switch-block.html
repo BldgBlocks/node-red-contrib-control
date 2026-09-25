@@ -40,8 +40,8 @@
             name: { value: "" },
             state: { value: false },
             operationMode: { value: "map" },
-            switchProperty: { value: "switch", required: true },
-            trueProperty: { value: "payload", required: true },
+            switchProperty: { value: "switch" },
+            trueProperty: { value: "payload" },
             falseProperty: { value: "" }
         },
         inputs: 1,
@@ -54,6 +54,11 @@
             return this.name || "boolean switch";
         },
         oneditprepare: function() {
+            const node = this;
+            if (node.operationMode !== "map" && node.operationMode !== "context") {
+                node.operationMode = "context";
+                $("#node-input-operationMode").val("context");
+            }
             $("#node-input-operationMode").on("change", function() {
                 $("#node-input-map-properties").toggle($(this).val() === "map");
             }).trigger("change");

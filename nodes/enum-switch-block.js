@@ -18,6 +18,9 @@ module.exports = function(RED) {
         }
 
         node.operationMode = config.operationMode === "context" ? "context" : "map";
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim()
+            ? config.outputProperty.trim()
+            : "payload";
         node.isBusy = false;
         
         node.on("input", async function(msg, send, done) {
@@ -116,11 +119,9 @@ module.exports = function(RED) {
 
             // Send output messages (all outputs as booleans)
             const messages = outputs.map(isMatch => {
-                return {
-                    ...msg,
-                    payload: isMatch,
-                    topic: msg.topic
-                };
+                const outputMessage = RED.util.cloneMessage(msg);
+                RED.util.setMessageProperty(outputMessage, node.outputProperty, isMatch, true);
+                return outputMessage;
             });
 
             send(messages);

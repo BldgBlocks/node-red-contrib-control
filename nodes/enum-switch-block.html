@@ -15,6 +15,10 @@
         <input type="text" id="node-input-property" placeholder="property">
         <input type="hidden" id="node-input-propertyType">
     </div>
+    <div class="form-row">
+        <label for="node-input-outputProperty" title="Message property to write each rule result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
+    </div>
     <input type="hidden" id="node-input-outputs">
     <div class="form-row">
         <label><i class="fa fa-cogs"></i> Rules</label>
@@ -45,6 +49,7 @@
             operationMode: { value: "map" },
             property: { value: "payload" },
             propertyType: { value: "msg" },
+            outputProperty: { value: "payload", required: true },
             rules: { value: "[]" },
             outputs: { value: 1 }
         },
@@ -82,6 +87,9 @@
             $("#node-input-operationMode").on("change", function() {
                 $("#node-input-map-property").toggle($(this).val() === "map");
             }).trigger("change");
+            if (!node.outputProperty || !node.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
 
             // Parse existing rules
             let rules = [];
@@ -138,11 +146,12 @@ Route input to the appropriate output based on switch values.
 : context mode : `msg.context` supplies the value compared against every rule.
 
 ### Outputs
-: payload (boolean) : Boolean output based on matching switch value.
+: outputProperty (boolean) : Boolean output based on matching switch value, written to the configured property.
 
 ### Properties
 : operation (string) : Select configurable-property map mode or legacy context mode.
 : property (typed) : In map mode, the incoming property to evaluate. For example, configure `msg.strategy` to evaluate `{ strategy: "occupied" }`.
+: outputProperty (string) : Message property to write each boolean result to (default: `payload`). Supports nested properties such as `result.match`.
 : rules (list) : Values to compare against, with one boolean output per rule.
 
 ### Details
@@ -160,7 +169,7 @@ or routing logic based on a given mode.
 
 Supports string, number, and boolean comparisons. Input type is inferred from the incoming message payload type.
 
-Preserves original message structure, only modifying the payload to `true` or `false`.
+Preserves the original message structure, only modifying the configured output property to `true` or `false`.
 
 ### Status
 - Green (dot): Configuration update
