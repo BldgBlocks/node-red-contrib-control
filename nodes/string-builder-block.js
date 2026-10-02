@@ -7,10 +7,21 @@ module.exports = function(RED) {
         node.isBusy = false;
 
         node.name = config.name;
-        node.in1 = config.in1;
-        node.in2 = config.in2;
-        node.in3 = config.in3;
-        node.in4 = config.in4;
+        const legacyEntries = [1, 2, 3, 4].map(index => ({
+            value: config[`in${index}`] == null ? "" : config[`in${index}`],
+            type: config[`in${index}Type`] || "str"
+        }));
+        const hasConfiguredEntries = config.entriesConfigured === true ||
+            config.entriesConfigured === "true" ||
+            (Array.isArray(config.entries) && config.entries.length > 0);
+        node.entries = hasConfiguredEntries && Array.isArray(config.entries)
+            ? config.entries.map(entry => ({
+                value: entry && entry.value != null ? entry.value : "",
+                type: entry && entry.type ? entry.type : "str"
+            }))
+            : legacyEntries;
+        node.values = node.entries.map(entry => entry.value);
+        node.outputProperty = typeof config.outputProperty === "string" && config.outputProperty.trim() ? config.outputProperty.trim() : "payload";
 
         node.on("input", async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments); };
@@ -35,40 +46,17 @@ module.exports = function(RED) {
                 // Lock node during evaluation
                 node.isBusy = true;
 
-                // Begin evaluations
-                const evaluations = [];                    
-                
-                evaluations.push(
-                    utils.requiresEvaluation(config.in1Type) 
-                        ? utils.evaluateNodeProperty(config.in1, config.in1Type, node, msg)
-                        : Promise.resolve(node.in1),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.in2Type) 
-                        ? utils.evaluateNodeProperty(config.in2, config.in2Type, node, msg)
-                        : Promise.resolve(node.in2),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.in3Type) 
-                        ? utils.evaluateNodeProperty(config.in3, config.in3Type, node, msg)
-                        : Promise.resolve(node.in3),
-                );
-
-                evaluations.push(
-                    utils.requiresEvaluation(config.in4Type) 
-                        ? utils.evaluateNodeProperty(config.in4, config.in4Type, node, msg)
-                        : Promise.resolve(node.in4),
+                const evaluations = node.entries.map((entry, index) =>
+                    utils.requiresEvaluation(entry.type)
+                        ? utils.evaluateNodeProperty(entry.value, entry.type, node, msg)
+                        : Promise.resolve(node.values[index])
                 );
 
                 const results = await Promise.all(evaluations);
 
-                // Update runtime with evaluated values
-                if (results[0] != null) node.in1 = results[0];
-                if (results[1] != null) node.in2 = results[1];
-                if (results[2] != null) node.in3 = results[2];
-                if (results[3] != null) node.in4 = results[3];
+                results.forEach((result, index) => {
+                    if (result != null) node.values[index] = result;
+                });
             } catch (err) {
                 node.error(`Error evaluating properties: ${err.message}`);
                 if (done) done();
@@ -90,11 +78,11 @@ module.exports = function(RED) {
                 // Process input slot
                 if (msg.context.startsWith("in")) {
                     let index = parseInt(msg.context.slice(2), 10);
-                    if (!isNaN(index) && index >= 1 && index <= 4) {
-                        if (config[`in${index}Type`] === "str") {
-                            node[`in${index}`] = msg.payload;
+                    if (!isNaN(index) && index >= 1 && index <= node.entries.length) {
+                        if (node.entries[index - 1].type === "str") {
+                            node.values[index - 1] = msg.payload;
                         } else {
-                            utils.setStatusError(node, `Field type is ${config[`in${index}Type`]}`);
+                            utils.setStatusError(node, `Field type is ${node.entries[index - 1].type}`);
                             if (done) done();
                             return;
                         }
@@ -106,9 +94,10 @@ module.exports = function(RED) {
                 }                
             }
 
-            const output = { payload: `${node.in1}${node.in2}${node.in3}${node.in4}` };
-            utils.setStatusOK(node, `${ output.payload }`);
-            send(output);
+            const output = node.values.join("");
+            RED.util.setMessageProperty(msg, node.outputProperty, output, true);
+            utils.setStatusOK(node, output);
+            send(msg);
 
             if (done) done();
         });

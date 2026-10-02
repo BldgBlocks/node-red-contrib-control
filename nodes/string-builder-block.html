@@ -4,25 +4,15 @@
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
-    <div class="form-row">
-        <label for="node-input-in1"><i class="fa fa-bars"></i> in1</label>
-        <input type="text" id="node-input-in1" placeholder="">
-        <input type="hidden" id="node-input-in1Type">
+    <div class="form-row node-input-entries-row" style="margin-bottom: 0;">
+        <label><i class="fa fa-list"></i> Fields</label>
+    </div>
+    <div class="form-row node-input-entries-row">
+        <ol id="node-input-entry-container"></ol>
     </div>
     <div class="form-row">
-        <label for="node-input-in2"><i class="fa fa-bars"></i> in2</label>
-        <input type="text" id="node-input-in2" placeholder="">
-        <input type="hidden" id="node-input-in2Type">
-    </div>
-    <div class="form-row">
-        <label for="node-input-in3"><i class="fa fa-bars"></i> in3</label>
-        <input type="text" id="node-input-in3" placeholder="">
-        <input type="hidden" id="node-input-in3Type">
-    </div>
-    <div class="form-row">
-        <label for="node-input-in4"><i class="fa fa-bars"></i> in4</label>
-        <input type="text" id="node-input-in4" placeholder="">
-        <input type="hidden" id="node-input-in4Type">
+        <label for="node-input-outputProperty" title="Message property to write the result to"><i class="fa fa-arrow-right"></i> Output Property</label>
+        <input type="text" id="node-input-outputProperty" placeholder="payload">
     </div>
 </script>
 
@@ -42,6 +32,9 @@
         in3Type: { value: "str" },
         in4: { value: "", required: false },
         in4Type: { value: "str" },
+        entries: { value: [] },
+        entriesConfigured: { value: false },
+        outputProperty: { value: "payload", required: true },
     },
     inputs: 1,
     outputs: 1,
@@ -56,35 +49,58 @@
         const node = this;
 
         try {
-            // Initialize typed inputs
-            $("#node-input-in1").typedInput({
-                default: "str",
-                types: ["str", "msg", "flow", "global"],
-                typeField: "#node-input-in1Type"
-            }).typedInput("type", node.in1Type || "str").typedInput("value", node.in1);
+            const entryContainer = $("#node-input-entry-container").css("min-height", "200px").editableList({
+                addItem: function(container, index, entry) {
+                    entry = entry || { value: "", type: "str" };
+                    const row = $("<div/>", { style: "display:flex;align-items:center;width:100%;" }).appendTo(container);
+                    const valueInput = $("<input/>", {
+                        type: "text",
+                        class: "node-input-entry-value",
+                        style: "width:100%;"
+                    }).appendTo(row);
 
-            $("#node-input-in2").typedInput({
-                default: "str",
-                types: ["str", "msg", "flow", "global"],
-                typeField: "#node-input-in2Type"
-            }).typedInput("type", node.in2Type || "str").typedInput("value", node.in2);
+                    valueInput.typedInput({
+                        default: "str",
+                        types: ["str", "msg", "flow", "global"]
+                    }).typedInput("type", entry.type || "str").typedInput("value", entry.value == null ? "" : entry.value);
+                },
+                removable: true,
+                sortable: true
+            });
 
-            $("#node-input-in3").typedInput({
-                default: "str",
-                types: ["str", "msg", "flow", "global"],
-                typeField: "#node-input-in3Type"
-            }).typedInput("type", node.in3Type || "str").typedInput("value", node.in3);
+            const entries = node.entriesConfigured || (Array.isArray(node.entries) && node.entries.length > 0)
+                ? node.entries
+                : [1, 2, 3, 4].map(function(index) {
+                    return {
+                        value: node[`in${index}`] == null ? "" : node[`in${index}`],
+                        type: node[`in${index}Type`] || "str"
+                    };
+                });
+            entries.forEach(function(entry) {
+                entryContainer.editableList("addItem", entry);
+            });
 
-            $("#node-input-in4").typedInput({
-                default: "str",
-                types: ["str", "msg", "flow", "global"],
-                typeField: "#node-input-in4Type"
-            }).typedInput("type", node.in4Type || "str").typedInput("value", node.in4);
+            if (!node.outputProperty || !node.outputProperty.trim()) {
+                $("#node-input-outputProperty").val("payload");
+            }
 
         } catch (err) {
             console.error("Error in oneditprepare:", err);
         }
-    }
+        },
+        oneditsave: function() {
+            this.entries = $("#node-input-entry-container").editableList("items").map(function() {
+                const valueInput = $(this).find(".node-input-entry-value");
+                return {
+                    value: valueInput.typedInput("value"),
+                    type: valueInput.typedInput("type")
+                };
+            }).get();
+            this.entriesConfigured = true;
+            const outputProperty = $("#node-input-outputProperty").val().trim();
+            this.outputProperty = outputProperty || "payload";
+            $("#node-input-outputProperty").val(this.outputProperty);
+        }
 });
 </script>
 
@@ -94,10 +110,14 @@ Concatenates multiple string inputs into a single output string on any input.
 
 ### Inputs
 : payload (number) : Input value to evaluate
-: context (string) : Configure `inX` string inputs via context variables
+: context (string) : Configure string fields by position using `in1`, `in2`, and so on
 
 ### Outputs
-: output (string) : Each string input concatenated in order
+: outputProperty (string) : Each configured field concatenated in list order
+
+### Properties
+: fields (array) : Ordered string, message, flow, or global values to concatenate
+: outputProperty (string) : Message property to write the result to (default: `payload`)
 
 ### Status
 - Green (dot): Configuration update
